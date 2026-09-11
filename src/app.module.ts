@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { SolicitudesModule } from "./modules/solicitudes/solicitudes.module";
+import { AutenticacionModule } from "./modules/autenticacion/autenticacion.module";
 
 @Module({
     imports: [
@@ -18,6 +19,7 @@ import { SolicitudesModule } from "./modules/solicitudes/solicitudes.module";
             synchronize: true,
         }),
         SolicitudesModule,
+        AutenticacionModule,
     ],
     controllers: [],
     providers: [],
