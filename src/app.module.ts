@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { SolicitudesModule } from "./modules/solicitudes/solicitudes.module";
 
 @Module({
     imports: [
@@ -16,6 +17,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
             schema: "public",
             synchronize: false,
         }),
+        SolicitudesModule,
     ],
     controllers: [],
     providers: [],
