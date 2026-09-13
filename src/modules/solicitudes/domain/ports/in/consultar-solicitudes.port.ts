@@ -1,11 +1,11 @@
-import { EstadoSolicitud, Solicitud } from "../../entities/solicitud.entity";
+import type { Solicitud, EstadoSolicitud } from "../../entities/solicitud.entity";
 
 export interface FiltrosSolicitudQuery {
     estado?: EstadoSolicitud;
     agronomoId?: string;
 }
 
-export interface IlistarSolicitudUseCase {
+export interface IListarSolicitudesUseCase {
     ejecutar(filtros?: FiltrosSolicitudQuery): Promise<Solicitud[]>;
 }
 
