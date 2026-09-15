@@ -1,22 +1,29 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
+
 import { TypeOrmSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.entity";
 import { TypeOrmSolicitudRepository } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.repository";
 import { SolicitudesController } from "./infrastructure/adapters/in/http/solicitudes.controller";
+
 import { SOLICITUD_REPOSITORY } from "./domain/ports/out/solicitud.repository";
+
+// Casos de uso
 import { ResolverSolicitudService } from "./application/use-cases/resolver-solicitud.service";
+import { ListarSolicitudesService } from "./application/use-cases/listar-solicitudes.service";
+import { ObtenerSolicitudPorIdService } from "./application/use-cases/obtener-solicitud-por-id.service";
 
 @Module({
     imports: [TypeOrmModule.forFeature([TypeOrmSolicitudEntity])],
     controllers: [SolicitudesController],
     providers: [
         ResolverSolicitudService,
-        // VINCULACIÓN HEXAGONAL: Conectamos la Interfaz (Puerto) con la Implementación (Adaptador)
+        ListarSolicitudesService,
+        ObtenerSolicitudPorIdService,
         {
             provide: SOLICITUD_REPOSITORY,
             useClass: TypeOrmSolicitudRepository,
         },
     ],
-    exports: [ResolverSolicitudService],
+    exports: [ResolverSolicitudService, ListarSolicitudesService, ObtenerSolicitudPorIdService],
 })
 export class SolicitudesModule {}
