@@ -6,16 +6,18 @@ import { TypeOrmUsuarioEntity } from "./infrastructure/adapters/out/persistence/
 import { TypeOrmSesionOtpEntity } from "./infrastructure/adapters/out/persistence/typeorm-sesion-otp.entity";
 import { TypeOrmUsuarioRepository } from "./infrastructure/adapters/out/persistence/typeorm-usuario.repository";
 import { TypeOrmSesionOtpRepository } from "./infrastructure/adapters/out/persistence/typeorm-sesion-otp.repository";
-import { LoggerSmsAdapter } from "./infrastructure/adapters/out/sms/logger-sms.adapter";
+//import { LoggerSmsAdapter } from "./infrastructure/adapters/out/sms/logger-sms.adapter";
 import { USUARIO_REPOSITORY } from "./domain/ports/out/usuario.repository";
 import { SESION_OTP_REPOSITORY } from "./domain/ports/out/sesion-otp.repository";
 import { SMS_SERVICE } from "./domain/ports/out/sms.service";
 import { SolicitarOtpService } from "./application/use-cases/solicitar-otp.service";
 import { ValidarOtpService } from "./application/use-cases/validar-otp.service";
 import { AuthController } from "./infrastructure/adapters/in/http/auth.controller";
+import { ZavuSmsAdapter } from "./infrastructure/adapters/out/sms/zavu-sms.adapter";
 
 @Module({
     imports: [
+        ConfigModule, // <-- Agrega esto aquí para que esté disponible en los providers
         TypeOrmModule.forFeature([TypeOrmUsuarioEntity, TypeOrmSesionOtpEntity]),
         JwtModule.registerAsync({
             imports: [ConfigModule],
@@ -40,7 +42,7 @@ import { AuthController } from "./infrastructure/adapters/in/http/auth.controlle
         },
         {
             provide: SMS_SERVICE,
-            useClass: LoggerSmsAdapter,
+            useClass: ZavuSmsAdapter,
         },
     ],
     exports: [SolicitarOtpService, ValidarOtpService, JwtModule],
