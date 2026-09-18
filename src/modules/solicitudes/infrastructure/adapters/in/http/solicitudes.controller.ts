@@ -1,10 +1,23 @@
-import { Controller, Patch, Get, Param, Body, Query, HttpCode, HttpStatus, ParseUUIDPipe } from "@nestjs/common";
+import {
+    Controller,
+    Patch,
+    Get,
+    Param,
+    Body,
+    Query,
+    HttpCode,
+    HttpStatus,
+    ParseUUIDPipe,
+    UseGuards,
+} from "@nestjs/common";
 import { ResolverSolicitudService } from "../../../../application/use-cases/resolver-solicitud.service";
 import { ListarSolicitudesService } from "../../../../application/use-cases/listar-solicitudes.service";
 import { ObtenerSolicitudPorIdService } from "../../../../application/use-cases/obtener-solicitud-por-id.service";
 import { ResolverSolicitudDto } from "./dto/resolver-solicitud.dto";
 import { ConsultarSolicitudesDto } from "./consultar-solicitudes.dto";
+import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
 
+@UseGuards(JwtAuthGuard)
 @Controller("solicitudes")
 export class SolicitudesController {
     constructor(
