@@ -16,8 +16,10 @@ import { ObtenerSolicitudPorIdService } from "../../../../application/use-cases/
 import { ResolverSolicitudDto } from "./dto/resolver-solicitud.dto";
 import { ConsultarSolicitudesDto } from "./consultar-solicitudes.dto";
 import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
+import { RolesGuard } from "src/common/guards/roles.guard";
+import { Roles } from "src/common/decorators/roles.decorator";
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller("solicitudes")
 export class SolicitudesController {
     constructor(
@@ -37,6 +39,7 @@ export class SolicitudesController {
     }
 
     @Patch(":id/resolver")
+    @Roles("agronomo", "admin")
     @HttpCode(HttpStatus.OK)
     async resolver(@Param("id", ParseUUIDPipe) id: string, @Body() dto: ResolverSolicitudDto) {
         await this.resolverSolicitudService.ejecutar({
