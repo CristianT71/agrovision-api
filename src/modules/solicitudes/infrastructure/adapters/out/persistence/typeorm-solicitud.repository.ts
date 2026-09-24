@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { ISolicitudRepository } from "../../../../domain/ports/out/solicitud.repository";
-import { Solicitud, EstadoSolicitud } from "../../../../domain/entities/solicitud.entity";
+import { FindOptionsWhere, Repository } from "typeorm";
+import { ISolicitudRepository, FiltrosSolicitud } from "../../../../domain/ports/out/solicitud.repository";
+import { Solicitud, EstadoSolicitud, TipoResultado } from "../../../../domain/entities/solicitud.entity";
 import { TypeOrmSolicitudEntity } from "./typeorm-solicitud.entity";
 
 @Injectable()
@@ -12,11 +12,8 @@ export class TypeOrmSolicitudRepository implements ISolicitudRepository {
         private readonly repository: Repository<TypeOrmSolicitudEntity>,
     ) {}
 
-    async findById(id: string): Promise<Solicitud | null> {
-        const entity = await this.repository.findOne({ where: { id } });
-        if (!entity) return null;
-
-        // Mapper: Convierte el Esquema de TypeORM a Entidad pura de Dominio
+    // Mapper: Convierte el Esquema de TypeORM a Entidad pura de Dominio
+    private toDomain(entity: TypeOrmSolicitudEntity): Solicitud {
         return new Solicitud(
             entity.id,
             entity.productorId,
@@ -29,34 +26,28 @@ export class TypeOrmSolicitudRepository implements ISolicitudRepository {
             entity.confianzaIa,
             entity.modeloVersionId,
             entity.respuestaProfesional,
-            entity.tipoResultado,
+            entity.tipoResultado as TipoResultado | null,
+            entity.plagaIdentificada,
+            entity.fechaResolucion,
         );
     }
 
-    async findAll(filtros?: { estado?: EstadoSolicitud; agronomoId?: string }): Promise<Solicitud[]> {
-        const where: any = {};
+    async findById(id: string): Promise<Solicitud | null> {
+        const entity = await this.repository.findOne({ where: { id } });
+        if (!entity) return null;
+
+        return this.toDomain(entity);
+    }
+
+    async findAll(filtros?: FiltrosSolicitud): Promise<Solicitud[]> {
+        const where: FindOptionsWhere<TypeOrmSolicitudEntity> = {};
         if (filtros?.estado) where.estado = filtros.estado;
         if (filtros?.agronomoId) where.agronomoId = filtros.agronomoId;
 
-        const entities = await this.repository.find({ where });
+        // Las más recientes primero en la bandeja
+        const entities = await this.repository.find({ where, order: { fecha: "DESC" } });
 
-        return entities.map(
-            (e) =>
-                new Solicitud(
-                    e.id,
-                    e.productorId,
-                    e.agronomoId,
-                    e.estado as EstadoSolicitud,
-                    e.fecha,
-                    e.municipio,
-                    e.vereda,
-                    e.finca,
-                    e.confianzaIa,
-                    e.modeloVersionId,
-                    e.respuestaProfesional,
-                    e.tipoResultado,
-                ),
-        );
+        return entities.map((entity) => this.toDomain(entity));
     }
 
     async guardar(solicitud: Solicitud): Promise<void> {
@@ -74,6 +65,27 @@ export class TypeOrmSolicitudRepository implements ISolicitudRepository {
             modeloVersionId: solicitud.modeloVersionId,
             respuestaProfesional: solicitud.respuestaProfesional,
             tipoResultado: solicitud.tipoResultado,
+            plagaIdentificada: solicitud.plagaIdentificada,
+            fechaResolucion: solicitud.fechaResolucion,
         });
+    }
+
+    async guardarResolucion(solicitud: Solicitud): Promise<boolean> {
+        if (!solicitud.agronomoId) return false;
+
+        // UPDATE condicionado: solo pasa si la fila sigue "Asignada" al mismo agrónomo,
+        // así dos resoluciones simultáneas no se pisan (RF-04.8)
+        const resultado = await this.repository.update(
+            { id: solicitud.id, estado: "Asignada", agronomoId: solicitud.agronomoId },
+            {
+                estado: solicitud.estado,
+                respuestaProfesional: solicitud.respuestaProfesional,
+                tipoResultado: solicitud.tipoResultado,
+                plagaIdentificada: solicitud.plagaIdentificada,
+                fechaResolucion: solicitud.fechaResolucion,
+            },
+        );
+
+        return (resultado.affected ?? 0) > 0;
     }
 }

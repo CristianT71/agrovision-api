@@ -1,4 +1,6 @@
-import { Entity, PrimaryColumn, Column } from "typeorm";
+import { Entity, PrimaryColumn, Column, Index, ManyToOne, JoinColumn } from "typeorm";
+import { TypeOrmProductorEntity } from "../../../../../productores/infrastructure/adapters/out/persistence/typeorm-productor.entity";
+import { TypeOrmAgronomoEntity } from "../../../../../agronomos/infrastructure/adapters/out/persistence/typeorm-agronomo.entity";
 
 @Entity("solicitudes")
 export class TypeOrmSolicitudEntity {
@@ -8,9 +10,23 @@ export class TypeOrmSolicitudEntity {
     @Column({ name: "productor_id", type: "uuid" })
     productorId: string;
 
+    // RESTRICT: el historial de solicitudes no se pierde si se intenta borrar al productor
+    @ManyToOne(() => TypeOrmProductorEntity, { onDelete: "RESTRICT" })
+    @JoinColumn({ name: "productor_id" })
+    productor?: TypeOrmProductorEntity;
+
+    // Indexado porque la bandeja filtra por agrónomo asignado (RF-03.3, RNF-03.1)
+    @Index()
     @Column({ name: "agronomo_id", type: "uuid", nullable: true })
     agronomoId: string | null;
 
+    // SET NULL: si se elimina el agrónomo, la solicitud vuelve a quedar sin asignar
+    @ManyToOne(() => TypeOrmAgronomoEntity, { onDelete: "SET NULL" })
+    @JoinColumn({ name: "agronomo_id" })
+    agronomo?: TypeOrmAgronomoEntity;
+
+    // Indexado porque la bandeja filtra por estado (RF-03.2, RNF-03.1)
+    @Index()
     @Column({ type: "varchar", length: 50 })
     estado: string;
 
@@ -33,8 +49,18 @@ export class TypeOrmSolicitudEntity {
     modeloVersionId: string;
 
     @Column({ name: "respuesta_profesional", type: "text", nullable: true })
-    respuestaProfesional: string;
+    respuestaProfesional: string | null;
 
     @Column({ name: "tipo_resultado", type: "varchar", length: 100, nullable: true })
-    tipoResultado: string;
+    tipoResultado: string | null;
+
+    // NOTA: "plaga_identificada" no existe en el documento de base de datos original.
+    // Se agrega por RF-04.5: la evaluación humana exige la denominación de la plaga.
+    @Column({ name: "plaga_identificada", type: "varchar", length: 150, nullable: true })
+    plagaIdentificada: string | null;
+
+    // NOTA: "fecha_resolucion" no existe en el documento de base de datos original.
+    // Se agrega para saber cuándo la solicitud pasó a solo lectura (RF-04.8).
+    @Column({ name: "fecha_resolucion", type: "timestamp", nullable: true })
+    fechaResolucion: Date | null;
 }
