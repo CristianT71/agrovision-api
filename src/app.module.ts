@@ -17,7 +17,8 @@ import { AgronomosModule } from "./modules/agronomos/agronomos.module";
             database: process.env.DB_NAME,
             autoLoadEntities: true,
             schema: "public",
-            synchronize: true,
+            // Las migraciones son la única fuente de verdad del esquema (ver src/database/migrations)
+            synchronize: false,
         }),
         SolicitudesModule,
         AutenticacionModule,
