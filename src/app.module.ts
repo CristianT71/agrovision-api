@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { SolicitudesModule } from "./modules/solicitudes/solicitudes.module";
 import { AutenticacionModule } from "./modules/autenticacion/autenticacion.module";
+import { AgronomosModule } from "./modules/agronomos/agronomos.module";
 
 @Module({
     imports: [
@@ -20,6 +21,7 @@ import { AutenticacionModule } from "./modules/autenticacion/autenticacion.modul
         }),
         SolicitudesModule,
         AutenticacionModule,
+        AgronomosModule,
     ],
     controllers: [],
     providers: [],
