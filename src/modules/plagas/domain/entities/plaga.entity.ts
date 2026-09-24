@@ -2,7 +2,8 @@ import { AvalPlaga } from "./aval-plaga.entity";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 
 // Clasificación de la ficha técnica (RF-05.1)
-export type TipoPlaga = "enfermedad" | "plaga" | "deficiencia" | "sano";
+export const TIPOS_PLAGA = ["enfermedad", "plaga", "deficiencia", "sano"] as const;
+export type TipoPlaga = (typeof TIPOS_PLAGA)[number];
 
 export class Plaga {
     constructor(
