@@ -7,6 +7,7 @@ import { Plaga, TipoPlaga } from "../../../../domain/entities/plaga.entity";
 import { AvalPlaga } from "../../../../domain/entities/aval-plaga.entity";
 import { TypeOrmPlagaEntity } from "./typeorm-plaga.entity";
 import { TypeOrmSinonimoPlagaEntity } from "./typeorm-sinonimo-plaga.entity";
+import { escaparLike } from "../../../../../../common/utils/escapar-like";
 
 // El agregado siempre se lee completo: sin sinónimos ni avales la ficha no se puede evaluar
 const RELACIONES: FindOptionsRelations<TypeOrmPlagaEntity> = { sinonimos: true, avales: true };
@@ -65,7 +66,7 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
                 .leftJoin(TypeOrmSinonimoPlagaEntity, "sinonimo", "sinonimo.plaga_id = plaga.id")
                 .where(
                     "plaga.nombre_comun ILIKE :texto OR plaga.nombre_cientifico ILIKE :texto OR sinonimo.sinonimo ILIKE :texto",
-                    { texto: `%${filtros.busqueda}%` },
+                    { texto: `%${escaparLike(filtros.busqueda)}%` },
                 )
                 .getRawMany<{ id: string }>();
 

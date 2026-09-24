@@ -4,6 +4,7 @@ import { FindOptionsWhere, ILike, Repository } from "typeorm";
 import { IProductorRepository, FiltrosProductor } from "../../../../domain/ports/out/productor.repository";
 import { Productor, EstadoProductor } from "../../../../domain/entities/productor.entity";
 import { TypeOrmProductorEntity } from "./typeorm-productor.entity";
+import { escaparLike } from "../../../../../../common/utils/escapar-like";
 
 @Injectable()
 export class TypeOrmProductorRepository implements IProductorRepository {
@@ -58,10 +59,11 @@ export class TypeOrmProductorRepository implements IProductorRepository {
 
         // Búsqueda libre (RF-03.5): el OR entre nombre y finca se expresa como
         // un arreglo de condiciones, repitiendo en cada una el resto de filtros
-        const where = filtros?.busqueda
+        const patron = filtros?.busqueda ? `%${escaparLike(filtros.busqueda)}%` : null;
+        const where = patron
             ? [
-                  { ...base, nombre: ILike(`%${filtros.busqueda}%`) },
-                  { ...base, finca: ILike(`%${filtros.busqueda}%`) },
+                  { ...base, nombre: ILike(patron) },
+                  { ...base, finca: ILike(patron) },
               ]
             : base;
 
