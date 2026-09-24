@@ -16,6 +16,11 @@ export class Usuario {
         return new Usuario(id, telefono, "productor", "activo", new Date());
     }
 
+    // Regla RF-10.5: la cuenta de un agrónomo nace pendiente hasta que un administrador la valide
+    public static registrarAgronomo(id: string, telefono: string): Usuario {
+        return new Usuario(id, telefono, "agronomo", "pendiente", new Date());
+    }
+
     public estaActivo(): boolean {
         return this.estado === "activo";
     }

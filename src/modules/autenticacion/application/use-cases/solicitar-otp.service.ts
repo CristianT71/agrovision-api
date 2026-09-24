@@ -30,6 +30,8 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         if (!usuario) {
             usuario = Usuario.registrarProductor(uuidv4(), telefono);
             await this.usuarioRepository.guardar(usuario);
+        } else if (usuario.estado === "pendiente") {
+            throw new ForbiddenException("Tu cuenta está pendiente de validación por un administrador.");
         } else if (!usuario.estaActivo()) {
             throw new ForbiddenException("La cuenta asociada a este número no está activa.");
         }

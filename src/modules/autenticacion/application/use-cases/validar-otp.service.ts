@@ -8,6 +8,7 @@ import type { Usuario } from "../../domain/entities/usuario.entity";
 
 // Un solo mensaje para cualquier fallo de credenciales: no revela si el teléfono existe
 const CREDENCIALES_INVALIDAS = "El código OTP es inválido o ha expirado.";
+const CUENTA_PENDIENTE = "Tu cuenta de agrónomo está pendiente de validación por un administrador.";
 
 @Injectable()
 export class ValidarOtpService implements IValidarOtpUseCase {
@@ -68,6 +69,10 @@ export class ValidarOtpService implements IValidarOtpUseCase {
     }
 
     private async verificarCuentaHabilitada(usuario: Usuario): Promise<void> {
+        if (usuario.estado === "pendiente") {
+            throw new ForbiddenException(CUENTA_PENDIENTE);
+        }
+
         if (!usuario.estaActivo()) {
             throw new ForbiddenException("La cuenta no está activa.");
         }
@@ -77,7 +82,7 @@ export class ValidarOtpService implements IValidarOtpUseCase {
         // RF-10.5: un agrónomo nuevo queda pendiente hasta que un administrador lo valide
         const agronomo = await this.agronomoRepository.findByUsuarioId(usuario.id);
         if (!agronomo || agronomo.estado === "pendiente") {
-            throw new ForbiddenException("Tu cuenta de agrónomo está pendiente de validación por un administrador.");
+            throw new ForbiddenException(CUENTA_PENDIENTE);
         }
 
         if (agronomo.estado !== "activo") {
