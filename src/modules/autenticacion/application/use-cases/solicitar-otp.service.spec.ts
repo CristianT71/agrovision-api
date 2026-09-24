@@ -23,8 +23,8 @@ describe("SolicitarOtpService", () => {
         usuario = null;
         ultimaSesion = null;
         usuarioGuardado = jest.fn((u: Usuario) => Promise.resolve(u));
-        sesionGuardada = jest.fn(() => Promise.resolve());
-        enviarOtp = jest.fn(() => Promise.resolve(true));
+        sesionGuardada = jest.fn<Promise<void>, [SesionOtp]>(() => Promise.resolve());
+        enviarOtp = jest.fn<Promise<boolean>, [string, string]>(() => Promise.resolve(true));
 
         const usuarios: IUsuarioRepository = {
             findByTelefono: () => Promise.resolve(usuario),
