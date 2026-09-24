@@ -1,4 +1,5 @@
 import { AvalPlaga } from "./aval-plaga.entity";
+import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 
 // Clasificación de la ficha técnica (RF-05.1)
 export type TipoPlaga = "enfermedad" | "plaga" | "deficiencia" | "sano";
@@ -38,27 +39,27 @@ export class Plaga {
         sinonimos?: string[];
     }): Plaga {
         if (!datos.nombreComun?.trim()) {
-            throw new Error("El nombre común de la ficha es obligatorio.");
+            throw new ReglaNegocioError("El nombre común de la ficha es obligatorio.");
         }
 
         if (!datos.tipo) {
-            throw new Error("El tipo de la ficha es obligatorio.");
+            throw new ReglaNegocioError("El tipo de la ficha es obligatorio.");
         }
 
         if (!datos.descripcion?.trim()) {
-            throw new Error("La descripción de la ficha es obligatoria.");
+            throw new ReglaNegocioError("La descripción de la ficha es obligatoria.");
         }
 
         if (!datos.sintomas?.trim()) {
-            throw new Error("Los síntomas de la ficha son obligatorios.");
+            throw new ReglaNegocioError("Los síntomas de la ficha son obligatorios.");
         }
 
         if (!datos.organosAfectados?.length) {
-            throw new Error("La ficha debe indicar al menos un órgano afectado.");
+            throw new ReglaNegocioError("La ficha debe indicar al menos un órgano afectado.");
         }
 
         if (!datos.medidasContencion?.trim()) {
-            throw new Error("Las medidas de contención de la ficha son obligatorias.");
+            throw new ReglaNegocioError("Las medidas de contención de la ficha son obligatorias.");
         }
 
         const plaga = new Plaga(
@@ -127,7 +128,7 @@ export class Plaga {
     // mientras la ficha no tenga aval profesional
     public actualizarProtocoloQuimico(protocolo: string): void {
         if (!this.tieneAval()) {
-            throw new Error(
+            throw new ReglaNegocioError(
                 "No se puede modificar el protocolo químico ni la dosificación de una ficha sin aval profesional.",
             );
         }
@@ -138,7 +139,7 @@ export class Plaga {
     // Regla de Negocio (RF-05.7): Un agrónomo avala una ficha una sola vez
     public registrarAval(aval: AvalPlaga): void {
         if (this.avales.some((existente) => existente.agronomoId === aval.agronomoId)) {
-            throw new Error("Este agrónomo ya avaló esta ficha.");
+            throw new ReglaNegocioError("Este agrónomo ya avaló esta ficha.");
         }
 
         this.avales.push(aval);

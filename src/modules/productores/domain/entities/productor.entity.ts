@@ -1,3 +1,5 @@
+import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
+
 export type EstadoProductor = "registrado" | "validado";
 
 export class Productor {
@@ -43,7 +45,7 @@ export class Productor {
     // Regla de Negocio (RF-10.2): Solo un productor registrado puede ser validado
     public validar(): void {
         if (this.estado !== "registrado") {
-            throw new Error("El productor ya se encuentra validado.");
+            throw new ReglaNegocioError("El productor ya se encuentra validado.");
         }
 
         this.estado = "validado";
@@ -52,7 +54,7 @@ export class Productor {
     // Regla de Negocio (RF-10.2): El consentimiento se otorga una sola vez y queda fechado
     public otorgarConsentimiento(): void {
         if (this.consentimiento) {
-            throw new Error("El productor ya otorgó su consentimiento.");
+            throw new ReglaNegocioError("El productor ya otorgó su consentimiento.");
         }
 
         this.consentimiento = true;
@@ -62,11 +64,11 @@ export class Productor {
     // Regla de Negocio (RF-10.3): La revocación del consentimiento requiere validación explícita
     public revocarConsentimiento(confirmacion: boolean): void {
         if (confirmacion !== true) {
-            throw new Error("La revocación del consentimiento requiere confirmación explícita.");
+            throw new ReglaNegocioError("La revocación del consentimiento requiere confirmación explícita.");
         }
 
         if (!this.consentimiento) {
-            throw new Error("El productor no tiene un consentimiento vigente para revocar.");
+            throw new ReglaNegocioError("El productor no tiene un consentimiento vigente para revocar.");
         }
 
         this.consentimiento = false;

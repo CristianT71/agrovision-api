@@ -1,4 +1,15 @@
+import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
+
 export type EstadoAgronomo = "pendiente" | "activo" | "inactivo";
+
+// Especialidades que se ofrecen en el formulario de solicitud de acceso (RF-01.6)
+export const ESPECIALIDADES = [
+    "Fitopatología",
+    "Entomología",
+    "Agronomía general",
+    "Suelos y nutrición",
+    "Manejo integrado de plagas",
+] as const;
 
 export class Agronomo {
     constructor(
@@ -39,7 +50,7 @@ export class Agronomo {
     // Regla de Negocio (RF-10.5): Solo un agrónomo pendiente puede ser validado por un administrador
     public validar(): void {
         if (this.estado !== "pendiente") {
-            throw new Error("Solo se puede validar un agrónomo en estado pendiente.");
+            throw new ReglaNegocioError("Solo se puede validar un agrónomo en estado pendiente.");
         }
 
         this.estado = "activo";
@@ -48,7 +59,7 @@ export class Agronomo {
     // Regla de Negocio (RF-10.5): Un agrónomo inactivo no se puede volver a desactivar
     public desactivar(): void {
         if (this.estado === "inactivo") {
-            throw new Error("El agrónomo ya se encuentra inactivo.");
+            throw new ReglaNegocioError("El agrónomo ya se encuentra inactivo.");
         }
 
         this.estado = "inactivo";
@@ -57,7 +68,7 @@ export class Agronomo {
     // Regla de Negocio (RF-10.5): Solo se reactiva un agrónomo previamente desactivado
     public reactivar(): void {
         if (this.estado !== "inactivo") {
-            throw new Error("Solo se puede reactivar un agrónomo en estado inactivo.");
+            throw new ReglaNegocioError("Solo se puede reactivar un agrónomo en estado inactivo.");
         }
 
         this.estado = "activo";
