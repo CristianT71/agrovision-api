@@ -1,4 +1,4 @@
-import { Inject, Injectable, ForbiddenException, HttpException, HttpStatus } from "@nestjs/common";
+import { Inject, Injectable, ForbiddenException, HttpException, HttpStatus, NotFoundException } from "@nestjs/common";
 import { randomInt } from "node:crypto";
 import { ISolicitarOtpUseCase, SolicitarOtpCommand } from "../../domain/ports/in/solicitar-otp.port";
 import { USUARIO_REPOSITORY, type IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
@@ -23,13 +23,23 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
     ) {}
 
     async ejecutar(comando: SolicitarOtpCommand): Promise<{ mensaje: string; esperaSegundos: number }> {
-        const { telefono } = comando;
+        const { telefono, rolSeleccionado } = comando;
 
-        // 1. Buscar al usuario. Si es la primera vez se registra como productor (app móvil)
+        // 1. Buscar al usuario. Solo un productor (app móvil) se registra solo en su primer login:
+        //    las cuentas de agrónomo y administrador nacen por su propio flujo (RF-01.6)
         let usuario = await this.usuarioRepository.findByTelefono(telefono);
         if (!usuario) {
+            if (rolSeleccionado && rolSeleccionado !== "productor") {
+                throw new NotFoundException(
+                    "No hay una cuenta registrada con este número. Si eres agrónomo, solicita acceso.",
+                );
+            }
+
             usuario = Usuario.registrarProductor(uuidv4(), telefono);
             await this.usuarioRepository.guardar(usuario);
+        } else if (rolSeleccionado && !usuario.tieneRol(rolSeleccionado)) {
+            // RF-01.2: se avisa antes de enviar un código que de todos modos sería rechazado
+            throw new ForbiddenException("El rol seleccionado no corresponde a esta cuenta.");
         } else if (usuario.estado === "pendiente") {
             throw new ForbiddenException("Tu cuenta está pendiente de validación por un administrador.");
         } else if (!usuario.estaActivo()) {

@@ -1,4 +1,4 @@
-import { ForbiddenException, HttpStatus, type HttpException } from "@nestjs/common";
+import { ForbiddenException, HttpStatus, NotFoundException, type HttpException } from "@nestjs/common";
 import { SolicitarOtpService } from "./solicitar-otp.service";
 import { Usuario } from "../../domain/entities/usuario.entity";
 import { SesionOtp } from "../../domain/entities/sesion-otp.entity";
@@ -47,6 +47,23 @@ describe("SolicitarOtpService", () => {
 
         const registrado = usuarioGuardado.mock.calls[0][0];
         expect(registrado.rol).toBe("productor");
+    });
+
+    it("desde el panel no crea cuentas: un número desconocido con rol de agrónomo se rechaza", async () => {
+        await expect(servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "agronomo" })).rejects.toBeInstanceOf(
+            NotFoundException,
+        );
+        expect(usuarioGuardado).not.toHaveBeenCalled();
+        expect(enviarOtp).not.toHaveBeenCalled();
+    });
+
+    it("no envía el código si el rol elegido no es el de la cuenta", async () => {
+        usuario = Usuario.registrarProductor("u-1", TELEFONO);
+
+        await expect(servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "admin" })).rejects.toBeInstanceOf(
+            ForbiddenException,
+        );
+        expect(enviarOtp).not.toHaveBeenCalled();
     });
 
     it("envía un código de 6 dígitos y guarda solo su hash", async () => {

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Matches } from "class-validator";
+import { IsIn, IsNotEmpty, IsOptional, IsString, Matches } from "class-validator";
 
 // Formato internacional E.164 (RF-01.3)
 export const FORMATO_TELEFONO = /^\+?[1-9]\d{1,14}$/;
@@ -10,4 +10,8 @@ export class SolicitarOtpDto {
         message: "El teléfono debe incluir un formato internacional válido (+57...).",
     })
     telefono: string;
+
+    @IsOptional()
+    @IsIn(["admin", "agronomo", "productor"], { message: "El rol seleccionado no es válido." })
+    rolSeleccionado?: "admin" | "agronomo" | "productor";
 }
