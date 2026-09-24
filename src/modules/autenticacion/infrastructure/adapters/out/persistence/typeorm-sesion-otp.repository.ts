@@ -23,10 +23,11 @@ export class TypeOrmSesionOtpRepository implements ISesionOtpRepository {
         return new SesionOtp(
             entity.id,
             entity.usuarioId,
-            entity.codigo,
+            entity.codigoHash,
             entity.expiraEn,
             entity.usado,
             entity.creadoEn,
+            entity.intentos,
         );
     }
 
@@ -34,10 +35,22 @@ export class TypeOrmSesionOtpRepository implements ISesionOtpRepository {
         await this.repository.save({
             id: sesionOtp.id,
             usuarioId: sesionOtp.usuarioId,
-            codigo: sesionOtp.codigo,
+            codigoHash: sesionOtp.codigoHash,
             expiraEn: sesionOtp.expiraEn,
             usado: sesionOtp.usado,
             creadoEn: sesionOtp.creadoEn,
+            intentos: sesionOtp.intentos,
         });
+    }
+
+    async registrarIntentoFallido(id: string): Promise<void> {
+        await this.repository.increment({ id }, "intentos", 1);
+    }
+
+    async consumir(id: string): Promise<boolean> {
+        // UPDATE condicionado: solo una petición puede pasar el código de libre a usado
+        const resultado = await this.repository.update({ id, usado: false }, { usado: true });
+
+        return (resultado.affected ?? 0) > 0;
     }
 }

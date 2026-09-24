@@ -18,18 +18,23 @@ import { SMS_SERVICE } from "./domain/ports/out/sms.service";
 
 import { SolicitarOtpService } from "./application/use-cases/solicitar-otp.service";
 import { ValidarOtpService } from "./application/use-cases/validar-otp.service";
+import { AgronomosModule } from "../agronomos/agronomos.module";
 
 @Module({
     imports: [
         ConfigModule,
         PassportModule.register({ defaultStrategy: "jwt" }),
         TypeOrmModule.forFeature([TypeOrmUsuarioEntity, TypeOrmSesionOtpEntity]),
+        // El login consulta el estado del agrónomo (RF-10.5)
+        AgronomosModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({
-                secret: configService.get<string>("JWT_SECRET", "secreto_agrovision_desarrollo"),
-                signOptions: { expiresIn: "12h" },
+                // Sin valor por defecto: firmar con un secreto conocido permitiría falsificar tokens
+                secret: configService.getOrThrow<string>("JWT_SECRET"),
+                // RNF-02.2: la sesión termina tras 30 minutos
+                signOptions: { expiresIn: "30m" },
             }),
         }),
     ],

@@ -3,5 +3,5 @@ export interface SolicitarOtpCommand {
 }
 
 export interface ISolicitarOtpUseCase {
-    ejecutar(comando: SolicitarOtpCommand): Promise<{ mensaje: string; esperaSegundos?: number }>;
+    ejecutar(comando: SolicitarOtpCommand): Promise<{ mensaje: string; esperaSegundos: number }>;
 }
