@@ -48,6 +48,7 @@ describe("Solicitudes - casos de uso", () => {
             findAll,
             guardar: jest.fn(),
             guardarResolucion,
+            guardarAsignacion: jest.fn(),
         };
         agronomos = { findByUsuarioId: () => Promise.resolve(agronomo) } as unknown as IAgronomoRepository;
     });

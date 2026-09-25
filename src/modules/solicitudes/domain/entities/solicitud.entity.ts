@@ -78,6 +78,14 @@ export class Solicitud {
             throw new ReglaNegocioError("No se puede asignar una solicitud descartada.");
         }
 
+        if (this.estado === "Pendiente") {
+            throw new ReglaNegocioError("No se puede asignar una solicitud que el productor aún no ha enviado.");
+        }
+
+        if (this.agronomoId === agronomoId) {
+            throw new ReglaNegocioError("La solicitud ya está asignada a este agrónomo.");
+        }
+
         this.agronomoId = agronomoId;
         this.estado = "Asignada";
     }

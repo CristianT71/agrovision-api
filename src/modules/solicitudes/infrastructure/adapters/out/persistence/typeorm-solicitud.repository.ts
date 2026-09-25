@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { FindOptionsWhere, Repository } from "typeorm";
+import { FindOptionsWhere, IsNull, Repository } from "typeorm";
 import { ISolicitudRepository, FiltrosSolicitud } from "../../../../domain/ports/out/solicitud.repository";
 import { Solicitud, EstadoSolicitud, TipoResultado } from "../../../../domain/entities/solicitud.entity";
 import { TypeOrmSolicitudEntity } from "./typeorm-solicitud.entity";
@@ -83,6 +83,27 @@ export class TypeOrmSolicitudRepository implements ISolicitudRepository {
                 tipoResultado: solicitud.tipoResultado,
                 plagaIdentificada: solicitud.plagaIdentificada,
                 fechaResolucion: solicitud.fechaResolucion,
+            },
+        );
+
+        return (resultado.affected ?? 0) > 0;
+    }
+
+    async guardarAsignacion(
+        solicitud: Solicitud,
+        anterior: { estado: EstadoSolicitud; agronomoId: string | null },
+    ): Promise<boolean> {
+        // UPDATE condicionado: solo pasa si la fila sigue en el estado y con el agrónomo leídos.
+        // Solo toca agronomo_id y estado para no borrar una resolución que llegue en paralelo (RF-08.3)
+        const resultado = await this.repository.update(
+            {
+                id: solicitud.id,
+                estado: anterior.estado,
+                agronomoId: anterior.agronomoId === null ? IsNull() : anterior.agronomoId,
+            },
+            {
+                agronomoId: solicitud.agronomoId,
+                estado: solicitud.estado,
             },
         );
 

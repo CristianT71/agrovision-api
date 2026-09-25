@@ -13,7 +13,9 @@ import {
 import { ResolverSolicitudService } from "../../../../application/use-cases/resolver-solicitud.service";
 import { ListarSolicitudesService } from "../../../../application/use-cases/listar-solicitudes.service";
 import { ObtenerSolicitudPorIdService } from "../../../../application/use-cases/obtener-solicitud-por-id.service";
+import { AsignarSolicitudService } from "../../../../application/use-cases/asignar-solicitud.service";
 import { ResolverSolicitudDto } from "./dto/resolver-solicitud.dto";
+import { AsignarSolicitudDto } from "./dto/asignar-solicitud.dto";
 import { ConsultarSolicitudesDto } from "./consultar-solicitudes.dto";
 import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
@@ -29,6 +31,7 @@ export class SolicitudesController {
         private readonly resolverSolicitudService: ResolverSolicitudService,
         private readonly listarSolicitudesService: ListarSolicitudesService,
         private readonly obtenerSolicitudPorIdService: ObtenerSolicitudPorIdService,
+        private readonly asignarSolicitudService: AsignarSolicitudService,
     ) {}
 
     @Get()
@@ -60,6 +63,22 @@ export class SolicitudesController {
 
         return {
             message: "Solicitud resuelta y conmutada a solo lectura exitosamente.",
+        };
+    }
+
+    // El Administrador delega el caso a un agrónomo activo (RF-08.3)
+    @Patch(":id/asignar")
+    @Roles("admin")
+    @HttpCode(HttpStatus.OK)
+    async asignar(@Param("id", ParseUUIDPipe) id: string, @Body() dto: AsignarSolicitudDto) {
+        const solicitud = await this.asignarSolicitudService.ejecutar({
+            solicitudId: id,
+            agronomoId: dto.agronomoId,
+        });
+
+        return {
+            message: "Solicitud asignada exitosamente.",
+            solicitud,
         };
     }
 }
