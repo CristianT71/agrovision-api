@@ -169,6 +169,27 @@ Todas las rutas llevan el prefijo `/api`. Roles: **admin**, **agronomo** (Profes
 | PATCH | `/plagas/:id/protocolo-quimico` | agronomo | Protocolo químico; bloqueado mientras no haya aval |
 | POST | `/plagas/:id/foto` | agronomo | Sube la foto de la ficha (multipart, campo `foto`) |
 
+### Mensajería de coordinación (RF-04.9, RF-08.5 a RF-08.7)
+
+Canal interno entre el agrónomo asignado y el administrador; el productor no participa.
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/mensajes/pendientes` | agronomo, admin | Contador de mensajes sin leer |
+| GET | `/solicitudes/:solicitudId/mensajes` | agronomo, admin | Bitácora del caso |
+| POST | `/solicitudes/:solicitudId/mensajes` | agronomo, admin | Envía un mensaje con adjuntos opcionales (multipart); se rechaza si el caso no tiene agrónomo asignado |
+| PATCH | `/solicitudes/:solicitudId/mensajes/leidos` | agronomo, admin | Marca los mensajes como leídos |
+| GET | `/solicitudes/:solicitudId/mensajes/:mensajeId/adjuntos/:adjuntoId` | agronomo, admin | Descarga un adjunto |
+
+### Notificaciones (RF-02.5, RF-02.6)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/notificaciones` | Todos | Notificaciones del usuario autenticado |
+| GET | `/notificaciones/no-leidas` | Todos | Cantidad sin leer |
+| PATCH | `/notificaciones/leidas` | Todos | Marca todas como leídas |
+| PATCH | `/notificaciones/:id/leida` | Todos | Marca una como leída |
+
 ## Archivos subidos
 
 Se guardan en `UPLOADS_DIR` (fuera del repositorio):
@@ -188,6 +209,6 @@ npm run build     # compilación
 
 ## Pendiente
 
-- Registro de solicitudes desde la app móvil, fotos de la solicitud, mensajería y permisos de contacto (RF-04)
+- Registro de solicitudes desde la app móvil, fotos de la solicitud y permisos de contacto (RF-04)
 - Asignación de casos, dashboard, detecciones y modelos IA (RF-06 a RF-09)
 - Límite de peticiones en las rutas públicas (registro y OTP)
