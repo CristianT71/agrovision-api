@@ -6,6 +6,8 @@ import { AutenticacionModule } from "./modules/autenticacion/autenticacion.modul
 import { AgronomosModule } from "./modules/agronomos/agronomos.module";
 import { ProductoresModule } from "./modules/productores/productores.module";
 import { PlagasModule } from "./modules/plagas/plagas.module";
+import { MensajeriaModule } from "./modules/mensajeria/mensajeria.module";
+import { NotificacionesModule } from "./modules/notificaciones/notificaciones.module";
 
 @Module({
     imports: [
@@ -27,6 +29,8 @@ import { PlagasModule } from "./modules/plagas/plagas.module";
         AgronomosModule,
         ProductoresModule,
         PlagasModule,
+        MensajeriaModule,
+        NotificacionesModule,
     ],
     controllers: [],
     providers: [],
