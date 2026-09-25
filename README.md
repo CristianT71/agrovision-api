@@ -1,98 +1,193 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# AgroVision API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API REST del ecosistema **AgroVision**: diagnóstico de plagas, enfermedades y deficiencias foliares del café.
+Da servicio al **panel web** (agrónomos y administradores) y a la **app móvil** de los productores.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Proyecto de formación — SENA, Análisis y Desarrollo de Software (ADSO), ficha 3225853.
 
-## Description
+## Stack
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **NestJS 11** + TypeScript
+- **PostgreSQL 16** (Docker) con **TypeORM** y migraciones
+- Autenticación por **OTP** (código de 6 dígitos al celular) y **JWT**
+- Jest para pruebas unitarias
 
-## Project setup
+## Puesta en marcha
 
-```bash
-$ npm i
-```
+### 1. Requisitos
 
-## Compile and run the project
+- Node.js 22 o superior
+- Docker Desktop (para la base de datos)
 
-```bash
-# development
-$ npm run start
+### 2. Variables de entorno
 
-# watch mode
-$ npm run start:dev
+Copia `.env.example` a `.env` y completa los valores:
 
-# production mode
-$ npm run start:prod
-```
+| Variable | Obligatoria | Descripción |
+|---|---|---|
+| `DB_HOST`, `DB_PORT` | Sí | Conexión a PostgreSQL (`localhost`, `5432`) |
+| `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Sí | Credenciales; el contenedor de Docker se crea con estos mismos valores |
+| `JWT_SECRET` | Sí | Secreto para firmar los tokens. **La API no arranca sin él** |
+| `PORT` | No | Puerto de la API (por defecto `3000`) |
+| `UPLOADS_DIR` | No | Carpeta de archivos subidos (por defecto `./uploads`) |
+| `ZAVU_API_URL`, `ZAVU_API_KEY`, `ZAVU_SENDER_ID` | No | Proveedor de SMS real (ver [Códigos OTP](#códigos-otp)) |
 
-## Run tests
+Para generar un `JWT_SECRET` seguro:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 3. Base de datos y migraciones
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+docker compose up -d        # levanta PostgreSQL (contenedor Agrovision_DB)
+npm i
+npm run migration:run       # crea todas las tablas
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Las **migraciones son la única fuente del esquema** (`synchronize` está desactivado).
+Para cambiar una tabla: modifica la entidad y genera una migración nueva:
 
-## Resources
+```bash
+npm run migration:generate -- src/database/migrations/NombreDelCambio
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### 4. Ejecutar
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+npm run start:dev    # http://localhost:3000/api
+```
 
-## Support
+El CORS está habilitado para el panel en `http://localhost:5173`.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### 5. Crear el primer administrador
 
-## Stay in touch
+Por seguridad, **ninguna ruta de la API crea administradores**. El primero se inserta directamente en la base
+(con DataGrip o `psql`). El teléfono va con prefijo y sin espacios, igual que lo envía el login:
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```sql
+INSERT INTO usuarios (id, telefono, rol, estado, fecha_registro)
+VALUES (gen_random_uuid(), '+573001234567', 'admin', 'activo', now());
+```
 
-## License
+## Códigos OTP
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+En desarrollo los SMS **no se envían**: el código aparece en la consola de la API.
+
+```
+[SMS DEV] Código OTP generado para +573001234567: 123456
+```
+
+Para usar el proveedor real, cambia `LoggerSmsAdapter` por `ZavuSmsAdapter` en
+`src/modules/autenticacion/autenticacion.module.ts` y configura las variables `ZAVU_*`.
+
+Reglas del login:
+
+- El código dura **5 minutos**, admite **5 intentos** y se guarda cifrado (hash SHA-256).
+- Hay que esperar **30 segundos** entre solicitudes (RF-01.5).
+- El rol elegido debe ser el de la cuenta; nunca se cambia desde el login (RF-01.2).
+- Un número desconocido solo se registra solo si es de la **app móvil** (productor). Desde el panel se rechaza.
+- El token dura **30 minutos** (RNF-02.2).
+
+## Arquitectura
+
+Arquitectura **hexagonal** (puertos y adaptadores). Cada módulo sigue la misma estructura:
+
+```
+src/modules/<modulo>/
+├── domain/
+│   ├── entities/              # Entidades puras con las reglas de negocio (sin NestJS ni TypeORM)
+│   └── ports/
+│       ├── in/                # Contratos de los casos de uso
+│       └── out/               # Contratos de persistencia y servicios externos
+├── application/use-cases/     # Casos de uso: orquestan el dominio (+ pruebas *.spec.ts)
+├── infrastructure/adapters/
+│   ├── in/http/               # Controladores y DTOs (validación de entrada)
+│   └── out/persistence/       # Entidades y repositorios de TypeORM
+└── <modulo>.module.ts
+```
+
+Código compartido en `src/common/`:
+
+- `guards/` y `decorators/`: autenticación JWT, roles (`@Roles`) y usuario actual (`@UsuarioActual`)
+- `errors/regla-negocio.error.ts`: error del dominio que el filtro global responde como **409**
+- `filters/`: formato único de errores `{ statusCode, timestamp, path, metodo, mensaje }`
+- `almacenamiento/`: guardado de archivos subidos y validación de su tipo real
+
+## Módulos y endpoints
+
+Todas las rutas llevan el prefijo `/api`. Roles: **admin**, **agronomo** (Profesional), **productor** (app móvil).
+
+### Autenticación
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| POST | `/auth/solicitar-otp` | Público | Envía el código OTP |
+| POST | `/auth/validar-otp` | Público | Valida el código y entrega el JWT |
+
+### Solicitudes (RF-03, RF-04)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/solicitudes` | agronomo, admin | Lista con filtros `estado`, `agronomoId` y `soloMias` |
+| GET | `/solicitudes/:id` | agronomo, admin | Detalle |
+| PATCH | `/solicitudes/:id/resolver` | agronomo | Resolución del agrónomo asignado; queda en solo lectura |
+
+### Agrónomos (RF-01.6, RF-10)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| POST | `/agronomos/registro` | Público | Solicitud de acceso con documentos (multipart); queda **pendiente** |
+| GET | `/agronomos` | admin | Lista con casos activos de cada uno |
+| GET | `/agronomos/me` | agronomo | Perfil propio |
+| GET | `/agronomos/:id` | admin | Detalle con documentos |
+| GET | `/agronomos/:id/documentos/:documentoId` | admin | Descarga un documento de acreditación |
+| PATCH | `/agronomos/:id/validar` \| `desactivar` \| `reactivar` | admin | Cambia el estado de la cuenta |
+
+### Productores (RF-10)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| POST | `/productores/me` | productor | Completa el perfil tras el primer login |
+| GET | `/productores/me` | productor | Perfil propio |
+| PATCH | `/productores/me/consentimiento/otorgar` \| `revocar` | productor | Consentimiento de uso de fotos |
+| GET | `/productores` | admin | Lista con filtros y búsqueda |
+| GET | `/productores/:id` | admin | Detalle |
+| PATCH | `/productores/:id/validar` | admin | Valida al productor |
+| PATCH | `/productores/:id/consentimiento/revocar` | admin | Revoca el consentimiento (requiere `{ "confirmacion": true }`) |
+
+### Catálogo de plagas (RF-05)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/plagas` | agronomo, admin | Lista con filtros `tipo`, `busqueda` y `conAval` |
+| GET | `/plagas/:id` | agronomo, admin | Detalle |
+| POST | `/plagas` | agronomo | Crea una ficha (nace sin aval) |
+| PATCH | `/plagas/:id` | agronomo | Edita la ficha |
+| POST | `/plagas/:id/avales` | agronomo | Aval firmado con la tarjeta del agrónomo autenticado |
+| PATCH | `/plagas/:id/protocolo-quimico` | agronomo | Protocolo químico; bloqueado mientras no haya aval |
+| POST | `/plagas/:id/foto` | agronomo | Sube la foto de la ficha (multipart, campo `foto`) |
+
+## Archivos subidos
+
+Se guardan en `UPLOADS_DIR` (fuera del repositorio):
+
+- `publico/`: fotos del catálogo, servidas en `http://localhost:3000/archivos/...`
+- `privado/`: documentos de acreditación, que solo se descargan con un token de administrador
+
+El tipo se valida por el contenido real del archivo (PDF, PNG, JPG o WEBP), no por la extensión.
+
+## Pruebas y calidad
+
+```bash
+npm test          # pruebas unitarias de los casos de uso
+npm run lint      # ESLint + Prettier
+npm run build     # compilación
+```
+
+## Pendiente
+
+- Registro de solicitudes desde la app móvil, fotos de la solicitud, mensajería y permisos de contacto (RF-04)
+- Asignación de casos, dashboard, detecciones y modelos IA (RF-06 a RF-09)
+- Límite de peticiones en las rutas públicas (registro y OTP)
