@@ -1,15 +1,18 @@
-import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, Index } from "typeorm";
 import { TypeOrmMensajeEntity } from "./typeorm-mensaje.entity";
 
 // Archivos que el administrador adjunta a sus instrucciones (RF-08.5).
 // NOTA: el documento de base de datos original define "url"; aquí se guarda "ruta" porque el
 // archivo es privado y se descarga por un endpoint protegido, igual que documentos_agronomo.
 // Se agregan "tipo_mime" y "tamano_bytes" para servir la descarga sin volver a inspeccionar el archivo.
+
 @Entity("adjuntos_mensaje")
 export class TypeOrmAdjuntoMensajeEntity {
     @PrimaryColumn("uuid")
     id: string;
 
+    // PostgreSQL no indexa las FKs automáticamente y los adjuntos se cargan por mensaje
+    @Index()
     @Column({ name: "mensaje_id", type: "uuid" })
     mensajeId: string;
 
