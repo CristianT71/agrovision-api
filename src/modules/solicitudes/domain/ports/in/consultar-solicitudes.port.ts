@@ -1,12 +1,15 @@
 import type { Solicitud, EstadoSolicitud } from "../../entities/solicitud.entity";
 
-export interface FiltrosSolicitudQuery {
+export interface ListarSolicitudesQuery {
     estado?: EstadoSolicitud;
     agronomoId?: string;
+    // RF-03.3: solo los expedientes delegados al usuario actual
+    soloMias?: boolean;
+    usuario: { id: string; rol: string };
 }
 
 export interface IListarSolicitudesUseCase {
-    ejecutar(filtros?: FiltrosSolicitudQuery): Promise<Solicitud[]>;
+    ejecutar(consulta: ListarSolicitudesQuery): Promise<Solicitud[]>;
 }
 
 export interface IObtenerSolicitudPorIdUseCase {

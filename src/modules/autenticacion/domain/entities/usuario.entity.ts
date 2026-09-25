@@ -10,7 +10,23 @@ export class Usuario {
         public readonly fechaRegistro: Date,
     ) {}
 
+    // Los productores se registran solos desde la app móvil con su teléfono.
+    // Las cuentas de agrónomo y administrador nunca nacen por esta vía (RF-01.6, RF-10.5).
+    public static registrarProductor(id: string, telefono: string): Usuario {
+        return new Usuario(id, telefono, "productor", "activo", new Date());
+    }
+
+    // Regla RF-10.5: la cuenta de un agrónomo nace pendiente hasta que un administrador la valide
+    public static registrarAgronomo(id: string, telefono: string): Usuario {
+        return new Usuario(id, telefono, "agronomo", "pendiente", new Date());
+    }
+
     public estaActivo(): boolean {
         return this.estado === "activo";
+    }
+
+    // Regla RF-01.2: el rol elegido en el login debe ser el que tiene la cuenta; nunca lo reemplaza
+    public tieneRol(rol: RolUsuario): boolean {
+        return this.rol === rol;
     }
 }

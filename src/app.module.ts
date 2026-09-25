@@ -3,6 +3,11 @@ import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { SolicitudesModule } from "./modules/solicitudes/solicitudes.module";
 import { AutenticacionModule } from "./modules/autenticacion/autenticacion.module";
+import { AgronomosModule } from "./modules/agronomos/agronomos.module";
+import { ProductoresModule } from "./modules/productores/productores.module";
+import { PlagasModule } from "./modules/plagas/plagas.module";
+import { MensajeriaModule } from "./modules/mensajeria/mensajeria.module";
+import { NotificacionesModule } from "./modules/notificaciones/notificaciones.module";
 
 @Module({
     imports: [
@@ -16,10 +21,16 @@ import { AutenticacionModule } from "./modules/autenticacion/autenticacion.modul
             database: process.env.DB_NAME,
             autoLoadEntities: true,
             schema: "public",
-            synchronize: true,
+            // Las migraciones son la única fuente de verdad del esquema (ver src/database/migrations)
+            synchronize: false,
         }),
         SolicitudesModule,
         AutenticacionModule,
+        AgronomosModule,
+        ProductoresModule,
+        PlagasModule,
+        MensajeriaModule,
+        NotificacionesModule,
     ],
     controllers: [],
     providers: [],
