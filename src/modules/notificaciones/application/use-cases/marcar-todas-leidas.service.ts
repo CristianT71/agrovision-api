@@ -1,9 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { IMarcarTodasLeidasUseCase } from "../../domain/ports/in/gestionar-notificaciones.port";
-import {
-    NOTIFICACION_REPOSITORY,
-    type INotificacionRepository,
-} from "../../domain/ports/out/notificacion.repository";
+import { NOTIFICACION_REPOSITORY, type INotificacionRepository } from "../../domain/ports/out/notificacion.repository";
 
 // RF-02.6: vaciar la campana de una sola vez
 @Injectable()

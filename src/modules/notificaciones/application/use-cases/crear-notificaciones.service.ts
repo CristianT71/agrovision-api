@@ -4,10 +4,7 @@ import type {
     ICrearNotificacionesUseCase,
     NuevaNotificacion,
 } from "../../domain/ports/in/gestionar-notificaciones.port";
-import {
-    NOTIFICACION_REPOSITORY,
-    type INotificacionRepository,
-} from "../../domain/ports/out/notificacion.repository";
+import { NOTIFICACION_REPOSITORY, type INotificacionRepository } from "../../domain/ports/out/notificacion.repository";
 import { CONSULTA_USUARIOS, type IConsultaUsuarios } from "../../domain/ports/out/consulta-usuarios.port";
 import { Notificacion } from "../../domain/entities/notificacion.entity";
 

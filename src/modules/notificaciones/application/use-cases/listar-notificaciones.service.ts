@@ -3,10 +3,7 @@ import type {
     IListarNotificacionesUseCase,
     PaginaNotificaciones,
 } from "../../domain/ports/in/gestionar-notificaciones.port";
-import {
-    NOTIFICACION_REPOSITORY,
-    type INotificacionRepository,
-} from "../../domain/ports/out/notificacion.repository";
+import { NOTIFICACION_REPOSITORY, type INotificacionRepository } from "../../domain/ports/out/notificacion.repository";
 import { aNotificacionVista } from "./notificacion-vista";
 
 // RF-02.5: cada usuario ve únicamente sus propias notificaciones

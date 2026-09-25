@@ -4,12 +4,7 @@ import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error
 // "mensaje_nuevo"; los demás quedan definidos para cuando solicitudes, agronomos y el
 // tablero empiecen a notificar.
 export type TipoNotificacion =
-    | "mensaje_nuevo"
-    | "solicitud_asignada"
-    | "solicitud_resuelta"
-    | "cuenta_validada"
-    | "alerta_plaga"
-    | "sistema";
+    "mensaje_nuevo" | "solicitud_asignada" | "solicitud_resuelta" | "cuenta_validada" | "alerta_plaga" | "sistema";
 
 // A qué apunta la notificación para que el frontend lleve al usuario al caso o ficha
 export type TipoReferencia = "solicitud" | "plaga" | "agronomo" | "productor";
