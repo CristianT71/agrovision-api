@@ -8,12 +8,15 @@ import {
     HttpCode,
     HttpStatus,
     ParseUUIDPipe,
+    StreamableFile,
     UseGuards,
 } from "@nestjs/common";
 import { ResolverSolicitudService } from "../../../../application/use-cases/resolver-solicitud.service";
 import { ListarSolicitudesService } from "../../../../application/use-cases/listar-solicitudes.service";
 import { ObtenerSolicitudPorIdService } from "../../../../application/use-cases/obtener-solicitud-por-id.service";
 import { AsignarSolicitudService } from "../../../../application/use-cases/asignar-solicitud.service";
+import { ListarFotosSolicitudService } from "../../../../application/use-cases/listar-fotos-solicitud.service";
+import { DescargarFotoSolicitudService } from "../../../../application/use-cases/descargar-foto-solicitud.service";
 import { ResolverSolicitudDto } from "./dto/resolver-solicitud.dto";
 import { AsignarSolicitudDto } from "./dto/asignar-solicitud.dto";
 import { ConsultarSolicitudesDto } from "./consultar-solicitudes.dto";
@@ -21,6 +24,8 @@ import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
 import { Roles } from "../../../../../../common/decorators/roles.decorator";
 import { UsuarioActual, type UsuarioAutenticado } from "../../../../../../common/decorators/usuario-actual.decorator";
+
+const EXTENSIONES_FOTO: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
 
 // El panel solo lo usan agrónomos y administradores (RF-02.2, RF-02.3)
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,11 +37,30 @@ export class SolicitudesController {
         private readonly listarSolicitudesService: ListarSolicitudesService,
         private readonly obtenerSolicitudPorIdService: ObtenerSolicitudPorIdService,
         private readonly asignarSolicitudService: AsignarSolicitudService,
+        private readonly listarFotosSolicitudService: ListarFotosSolicitudService,
+        private readonly descargarFotoSolicitudService: DescargarFotoSolicitudService,
     ) {}
 
     @Get()
     async listar(@Query() filtros: ConsultarSolicitudesDto, @UsuarioActual() usuario: UsuarioAutenticado) {
         return await this.listarSolicitudesService.ejecutar({ ...filtros, usuario });
+    }
+
+    // Fotos que subió la app móvil. Declaradas antes de ":id" para que ninguna ruta las capture.
+    @Get(":id/fotos")
+    async listarFotos(@Param("id", ParseUUIDPipe) id: string) {
+        return await this.listarFotosSolicitudService.ejecutar(id);
+    }
+
+    @Get(":id/fotos/:fotoId")
+    async descargarFoto(@Param("id", ParseUUIDPipe) id: string, @Param("fotoId", ParseUUIDPipe) fotoId: string) {
+        const { foto, contenido } = await this.descargarFotoSolicitudService.ejecutar({ solicitudId: id, fotoId });
+
+        // El nombre lo arma el servidor: la ruta interna nunca se expone
+        return new StreamableFile(contenido, {
+            type: foto.tipoMime ?? "application/octet-stream",
+            disposition: `attachment; filename="foto-${foto.orden}${EXTENSIONES_FOTO[foto.tipoMime ?? ""] ?? ""}"`,
+        });
     }
 
     @Get(":id")

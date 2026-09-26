@@ -1,5 +1,5 @@
 import type { Cultivo, Organo } from "../../entities/solicitud.entity";
-import type { AnguloFoto } from "../../entities/foto-solicitud.entity";
+import type { AnguloFoto, FotoSolicitud } from "../../entities/foto-solicitud.entity";
 import type { ArchivoSubido } from "../../../../../common/almacenamiento/validar-archivo";
 
 // NOTA: las respuestas usan los nombres en inglés del contrato que ya tiene la app móvil
@@ -48,4 +48,42 @@ export interface SubirFotoCommand {
 
 export interface ISubirFotoSolicitudUseCase {
     ejecutar(comando: SubirFotoCommand): Promise<void>;
+}
+
+export type EstadoSolicitudApp = "PENDING_UPLOAD" | "SUBMITTED" | "ASSIGNED" | "RESOLVED" | "DISCARDED";
+
+export interface MiSolicitudApp {
+    id: string;
+    status: EstadoSolicitudApp;
+    resolutionType: string | null;
+    resolvedPestId: string | null;
+    agronomistResponse: string | null;
+    resolvedAt: number | null;
+}
+
+export interface ListarMisSolicitudesQuery {
+    usuarioId: string;
+    // Epoch en milisegundos: solo las que cambiaron después
+    desde?: number;
+}
+
+export interface IListarMisSolicitudesUseCase {
+    ejecutar(consulta: ListarMisSolicitudesQuery): Promise<MiSolicitudApp[]>;
+}
+
+// Vista para el panel: nunca expone la ruta interna del archivo
+export interface FotoSolicitudVista {
+    id: string;
+    angulo: AnguloFoto;
+    orden: number;
+    tipoMime: string | null;
+    subida: boolean;
+}
+
+export interface IListarFotosSolicitudUseCase {
+    ejecutar(solicitudId: string): Promise<FotoSolicitudVista[]>;
+}
+
+export interface IDescargarFotoSolicitudUseCase {
+    ejecutar(consulta: { solicitudId: string; fotoId: string }): Promise<{ foto: FotoSolicitud; contenido: Buffer }>;
 }

@@ -1,7 +1,8 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from "@nestjs/common";
 import { RecibirLoteSolicitudesService } from "../../../../application/use-cases/recibir-lote-solicitudes.service";
+import { ListarMisSolicitudesService } from "../../../../application/use-cases/listar-mis-solicitudes.service";
 import type { SolicitudAppEntrada } from "../../../../domain/ports/in/solicitudes-app.port";
-import { LoteSolicitudesAppDto, type SolicitudAppDto } from "./dto/app-solicitudes.dto";
+import { LoteSolicitudesAppDto, MisSolicitudesAppQueryDto, type SolicitudAppDto } from "./dto/app-solicitudes.dto";
 import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
 import { Roles } from "../../../../../../common/decorators/roles.decorator";
@@ -14,7 +15,10 @@ import { UsuarioActual } from "../../../../../../common/decorators/usuario-actua
 @Roles("productor")
 @Controller("v1/review-requests")
 export class AppSolicitudesController {
-    constructor(private readonly recibirLoteService: RecibirLoteSolicitudesService) {}
+    constructor(
+        private readonly recibirLoteService: RecibirLoteSolicitudesService,
+        private readonly listarMisSolicitudesService: ListarMisSolicitudesService,
+    ) {}
 
     @Post("batch")
     @HttpCode(HttpStatus.OK)
@@ -23,6 +27,11 @@ export class AppSolicitudesController {
             usuarioId,
             solicitudes: dto.requests.map((solicitud) => this.aEntrada(solicitud)),
         });
+    }
+
+    @Get("mine")
+    async mias(@Query() query: MisSolicitudesAppQueryDto, @UsuarioActual("id") usuarioId: string) {
+        return await this.listarMisSolicitudesService.ejecutar({ usuarioId, desde: query.since });
     }
 
     private aEntrada(dto: SolicitudAppDto): SolicitudAppEntrada {

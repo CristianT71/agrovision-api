@@ -89,3 +89,12 @@ export class LoteSolicitudesAppDto {
     @Type(() => SolicitudAppDto)
     requests: SolicitudAppDto[];
 }
+
+export class MisSolicitudesAppQueryDto {
+    // Llega como texto en la query (?since=1719000000000)
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt({ message: "since debe ser un epoch en milisegundos." })
+    @Min(0, { message: "since debe ser un epoch en milisegundos." })
+    since?: number;
+}

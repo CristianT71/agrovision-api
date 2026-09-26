@@ -29,6 +29,9 @@ import { ObtenerSolicitudPorIdService } from "./application/use-cases/obtener-so
 import { AsignarSolicitudService } from "./application/use-cases/asignar-solicitud.service";
 import { RecibirLoteSolicitudesService } from "./application/use-cases/recibir-lote-solicitudes.service";
 import { SubirFotoSolicitudService } from "./application/use-cases/subir-foto-solicitud.service";
+import { ListarMisSolicitudesService } from "./application/use-cases/listar-mis-solicitudes.service";
+import { ListarFotosSolicitudService } from "./application/use-cases/listar-fotos-solicitud.service";
+import { DescargarFotoSolicitudService } from "./application/use-cases/descargar-foto-solicitud.service";
 
 @Module({
     // Se necesita el agrónomo del usuario autenticado para resolver y filtrar (RF-03.3)
@@ -51,6 +54,9 @@ import { SubirFotoSolicitudService } from "./application/use-cases/subir-foto-so
         AsignarSolicitudService,
         RecibirLoteSolicitudesService,
         SubirFotoSolicitudService,
+        ListarMisSolicitudesService,
+        ListarFotosSolicitudService,
+        DescargarFotoSolicitudService,
         {
             provide: SOLICITUD_REPOSITORY,
             useClass: TypeOrmSolicitudRepository,
