@@ -33,6 +33,9 @@ export class SolicitudesDesdeAppMovil1790385994810 implements MigrationInterface
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`ALTER TABLE "fotos_solicitud" DROP CONSTRAINT "FK_569a387b657277436c3107fd2cb"`);
+        // ATENCIÓN: este revert falla si ya existen solicitudes creadas desde la app móvil, porque
+        // se guardan con confianza_ia (y modelo_version_id) en null y SET NOT NULL no las admite.
+        // Antes de revertir hay que completar esos valores o eliminar esas solicitudes.
         await queryRunner.query(`ALTER TABLE "solicitudes" ALTER COLUMN "modelo_version_id" SET NOT NULL`);
         await queryRunner.query(`ALTER TABLE "solicitudes" ALTER COLUMN "confianza_ia" SET NOT NULL`);
         await queryRunner.query(`ALTER TABLE "solicitudes" DROP COLUMN "actualizado_en"`);
