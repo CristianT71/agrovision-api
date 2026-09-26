@@ -1,4 +1,5 @@
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
+import { FotoSolicitud, type AnguloFoto } from "./foto-solicitud.entity";
 
 // Estados del ciclo de vida de una solicitud (RF-03.2)
 export const ESTADOS_SOLICITUD = ["Pendiente", "Enviada", "Asignada", "Resuelta", "Descartada"] as const;
@@ -14,6 +15,42 @@ export const TIPOS_RESULTADO = [
 ] as const;
 export type TipoResultado = (typeof TIPOS_RESULTADO)[number];
 
+// Valores que envía la app móvil: se guardan tal cual los define su contrato
+export const CULTIVOS = ["CAFE", "PLATANO", "AGUACATE", "CACAO", "OTRO"] as const;
+export type Cultivo = (typeof CULTIVOS)[number];
+
+export const ORGANOS = ["HOJA", "FRUTO", "TALLO", "RAIZ", "FLOR"] as const;
+export type Organo = (typeof ORGANOS)[number];
+
+export const MIN_FOTOS_SOLICITUD = 2;
+export const MAX_FOTOS_SOLICITUD = 5;
+export const MAX_LONGITUD_NOTA = 500;
+
+// Rechazo de una solicitud de la app: el código corto viaja a la app como "reason"
+export class SolicitudAppInvalidaError extends ReglaNegocioError {
+    constructor(
+        public readonly codigo: string,
+        mensaje: string,
+    ) {
+        super(mensaje);
+        this.name = "SolicitudAppInvalidaError";
+    }
+}
+
+export interface DatosSolicitudApp {
+    id: string;
+    idCliente: string;
+    // Se copia su ubicación: la solicitud conserva la finca que tenía al enviarse
+    productor: { id: string; municipio: string; vereda: string; finca: string };
+    capturaId: string | null;
+    cultivo: Cultivo;
+    organo: Organo;
+    nota: string | null;
+    fecha: Date;
+    ubicacion: { latitud: number; longitud: number; precisionMetros: number | null } | null;
+    fotos: { id: string; idCliente: string; angulo: AnguloFoto }[];
+}
+
 export class Solicitud {
     constructor(
         public readonly id: string,
@@ -24,13 +61,129 @@ export class Solicitud {
         public readonly municipio: string,
         public readonly vereda: string,
         public readonly finca: string,
-        public readonly confianzaIa: number,
-        public readonly modeloVersionId: string,
+        // Nulos en las solicitudes de la app: la confianza vive en la captura (detecciones)
+        public readonly confianzaIa: number | null,
+        public readonly modeloVersionId: string | null,
         public respuestaProfesional: string | null = null,
         public tipoResultado: TipoResultado | null = null,
         public plagaIdentificada: string | null = null,
         public fechaResolucion: Date | null = null,
+        // Datos que solo traen las solicitudes creadas desde la app móvil
+        public readonly idCliente: string | null = null,
+        public readonly capturaId: string | null = null,
+        public readonly cultivo: Cultivo | null = null,
+        public readonly organo: Organo | null = null,
+        public readonly nota: string | null = null,
+        public readonly latitud: number | null = null,
+        public readonly longitud: number | null = null,
+        public readonly precisionMetros: number | null = null,
+        public readonly actualizadoEn: Date | null = null,
     ) {}
+
+    // La app crea la solicitud y luego sube cada foto por separado: queda "Pendiente"
+    // hasta que llegan todas
+    public static crearDesdeApp(datos: DatosSolicitudApp): { solicitud: Solicitud; fotos: FotoSolicitud[] } {
+        if (datos.fotos.length < MIN_FOTOS_SOLICITUD) {
+            throw new SolicitudAppInvalidaError(
+                "imagenes_insuficientes",
+                `La solicitud necesita al menos ${MIN_FOTOS_SOLICITUD} fotos.`,
+            );
+        }
+
+        if (datos.fotos.length > MAX_FOTOS_SOLICITUD) {
+            throw new SolicitudAppInvalidaError(
+                "demasiadas_imagenes",
+                `La solicitud admite como máximo ${MAX_FOTOS_SOLICITUD} fotos.`,
+            );
+        }
+
+        if (new Set(datos.fotos.map((foto) => foto.idCliente)).size !== datos.fotos.length) {
+            throw new SolicitudAppInvalidaError("imagenes_repetidas", "Cada foto debe tener un id distinto.");
+        }
+
+        const nota = datos.nota?.trim() || null;
+        if (nota && nota.length > MAX_LONGITUD_NOTA) {
+            throw new SolicitudAppInvalidaError(
+                "nota_muy_larga",
+                `La nota no puede superar ${MAX_LONGITUD_NOTA} caracteres.`,
+            );
+        }
+
+        const { ubicacion } = datos;
+        if (ubicacion && !Solicitud.esUbicacionValida(ubicacion)) {
+            throw new SolicitudAppInvalidaError("ubicacion_invalida", "La ubicación de la solicitud no es válida.");
+        }
+
+        if (Number.isNaN(datos.fecha.getTime())) {
+            throw new SolicitudAppInvalidaError("fecha_invalida", "La fecha de la solicitud no es válida.");
+        }
+
+        const solicitud = new Solicitud(
+            datos.id,
+            datos.productor.id,
+            null,
+            "Pendiente",
+            datos.fecha,
+            datos.productor.municipio,
+            datos.productor.vereda,
+            datos.productor.finca,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            datos.idCliente,
+            datos.capturaId,
+            datos.cultivo,
+            datos.organo,
+            nota,
+            ubicacion?.latitud ?? null,
+            ubicacion?.longitud ?? null,
+            ubicacion?.precisionMetros ?? null,
+        );
+
+        // El orden es el de la app: el ángulo puede repetirse, la posición no
+        const fotos = datos.fotos.map(
+            (foto, indice) => new FotoSolicitud(foto.id, datos.id, foto.idCliente, foto.angulo, indice + 1),
+        );
+
+        return { solicitud, fotos };
+    }
+
+    private static esUbicacionValida(ubicacion: NonNullable<DatosSolicitudApp["ubicacion"]>): boolean {
+        const { latitud, longitud, precisionMetros } = ubicacion;
+        return (
+            Number.isFinite(latitud) &&
+            Number.isFinite(longitud) &&
+            latitud >= -90 &&
+            latitud <= 90 &&
+            longitud >= -180 &&
+            longitud <= 180 &&
+            (precisionMetros === null || (Number.isFinite(precisionMetros) && precisionMetros >= 0))
+        );
+    }
+
+    // Solo pasa a revisión cuando todas sus fotos llegaron al servidor
+    public puedeMarcarseEnviada(fotos: FotoSolicitud[]): boolean {
+        return (
+            this.estado === "Pendiente" &&
+            fotos.length > 0 &&
+            fotos.every((foto) => foto.solicitudId === this.id && foto.estaSubida())
+        );
+    }
+
+    public marcarEnviada(fotos: FotoSolicitud[]): void {
+        if (this.estado !== "Pendiente") {
+            throw new ReglaNegocioError("Solo una solicitud pendiente puede marcarse como enviada.");
+        }
+
+        if (!this.puedeMarcarseEnviada(fotos)) {
+            throw new ReglaNegocioError("La solicitud aún tiene fotos pendientes por subir.");
+        }
+
+        this.estado = "Enviada";
+    }
 
     public estaAsignadaA(agronomoId: string): boolean {
         return this.agronomoId === agronomoId;

@@ -2,8 +2,9 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { FindOptionsWhere, IsNull, Repository } from "typeorm";
 import { ISolicitudRepository, FiltrosSolicitud } from "../../../../domain/ports/out/solicitud.repository";
-import { Solicitud, EstadoSolicitud, TipoResultado } from "../../../../domain/entities/solicitud.entity";
+import { Solicitud, EstadoSolicitud } from "../../../../domain/entities/solicitud.entity";
 import { TypeOrmSolicitudEntity } from "./typeorm-solicitud.entity";
+import { solicitudADominio, solicitudAPersistencia } from "./solicitud.mapper";
 
 @Injectable()
 export class TypeOrmSolicitudRepository implements ISolicitudRepository {
@@ -12,31 +13,11 @@ export class TypeOrmSolicitudRepository implements ISolicitudRepository {
         private readonly repository: Repository<TypeOrmSolicitudEntity>,
     ) {}
 
-    // Mapper: Convierte el Esquema de TypeORM a Entidad pura de Dominio
-    private toDomain(entity: TypeOrmSolicitudEntity): Solicitud {
-        return new Solicitud(
-            entity.id,
-            entity.productorId,
-            entity.agronomoId,
-            entity.estado as EstadoSolicitud,
-            entity.fecha,
-            entity.municipio,
-            entity.vereda,
-            entity.finca,
-            entity.confianzaIa,
-            entity.modeloVersionId,
-            entity.respuestaProfesional,
-            entity.tipoResultado as TipoResultado | null,
-            entity.plagaIdentificada,
-            entity.fechaResolucion,
-        );
-    }
-
     async findById(id: string): Promise<Solicitud | null> {
         const entity = await this.repository.findOne({ where: { id } });
         if (!entity) return null;
 
-        return this.toDomain(entity);
+        return solicitudADominio(entity);
     }
 
     async findAll(filtros?: FiltrosSolicitud): Promise<Solicitud[]> {
@@ -47,27 +28,12 @@ export class TypeOrmSolicitudRepository implements ISolicitudRepository {
         // Las más recientes primero en la bandeja
         const entities = await this.repository.find({ where, order: { fecha: "DESC" } });
 
-        return entities.map((entity) => this.toDomain(entity));
+        return entities.map((entity) => solicitudADominio(entity));
     }
 
     async guardar(solicitud: Solicitud): Promise<void> {
         // Mapper inverso: Convierte Entidad de Dominio a esquema persistible de TypeORM
-        await this.repository.save({
-            id: solicitud.id,
-            productorId: solicitud.productorId,
-            agronomoId: solicitud.agronomoId,
-            estado: solicitud.estado,
-            fecha: solicitud.fecha,
-            municipio: solicitud.municipio,
-            vereda: solicitud.vereda,
-            finca: solicitud.finca,
-            confianzaIa: solicitud.confianzaIa,
-            modeloVersionId: solicitud.modeloVersionId,
-            respuestaProfesional: solicitud.respuestaProfesional,
-            tipoResultado: solicitud.tipoResultado,
-            plagaIdentificada: solicitud.plagaIdentificada,
-            fechaResolucion: solicitud.fechaResolucion,
-        });
+        await this.repository.save(solicitudAPersistencia(solicitud));
     }
 
     async guardarResolucion(solicitud: Solicitud): Promise<boolean> {
