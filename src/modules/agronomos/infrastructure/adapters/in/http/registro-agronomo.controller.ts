@@ -1,5 +1,15 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UploadedFiles, UseInterceptors } from "@nestjs/common";
+import {
+    Body,
+    Controller,
+    HttpCode,
+    HttpStatus,
+    Post,
+    UploadedFiles,
+    UseGuards,
+    UseInterceptors,
+} from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
+import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import { RegistrarAgronomoService } from "../../../../application/use-cases/registrar-agronomo.service";
 import { RegistrarAgronomoDto } from "./dto/registrar-agronomo.dto";
 import {
@@ -12,11 +22,14 @@ const MAX_DOCUMENTOS = 3;
 const MAX_BYTES_DOCUMENTO = 5 * 1024 * 1024;
 
 // Endpoint público: lo usa el formulario "Solicitar acceso" antes de tener cuenta (RF-01.6)
+@UseGuards(ThrottlerGuard)
 @Controller("agronomos")
 export class RegistroAgronomoController {
     constructor(private readonly registrarAgronomoService: RegistrarAgronomoService) {}
 
+    // Cada registro guarda archivos: máximo 5 cada 10 minutos desde la misma IP
     @Post("registro")
+    @Throttle({ publico: { limit: 5, ttl: 600_000 } })
     @HttpCode(HttpStatus.CREATED)
     @UseInterceptors(
         FilesInterceptor("documentos", MAX_DOCUMENTOS, {

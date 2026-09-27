@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { ThrottlerModule } from "@nestjs/throttler";
 import { SolicitudesModule } from "./modules/solicitudes/solicitudes.module";
 import { AutenticacionModule } from "./modules/autenticacion/autenticacion.module";
 import { AgronomosModule } from "./modules/agronomos/agronomos.module";
@@ -12,6 +13,12 @@ import { NotificacionesModule } from "./modules/notificaciones/notificaciones.mo
 @Module({
     imports: [
         ConfigModule.forRoot(),
+        // Límite de peticiones por IP para las rutas públicas (OTP y registro). Solo se aplica
+        // donde se usa ThrottlerGuard; cada ruta ajusta su límite con @Throttle.
+        ThrottlerModule.forRoot({
+            throttlers: [{ name: "publico", ttl: 60_000, limit: 10 }],
+            errorMessage: "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
+        }),
         TypeOrmModule.forRoot({
             type: "postgres",
             host: process.env.DB_HOST,
