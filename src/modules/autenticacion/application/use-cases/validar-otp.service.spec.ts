@@ -6,6 +6,8 @@ import { SesionOtp, MAX_INTENTOS_OTP } from "../../domain/entities/sesion-otp.en
 import type { IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
 import type { ISesionOtpRepository } from "../../domain/ports/out/sesion-otp.repository";
 import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
+import type { ISesionUsuarioRepository } from "../../domain/ports/out/sesion-usuario.repository";
+import type { SesionUsuario } from "../../domain/entities/sesion-usuario.entity";
 import { Agronomo, type EstadoAgronomo } from "../../../agronomos/domain/entities/agronomo.entity";
 
 // @nestjs/jwt se publica como ESM y Jest no lo carga: basta con una clase vacía para la inyección
@@ -21,6 +23,8 @@ describe("ValidarOtpService", () => {
     let usuarioGuardado: jest.Mock;
     let intentoFallido: jest.Mock;
     let consumir: jest.Mock;
+    let sesionCreada: jest.Mock<Promise<void>, [SesionUsuario]>;
+    let firmar: jest.Mock;
     let servicio: ValidarOtpService;
 
     const crearUsuario = (rol: RolUsuario) => new Usuario("u-1", TELEFONO, rol, "activo", new Date());
@@ -34,6 +38,8 @@ describe("ValidarOtpService", () => {
         usuarioGuardado = jest.fn();
         intentoFallido = jest.fn();
         consumir = jest.fn().mockResolvedValue(true);
+        sesionCreada = jest.fn<Promise<void>, [SesionUsuario]>(() => Promise.resolve());
+        firmar = jest.fn(() => "token-firmado");
 
         const usuarios: IUsuarioRepository = {
             findByTelefono: () => Promise.resolve(usuario),
@@ -50,8 +56,10 @@ describe("ValidarOtpService", () => {
             findByUsuarioId: () => Promise.resolve(agronomo),
         } as unknown as IAgronomoRepository;
 
-        servicio = new ValidarOtpService(usuarios, sesiones, agronomos, {
-            sign: () => "token-firmado",
+        const sesionesUsuario = { crear: sesionCreada } as unknown as ISesionUsuarioRepository;
+
+        servicio = new ValidarOtpService(usuarios, sesiones, agronomos, sesionesUsuario, {
+            sign: firmar,
         } as unknown as JwtService);
     });
 
@@ -61,6 +69,21 @@ describe("ValidarOtpService", () => {
         expect(respuesta.usuario.rol).toBe("admin");
         expect(respuesta.accessToken).toEqual(expect.any(String));
         expect(consumir).toHaveBeenCalledWith("s-1");
+    });
+
+    it("abre una sesión en el servidor y firma el token con su id (jti)", async () => {
+        await servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "admin" });
+
+        const sesionUsuario = sesionCreada.mock.calls[0][0];
+        expect(sesionUsuario.usuarioId).toBe("u-1");
+        expect(firmar).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ jwtid: sesionUsuario.id }));
+    });
+
+    it("no abre sesión si el código es incorrecto", async () => {
+        await expect(
+            servicio.ejecutar({ telefono: TELEFONO, codigo: "000000", rolSeleccionado: "admin" }),
+        ).rejects.toBeInstanceOf(UnauthorizedException);
+        expect(sesionCreada).not.toHaveBeenCalled();
     });
 
     it("no permite escalar el rol eligiendo otro en el login", async () => {
