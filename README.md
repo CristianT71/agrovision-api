@@ -88,7 +88,11 @@ Reglas del login:
 - Hay que esperar **30 segundos** entre solicitudes (RF-01.5).
 - El rol elegido debe ser el de la cuenta; nunca se cambia desde el login (RF-01.2).
 - Un número desconocido solo se registra solo si es de la **app móvil** (productor). Desde el panel se rechaza.
-- El token dura **30 minutos** (RNF-02.2).
+- Cada login abre una **sesión en el servidor** (tabla `sesiones_usuario`). En el panel se cierra tras
+  **30 minutos sin actividad** (RNF-02.2) y a las 12 horas como máximo; en la app del productor dura 30 días.
+- `POST /auth/cerrar-sesion` invalida el token en el servidor (RF-01.8).
+- Límite por IP: 5 solicitudes de código por minuto, 10 validaciones por minuto y 5 registros de agrónomo
+  cada 10 minutos. Al superarlo responde **429**.
 
 ## Arquitectura
 
@@ -124,15 +128,33 @@ Todas las rutas llevan el prefijo `/api`. Roles: **admin**, **agronomo** (Profes
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
 | POST | `/auth/solicitar-otp` | Público | Envía el código OTP |
-| POST | `/auth/validar-otp` | Público | Valida el código y entrega el JWT |
+| POST | `/auth/validar-otp` | Público | Valida el código, abre la sesión y entrega el JWT |
+| POST | `/auth/cerrar-sesion` | Autenticado | Cierra la sesión en el servidor |
 
 ### Solicitudes (RF-03, RF-04)
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| GET | `/solicitudes` | agronomo, admin | Lista con filtros `estado`, `agronomoId` y `soloMias` |
-| GET | `/solicitudes/:id` | agronomo, admin | Detalle |
-| PATCH | `/solicitudes/:id/resolver` | agronomo | Resolución del agrónomo asignado; queda en solo lectura |
+| GET | `/solicitudes` | agronomo, admin | Lista con el nombre del productor; filtros `estado`, `agronomoId`, `soloMias` y `busqueda` (productor, finca, vereda, municipio o código `SOL-…`) |
+| GET | `/solicitudes/:id` | agronomo, admin | Detalle con el nombre del productor |
+| GET | `/solicitudes/:id/fotos` | agronomo, admin | Fotos que subió la app (ángulo, orden y si ya está subida) |
+| GET | `/solicitudes/:id/fotos/:fotoId` | agronomo, admin | Descarga una foto |
+| GET | `/solicitudes/:id/similares` | agronomo, admin | Casos resueltos más parecidos (`?limite=3`, máx. 10) — RF-04.3 |
+| GET | `/solicitudes/:id/anexos` | agronomo, admin | Anexos de la resolución — RF-04.6 |
+| GET | `/solicitudes/:id/anexos/:anexoId` | agronomo, admin | Descarga un anexo |
+| PATCH | `/solicitudes/:id/resolver` | agronomo | Resolución del agrónomo asignado; JSON o multipart con hasta 5 anexos (PDF o imagen, campo `anexos`) |
+| PATCH | `/solicitudes/:id/asignar` | admin | Asigna o reasigna el caso a un agrónomo activo — RF-08.3 |
+
+Los **casos similares** se calculan por contexto (órgano afectado, cultivo, cercanía y fecha) porque la API
+aún no recibe los embeddings del modelo; cuando exista el módulo de detecciones se puede comparar por imagen.
+
+### App móvil del productor
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| POST | `/v1/review-requests/batch` | productor | Envía un lote de solicitudes; responde con las URLs firmadas para subir cada foto |
+| GET | `/v1/review-requests/mine` | productor | Mis solicitudes (`?since=` para sincronizar solo los cambios) |
+| PUT | `/v1/uploads/:token` | URL firmada | Sube el binario de una foto |
 
 ### Agrónomos (RF-01.6, RF-10)
 
@@ -209,6 +231,6 @@ npm run build     # compilación
 
 ## Pendiente
 
-- Registro de solicitudes desde la app móvil, fotos de la solicitud y permisos de contacto (RF-04)
-- Asignación de casos, dashboard, detecciones y modelos IA (RF-06 a RF-09)
-- Límite de peticiones en las rutas públicas (registro y OTP)
+- Detecciones, modelos IA y telemetría del dashboard (RF-06, RF-07, RF-09)
+- Permisos de contacto productor–agrónomo (RF-04.10, RF-08.8)
+- Registro de auditoría (RF-09.4, RNF-01.2) y endpoint de ajustes del panel
