@@ -62,6 +62,17 @@ export class TypeOrmLecturaSolicitudesAdapter implements ILecturaSolicitudes {
         return entity ? this.aResultado(entity) : null;
     }
 
+    async listarResueltas(excluirId: string, limite: number): Promise<SolicitudConProductor[]> {
+        const entities = await this.consultaBase()
+            .where("s.estado = :estado", { estado: "Resuelta" })
+            .andWhere("s.id <> :excluirId", { excluirId })
+            .orderBy("s.fechaResolucion", "DESC")
+            .take(limite)
+            .getMany();
+
+        return entities.map((entity) => this.aResultado(entity));
+    }
+
     private anexoADominio(entity: TypeOrmAnexoResolucionEntity): AnexoResolucion {
         return new AnexoResolucion(
             entity.id,

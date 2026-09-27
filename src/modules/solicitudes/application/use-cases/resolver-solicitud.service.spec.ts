@@ -80,7 +80,13 @@ describe("Solicitudes - casos de uso", () => {
         listarLectura = jest.fn<Promise<SolicitudConProductor[]>, [FiltrosLecturaSolicitudes]>(() =>
             Promise.resolve([]),
         );
-        lectura = { listar: listarLectura, obtener: jest.fn(), listarAnexos: jest.fn(), obtenerAnexo: jest.fn() };
+        lectura = {
+            listar: listarLectura,
+            obtener: jest.fn(),
+            listarAnexos: jest.fn(),
+            listarResueltas: jest.fn(),
+            obtenerAnexo: jest.fn(),
+        };
     });
 
     describe("ResolverSolicitudService", () => {

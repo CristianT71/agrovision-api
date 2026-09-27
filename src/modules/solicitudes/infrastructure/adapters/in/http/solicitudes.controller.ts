@@ -21,6 +21,8 @@ import { AsignarSolicitudService } from "../../../../application/use-cases/asign
 import { ListarFotosSolicitudService } from "../../../../application/use-cases/listar-fotos-solicitud.service";
 import { DescargarFotoSolicitudService } from "../../../../application/use-cases/descargar-foto-solicitud.service";
 import { AnexosResolucionService } from "../../../../application/use-cases/anexos-resolucion.service";
+import { CasosSimilaresService } from "../../../../application/use-cases/casos-similares.service";
+import { CasosSimilaresDto } from "./dto/casos-similares.dto";
 import { MAX_ANEXOS_RESOLUCION } from "../../../../domain/entities/anexo-resolucion.entity";
 import {
     TIPOS_DOCUMENTO,
@@ -52,6 +54,7 @@ export class SolicitudesController {
         private readonly listarFotosSolicitudService: ListarFotosSolicitudService,
         private readonly descargarFotoSolicitudService: DescargarFotoSolicitudService,
         private readonly anexosResolucionService: AnexosResolucionService,
+        private readonly casosSimilaresService: CasosSimilaresService,
     ) {}
 
     @Get()
@@ -74,6 +77,12 @@ export class SolicitudesController {
             type: foto.tipoMime ?? "application/octet-stream",
             disposition: `attachment; filename="foto-${foto.orden}${EXTENSIONES_FOTO[foto.tipoMime ?? ""] ?? ""}"`,
         });
+    }
+
+    // RF-04.3: expedientes resueltos más parecidos al caso. También antes de ":id".
+    @Get(":id/similares")
+    async casosSimilares(@Param("id", ParseUUIDPipe) id: string, @Query() consulta: CasosSimilaresDto) {
+        return await this.casosSimilaresService.ejecutar(id, consulta.limite);
     }
 
     // RF-04.6: anexos de la resolución. También antes de ":id".

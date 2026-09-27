@@ -17,6 +17,8 @@ export interface FiltrosLecturaSolicitudes extends FiltrosSolicitud {
 export interface ILecturaSolicitudes {
     listar(filtros: FiltrosLecturaSolicitudes): Promise<SolicitudConProductor[]>;
     obtener(id: string): Promise<SolicitudConProductor | null>;
+    // RF-04.3: casos ya resueltos (los más recientes) para compararlos con uno nuevo
+    listarResueltas(excluirId: string, limite: number): Promise<SolicitudConProductor[]>;
     // RF-04.6: anexos que el agrónomo adjuntó a la resolución
     listarAnexos(solicitudId: string): Promise<AnexoResolucion[]>;
     obtenerAnexo(solicitudId: string, anexoId: string): Promise<AnexoResolucion | null>;
