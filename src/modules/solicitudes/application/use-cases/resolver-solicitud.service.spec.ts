@@ -11,6 +11,11 @@ import type { ISolicitudRepository, FiltrosSolicitud } from "../../domain/ports/
 import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
 import { Agronomo, type EstadoAgronomo } from "../../../agronomos/domain/entities/agronomo.entity";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
+import type { AnexoResolucion } from "../../domain/entities/anexo-resolucion.entity";
+import type {
+    ArchivoParaGuardar,
+    IAlmacenamientoArchivos,
+} from "../../../../common/almacenamiento/almacenamiento.port";
 
 const RESOLUCION = {
     respuestaProfesional: "Se confirma roya en estadio inicial, aplicar fungicida cúprico.",
@@ -37,7 +42,10 @@ const crearAgronomo = (id: string, estado: EstadoAgronomo = "activo") =>
 describe("Solicitudes - casos de uso", () => {
     let solicitud: Solicitud | null;
     let agronomo: Agronomo | null;
-    let guardarResolucion: jest.Mock<Promise<boolean>, [Solicitud]>;
+    let guardarResolucion: jest.Mock<Promise<boolean>, [Solicitud, AnexoResolucion[]?]>;
+    let guardarPrivado: jest.Mock<Promise<string>, [string, ArchivoParaGuardar]>;
+    let eliminarPrivado: jest.Mock<Promise<void>, [string]>;
+    let almacenamiento: IAlmacenamientoArchivos;
     let findAll: jest.Mock<Promise<Solicitud[]>, [FiltrosSolicitud?]>;
     let solicitudes: ISolicitudRepository;
     let agronomos: IAgronomoRepository;
@@ -47,7 +55,18 @@ describe("Solicitudes - casos de uso", () => {
     beforeEach(() => {
         solicitud = crearSolicitud("Asignada", "a-1");
         agronomo = crearAgronomo("a-1");
-        guardarResolucion = jest.fn<Promise<boolean>, [Solicitud]>(() => Promise.resolve(true));
+        guardarResolucion = jest.fn<Promise<boolean>, [Solicitud, AnexoResolucion[]?]>(() => Promise.resolve(true));
+        guardarPrivado = jest.fn<Promise<string>, [string, ArchivoParaGuardar]>((carpeta) =>
+            Promise.resolve(`${carpeta}/archivo.pdf`),
+        );
+        eliminarPrivado = jest.fn<Promise<void>, [string]>(() => Promise.resolve());
+        almacenamiento = {
+            guardarPublico: jest.fn(),
+            eliminarPublico: jest.fn(),
+            guardarPrivado,
+            leerPrivado: jest.fn(),
+            eliminarPrivado,
+        };
         findAll = jest.fn(() => Promise.resolve([]));
 
         solicitudes = {
@@ -61,15 +80,22 @@ describe("Solicitudes - casos de uso", () => {
         listarLectura = jest.fn<Promise<SolicitudConProductor[]>, [FiltrosLecturaSolicitudes]>(() =>
             Promise.resolve([]),
         );
-        lectura = { listar: listarLectura, obtener: jest.fn() };
+        lectura = { listar: listarLectura, obtener: jest.fn(), listarAnexos: jest.fn(), obtenerAnexo: jest.fn() };
     });
 
     describe("ResolverSolicitudService", () => {
-        const resolver = () =>
-            new ResolverSolicitudService(solicitudes, agronomos).ejecutar({
+        const PDF: ArchivoParaGuardar = {
+            nombreOriginal: "informe.pdf",
+            tipoMime: "application/pdf",
+            contenido: Buffer.from("%PDF-1.7"),
+        };
+
+        const resolver = (anexos: ArchivoParaGuardar[] = []) =>
+            new ResolverSolicitudService(solicitudes, agronomos, almacenamiento).ejecutar({
                 solicitudId: "s-1",
                 usuarioId: "u-a-1",
                 ...RESOLUCION,
+                anexos,
             });
 
         it("resuelve la solicitud asignada al agrónomo autenticado", async () => {
@@ -110,6 +136,35 @@ describe("Solicitudes - casos de uso", () => {
             guardarResolucion.mockResolvedValue(false);
 
             await expect(resolver()).rejects.toBeInstanceOf(ConflictException);
+        });
+
+        it("guarda los anexos en almacenamiento privado junto con la resolución (RF-04.6)", async () => {
+            await resolver([PDF, PDF]);
+
+            const anexos = guardarResolucion.mock.calls[0][1] ?? [];
+            expect(anexos).toHaveLength(2);
+            expect(anexos[0].nombreOriginal).toBe("informe.pdf");
+            expect(guardarPrivado).toHaveBeenCalledWith("solicitudes/s-1/anexos", PDF);
+            expect(eliminarPrivado).not.toHaveBeenCalled();
+        });
+
+        it("si la resolución no se guarda, borra los anexos que alcanzó a subir", async () => {
+            guardarResolucion.mockResolvedValue(false);
+
+            await expect(resolver([PDF])).rejects.toBeInstanceOf(ConflictException);
+            expect(eliminarPrivado).toHaveBeenCalledWith("solicitudes/s-1/anexos/archivo.pdf");
+        });
+
+        it("no sube anexos si la solicitud no puede resolverse", async () => {
+            solicitud = crearSolicitud("Asignada", "a-2");
+
+            await expect(resolver([PDF])).rejects.toBeInstanceOf(ForbiddenException);
+            expect(guardarPrivado).not.toHaveBeenCalled();
+        });
+
+        it("rechaza más de 5 anexos", async () => {
+            await expect(resolver([PDF, PDF, PDF, PDF, PDF, PDF])).rejects.toThrow("máximo 5");
+            expect(guardarPrivado).not.toHaveBeenCalled();
         });
     });
 

@@ -4,6 +4,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 
 import { TypeOrmSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.entity";
 import { TypeOrmFotoSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-foto-solicitud.entity";
+import { TypeOrmAnexoResolucionEntity } from "./infrastructure/adapters/out/persistence/typeorm-anexo-resolucion.entity";
 import { TypeOrmSolicitudRepository } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.repository";
 import { TypeOrmSolicitudAppRepository } from "./infrastructure/adapters/out/persistence/typeorm-solicitud-app.repository";
 import { TypeOrmLecturaSolicitudesAdapter } from "./infrastructure/adapters/out/persistence/typeorm-lectura-solicitudes.adapter";
@@ -34,6 +35,7 @@ import { SubirFotoSolicitudService } from "./application/use-cases/subir-foto-so
 import { ListarMisSolicitudesService } from "./application/use-cases/listar-mis-solicitudes.service";
 import { ListarFotosSolicitudService } from "./application/use-cases/listar-fotos-solicitud.service";
 import { DescargarFotoSolicitudService } from "./application/use-cases/descargar-foto-solicitud.service";
+import { AnexosResolucionService } from "./application/use-cases/anexos-resolucion.service";
 
 @Module({
     // Se necesita el agrónomo del usuario autenticado para resolver y filtrar (RF-03.3)
@@ -41,7 +43,7 @@ import { DescargarFotoSolicitudService } from "./application/use-cases/descargar
     // La app móvil necesita el productor del token, el almacenamiento privado para sus fotos
     // y el secreto con el que se firman las URLs de subida
     imports: [
-        TypeOrmModule.forFeature([TypeOrmSolicitudEntity, TypeOrmFotoSolicitudEntity]),
+        TypeOrmModule.forFeature([TypeOrmSolicitudEntity, TypeOrmFotoSolicitudEntity, TypeOrmAnexoResolucionEntity]),
         AgronomosModule,
         NotificacionesModule,
         ProductoresModule,
@@ -59,6 +61,7 @@ import { DescargarFotoSolicitudService } from "./application/use-cases/descargar
         ListarMisSolicitudesService,
         ListarFotosSolicitudService,
         DescargarFotoSolicitudService,
+        AnexosResolucionService,
         {
             provide: SOLICITUD_REPOSITORY,
             useClass: TypeOrmSolicitudRepository,

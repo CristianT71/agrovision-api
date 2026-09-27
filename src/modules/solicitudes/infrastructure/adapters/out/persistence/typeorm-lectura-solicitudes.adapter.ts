@@ -7,6 +7,8 @@ import type {
     SolicitudConProductor,
 } from "../../../../domain/ports/out/lectura-solicitudes.port";
 import { TypeOrmSolicitudEntity } from "./typeorm-solicitud.entity";
+import { TypeOrmAnexoResolucionEntity } from "./typeorm-anexo-resolucion.entity";
+import { AnexoResolucion } from "../../../../domain/entities/anexo-resolucion.entity";
 import { solicitudADominio } from "./solicitud.mapper";
 import { escaparLike } from "../../../../../../common/utils/escapar-like";
 
@@ -15,6 +17,8 @@ export class TypeOrmLecturaSolicitudesAdapter implements ILecturaSolicitudes {
     constructor(
         @InjectRepository(TypeOrmSolicitudEntity)
         private readonly repository: Repository<TypeOrmSolicitudEntity>,
+        @InjectRepository(TypeOrmAnexoResolucionEntity)
+        private readonly anexoRepository: Repository<TypeOrmAnexoResolucionEntity>,
     ) {}
 
     // Una sola consulta con JOIN al productor: evita pedir el nombre de cada productor por separado
@@ -56,5 +60,27 @@ export class TypeOrmLecturaSolicitudesAdapter implements ILecturaSolicitudes {
     async obtener(id: string): Promise<SolicitudConProductor | null> {
         const entity = await this.consultaBase().where("s.id = :id", { id }).getOne();
         return entity ? this.aResultado(entity) : null;
+    }
+
+    private anexoADominio(entity: TypeOrmAnexoResolucionEntity): AnexoResolucion {
+        return new AnexoResolucion(
+            entity.id,
+            entity.solicitudId,
+            entity.ruta,
+            entity.nombreOriginal,
+            entity.tipoMime,
+            entity.tamanoBytes,
+            entity.fechaSubida,
+        );
+    }
+
+    async listarAnexos(solicitudId: string): Promise<AnexoResolucion[]> {
+        const entities = await this.anexoRepository.find({ where: { solicitudId }, order: { fechaSubida: "ASC" } });
+        return entities.map((entity) => this.anexoADominio(entity));
+    }
+
+    async obtenerAnexo(solicitudId: string, anexoId: string): Promise<AnexoResolucion | null> {
+        const entity = await this.anexoRepository.findOne({ where: { id: anexoId, solicitudId } });
+        return entity ? this.anexoADominio(entity) : null;
     }
 }

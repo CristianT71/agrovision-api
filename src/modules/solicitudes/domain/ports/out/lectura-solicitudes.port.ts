@@ -1,4 +1,5 @@
 import type { Solicitud } from "../../entities/solicitud.entity";
+import type { AnexoResolucion } from "../../entities/anexo-resolucion.entity";
 import type { FiltrosSolicitud } from "./solicitud.repository";
 
 // Solicitud con los datos del productor que muestra el panel (la tabla solicitudes solo guarda su id)
@@ -16,6 +17,9 @@ export interface FiltrosLecturaSolicitudes extends FiltrosSolicitud {
 export interface ILecturaSolicitudes {
     listar(filtros: FiltrosLecturaSolicitudes): Promise<SolicitudConProductor[]>;
     obtener(id: string): Promise<SolicitudConProductor | null>;
+    // RF-04.6: anexos que el agrónomo adjuntó a la resolución
+    listarAnexos(solicitudId: string): Promise<AnexoResolucion[]>;
+    obtenerAnexo(solicitudId: string, anexoId: string): Promise<AnexoResolucion | null>;
 }
 
 export const LECTURA_SOLICITUDES = "LECTURA_SOLICITUDES";
