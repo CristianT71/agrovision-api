@@ -1,6 +1,11 @@
 import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { ResolverSolicitudService } from "./resolver-solicitud.service";
 import { ListarSolicitudesService } from "./listar-solicitudes.service";
+import type {
+    FiltrosLecturaSolicitudes,
+    ILecturaSolicitudes,
+    SolicitudConProductor,
+} from "../../domain/ports/out/lectura-solicitudes.port";
 import { Solicitud, type EstadoSolicitud } from "../../domain/entities/solicitud.entity";
 import type { ISolicitudRepository, FiltrosSolicitud } from "../../domain/ports/out/solicitud.repository";
 import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
@@ -36,6 +41,8 @@ describe("Solicitudes - casos de uso", () => {
     let findAll: jest.Mock<Promise<Solicitud[]>, [FiltrosSolicitud?]>;
     let solicitudes: ISolicitudRepository;
     let agronomos: IAgronomoRepository;
+    let listarLectura: jest.Mock<Promise<SolicitudConProductor[]>, [FiltrosLecturaSolicitudes]>;
+    let lectura: ILecturaSolicitudes;
 
     beforeEach(() => {
         solicitud = crearSolicitud("Asignada", "a-1");
@@ -51,6 +58,10 @@ describe("Solicitudes - casos de uso", () => {
             guardarAsignacion: jest.fn(),
         };
         agronomos = { findByUsuarioId: () => Promise.resolve(agronomo) } as unknown as IAgronomoRepository;
+        listarLectura = jest.fn<Promise<SolicitudConProductor[]>, [FiltrosLecturaSolicitudes]>(() =>
+            Promise.resolve([]),
+        );
+        lectura = { listar: listarLectura, obtener: jest.fn() };
     });
 
     describe("ResolverSolicitudService", () => {
@@ -104,7 +115,7 @@ describe("Solicitudes - casos de uso", () => {
 
     describe("ListarSolicitudesService", () => {
         const listar = (soloMias: boolean, rol: string) =>
-            new ListarSolicitudesService(solicitudes, agronomos).ejecutar({
+            new ListarSolicitudesService(lectura, agronomos).ejecutar({
                 soloMias,
                 agronomoId: "a-otro",
                 usuario: { id: "u-a-1", rol },
@@ -113,11 +124,25 @@ describe("Solicitudes - casos de uso", () => {
         it("'mis asignadas' usa el agrónomo del token e ignora el enviado por el cliente", async () => {
             await listar(true, "agronomo");
 
-            expect(findAll).toHaveBeenCalledWith(expect.objectContaining({ agronomoId: "a-1" }));
+            expect(listarLectura).toHaveBeenCalledWith(expect.objectContaining({ agronomoId: "a-1" }));
         });
 
         it("'mis asignadas' no aplica a administradores", async () => {
             await expect(listar(true, "admin")).rejects.toBeInstanceOf(ForbiddenException);
+        });
+
+        it("entrega cada solicitud con el nombre de su productor y pasa la búsqueda (RF-03.5)", async () => {
+            listarLectura.mockResolvedValue([
+                { solicitud: crearSolicitud("Enviada", null), productorNombre: "Carlos Arango" },
+            ]);
+
+            const [vista] = await new ListarSolicitudesService(lectura, agronomos).ejecutar({
+                busqueda: "carlos",
+                usuario: { id: "u-a-1", rol: "admin" },
+            });
+
+            expect(vista.productorNombre).toBe("Carlos Arango");
+            expect(listarLectura).toHaveBeenCalledWith(expect.objectContaining({ busqueda: "carlos" }));
         });
     });
 });

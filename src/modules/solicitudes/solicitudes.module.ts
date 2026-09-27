@@ -6,6 +6,7 @@ import { TypeOrmSolicitudEntity } from "./infrastructure/adapters/out/persistenc
 import { TypeOrmFotoSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-foto-solicitud.entity";
 import { TypeOrmSolicitudRepository } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.repository";
 import { TypeOrmSolicitudAppRepository } from "./infrastructure/adapters/out/persistence/typeorm-solicitud-app.repository";
+import { TypeOrmLecturaSolicitudesAdapter } from "./infrastructure/adapters/out/persistence/typeorm-lectura-solicitudes.adapter";
 import { SolicitudesController } from "./infrastructure/adapters/in/http/solicitudes.controller";
 import { AppSolicitudesController } from "./infrastructure/adapters/in/app-movil/app-solicitudes.controller";
 import { SubidasController } from "./infrastructure/adapters/in/app-movil/subidas.controller";
@@ -15,6 +16,7 @@ import { HmacFirmadorUrlsSubidaAdapter } from "./infrastructure/adapters/out/fir
 
 import { SOLICITUD_REPOSITORY } from "./domain/ports/out/solicitud.repository";
 import { SOLICITUD_APP_REPOSITORY } from "./domain/ports/out/solicitud-app.repository";
+import { LECTURA_SOLICITUDES } from "./domain/ports/out/lectura-solicitudes.port";
 import { NOTIFICADOR_SOLICITUDES } from "./domain/ports/out/notificador-solicitudes.port";
 import { FIRMADOR_URLS_SUBIDA } from "./domain/ports/out/firmador-urls-subida.port";
 import { AgronomosModule } from "../agronomos/agronomos.module";
@@ -60,6 +62,10 @@ import { DescargarFotoSolicitudService } from "./application/use-cases/descargar
         {
             provide: SOLICITUD_REPOSITORY,
             useClass: TypeOrmSolicitudRepository,
+        },
+        {
+            provide: LECTURA_SOLICITUDES,
+            useClass: TypeOrmLecturaSolicitudesAdapter,
         },
         {
             provide: SOLICITUD_APP_REPOSITORY,

@@ -1,22 +1,21 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { IObtenerSolicitudPorIdUseCase } from "../../domain/ports/in/consultar-solicitudes.port";
-import type { ISolicitudRepository } from "../../domain/ports/out/solicitud.repository";
-import { SOLICITUD_REPOSITORY } from "../../domain/ports/out/solicitud.repository";
-import type { Solicitud } from "../../domain/entities/solicitud.entity";
+import type { IObtenerSolicitudPorIdUseCase, SolicitudVista } from "../../domain/ports/in/consultar-solicitudes.port";
+import { LECTURA_SOLICITUDES, type ILecturaSolicitudes } from "../../domain/ports/out/lectura-solicitudes.port";
 
 @Injectable()
 export class ObtenerSolicitudPorIdService implements IObtenerSolicitudPorIdUseCase {
     constructor(
-        @Inject(SOLICITUD_REPOSITORY)
-        private readonly solicitudRepository: ISolicitudRepository,
+        @Inject(LECTURA_SOLICITUDES)
+        private readonly lecturaSolicitudes: ILecturaSolicitudes,
     ) {}
 
-    async ejecutar(id: string): Promise<Solicitud> {
-        const solicitud = await this.solicitudRepository.findById(id);
+    async ejecutar(id: string): Promise<SolicitudVista> {
+        const resultado = await this.lecturaSolicitudes.obtener(id);
 
-        if (!solicitud) {
+        if (!resultado) {
             throw new NotFoundException(`La solicitud con ID ${id} no fue encontrada.`);
         }
-        return solicitud;
+
+        return Object.assign(resultado.solicitud, { productorNombre: resultado.productorNombre });
     }
 }
