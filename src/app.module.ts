@@ -9,6 +9,7 @@ import { ProductoresModule } from "./modules/productores/productores.module";
 import { PlagasModule } from "./modules/plagas/plagas.module";
 import { MensajeriaModule } from "./modules/mensajeria/mensajeria.module";
 import { NotificacionesModule } from "./modules/notificaciones/notificaciones.module";
+import { PermisosContactoModule } from "./modules/permisos-contacto/permisos-contacto.module";
 
 @Module({
     imports: [
@@ -38,6 +39,7 @@ import { NotificacionesModule } from "./modules/notificaciones/notificaciones.mo
         PlagasModule,
         MensajeriaModule,
         NotificacionesModule,
+        PermisosContactoModule,
     ],
     controllers: [],
     providers: [],
