@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import type {
     IOtorgarPermisoContactoUseCase,
@@ -9,17 +9,25 @@ import {
     type IPermisoContactoRepository,
 } from "../../domain/ports/out/permiso-contacto.repository";
 import { CONSULTA_SOLICITUDES, type IConsultaSolicitudes } from "../../domain/ports/out/consulta-solicitudes.port";
+import { CONSULTA_AGRONOMOS, type IConsultaAgronomos } from "../../domain/ports/out/consulta-agronomos.port";
+import { NOTIFICADOR_PERMISOS, type INotificadorPermisos } from "../../domain/ports/out/notificador-permisos.port";
 import { PermisoContacto } from "../../domain/entities/permiso-contacto.entity";
 import { obtenerContexto } from "./resolver-acceso";
 import { aPermisoContactoVista } from "./permiso-contacto-vista";
 
 @Injectable()
 export class OtorgarPermisoContactoService implements IOtorgarPermisoContactoUseCase {
+    private readonly logger = new Logger(OtorgarPermisoContactoService.name);
+
     constructor(
         @Inject(PERMISO_CONTACTO_REPOSITORY)
         private readonly permisoRepository: IPermisoContactoRepository,
         @Inject(CONSULTA_SOLICITUDES)
         private readonly consultaSolicitudes: IConsultaSolicitudes,
+        @Inject(CONSULTA_AGRONOMOS)
+        private readonly consultaAgronomos: IConsultaAgronomos,
+        @Inject(NOTIFICADOR_PERMISOS)
+        private readonly notificador: INotificadorPermisos,
     ) {}
 
     async ejecutar(comando: { adminUsuarioId: string; solicitudId: string }): Promise<PermisoContactoVista> {
@@ -36,6 +44,24 @@ export class OtorgarPermisoContactoService implements IOtorgarPermisoContactoUse
 
         const guardado = await this.permisoRepository.guardar(permiso);
 
+        // 4. Avisar al agrónomo; si el aviso falla, el permiso no se deshace
+        await this.notificar(guardado);
+
         return aPermisoContactoVista(guardado, contexto);
+    }
+
+    private async notificar(permiso: PermisoContacto): Promise<void> {
+        try {
+            const agronomoUsuarioId = permiso.agronomoId
+                ? await this.consultaAgronomos.obtenerUsuarioIdPorAgronomo(permiso.agronomoId)
+                : null;
+            if (!agronomoUsuarioId) return;
+
+            await this.notificador.notificarPermisoOtorgado({ solicitudId: permiso.solicitudId, agronomoUsuarioId });
+        } catch (error) {
+            this.logger.warn(
+                `No se pudo notificar el permiso de contacto de la solicitud ${permiso.solicitudId}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        }
     }
 }

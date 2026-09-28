@@ -18,4 +18,10 @@ export class AgronomosConsultaAdapter implements IConsultaAgronomos {
 
         return agronomo?.id ?? null;
     }
+
+    async obtenerUsuarioIdPorAgronomo(agronomoId: string): Promise<string | null> {
+        const agronomo = await this.agronomoRepository.findById(agronomoId);
+
+        return agronomo?.usuarioId ?? null;
+    }
 }
