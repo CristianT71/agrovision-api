@@ -41,16 +41,23 @@ export class ListarMisSolicitudesService implements IListarMisSolicitudesUseCase
         const desde = consulta.desde === undefined ? undefined : new Date(consulta.desde);
         const solicitudes = await this.solicitudAppRepository.listarPorProductor(productor.id, desde);
 
-        return solicitudes
-            .filter((solicitud): solicitud is Solicitud & { idCliente: string } => solicitud.idCliente !== null)
-            .map((solicitud) => ({
-                id: solicitud.idCliente,
-                status: ESTADOS_APP[solicitud.estado],
-                resolutionType: solicitud.tipoResultado,
-                // Hoy la resolución guarda el nombre de la plaga, no su id del catálogo
-                resolvedPestId: null,
-                agronomistResponse: solicitud.respuestaProfesional,
-                resolvedAt: solicitud.fechaResolucion?.getTime() ?? null,
-            }));
+        return (
+            solicitudes
+                // actualizado_en es NOT NULL en la base: siempre llega en las solicitudes leídas del repositorio
+                .filter(
+                    (solicitud): solicitud is Solicitud & { idCliente: string; actualizadoEn: Date } =>
+                        solicitud.idCliente !== null && solicitud.actualizadoEn !== null,
+                )
+                .map((solicitud) => ({
+                    id: solicitud.idCliente,
+                    status: ESTADOS_APP[solicitud.estado],
+                    resolutionType: solicitud.tipoResultado,
+                    // Hoy la resolución guarda el nombre de la plaga, no su id del catálogo
+                    resolvedPestId: null,
+                    agronomistResponse: solicitud.respuestaProfesional,
+                    resolvedAt: solicitud.fechaResolucion?.getTime() ?? null,
+                    updatedAt: solicitud.actualizadoEn.getTime(),
+                }))
+        );
     }
 }

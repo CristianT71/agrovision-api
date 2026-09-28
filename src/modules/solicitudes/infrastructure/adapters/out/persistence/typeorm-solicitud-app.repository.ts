@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { FindOptionsWhere, IsNull, MoreThan, Not, QueryFailedError, Repository } from "typeorm";
+import { FindOptionsWhere, IsNull, Not, QueryFailedError, Raw, Repository } from "typeorm";
 import type { ISolicitudAppRepository } from "../../../../domain/ports/out/solicitud-app.repository";
 import type { Solicitud } from "../../../../domain/entities/solicitud.entity";
 import type { FotoSolicitud } from "../../../../domain/entities/foto-solicitud.entity";
@@ -47,7 +47,13 @@ export class TypeOrmSolicitudAppRepository implements ISolicitudAppRepository {
     async listarPorProductor(productorId: string, actualizadasDesde?: Date): Promise<Solicitud[]> {
         // Solo las creadas desde la app: sin id del cliente la app no sabría a cuál corresponden
         const where: FindOptionsWhere<TypeOrmSolicitudEntity> = { productorId, idCliente: Not(IsNull()) };
-        if (actualizadasDesde) where.actualizadoEn = MoreThan(actualizadasDesde);
+        // Se compara en milisegundos, la misma precisión del updatedAt que recibe la app: la
+        // columna guarda microsegundos y sin truncar la última solicitud volvería en cada consulta
+        if (actualizadasDesde) {
+            where.actualizadoEn = Raw((columna) => `date_trunc('milliseconds', ${columna}) > :desde`, {
+                desde: actualizadasDesde,
+            });
+        }
 
         const entities = await this.solicitudRepository.find({ where, order: { actualizadoEn: "ASC" } });
 

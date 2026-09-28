@@ -59,6 +59,8 @@ export interface MiSolicitudApp {
     resolvedPestId: string | null;
     agronomistResponse: string | null;
     resolvedAt: number | null;
+    // actualizado_en en epoch ms: la app lo manda de vuelta como ?since= en la siguiente consulta
+    updatedAt: number;
 }
 
 export interface ListarMisSolicitudesQuery {

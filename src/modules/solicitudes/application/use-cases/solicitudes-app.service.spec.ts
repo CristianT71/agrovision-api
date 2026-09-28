@@ -50,7 +50,9 @@ const entrada = (idCliente: string, cantidadFotos = 2): SolicitudAppEntrada => (
     })),
 });
 
-const crearSolicitud = (cambios: { id?: string; estado?: EstadoSolicitud; productorId?: string } = {}) =>
+const crearSolicitud = (
+    cambios: { id?: string; estado?: EstadoSolicitud; productorId?: string; actualizadoEn?: Date } = {},
+) =>
     new Solicitud(
         cambios.id ?? "s-1",
         cambios.productorId ?? "p-1",
@@ -67,6 +69,14 @@ const crearSolicitud = (cambios: { id?: string; estado?: EstadoSolicitud; produc
         null,
         null,
         "c-1",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        cambios.actualizadoEn ?? new Date(1_750_000_000_000),
     );
 
 const crearFoto = (id: string, orden: number, subida = false, solicitudId = "s-1") =>
@@ -363,8 +373,22 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
                 resolvedPestId: null,
                 agronomistResponse: "Roya en estadio inicial.",
                 resolvedAt: 1_750_000_123_456,
+                updatedAt: 1_750_000_000_000,
             });
             expect(mias[0]).toMatchObject({ resolutionType: null, agronomistResponse: null, resolvedAt: null });
+        });
+
+        it("incluye en cada elemento updatedAt como número igual a actualizado_en en epoch ms", async () => {
+            const fechas = [new Date(1_750_000_000_001), new Date(1_750_000_456_789), new Date(1_750_001_000_000)];
+            listarPorProductor.mockResolvedValue(fechas.map((actualizadoEn) => crearSolicitud({ actualizadoEn })));
+
+            const mias = await listar();
+
+            expect(mias).toHaveLength(3);
+            mias.forEach((solicitud, indice) => {
+                expect(typeof solicitud.updatedAt).toBe("number");
+                expect(solicitud.updatedAt).toBe(fechas[indice].getTime());
+            });
         });
 
         it("filtra por since convirtiendo el epoch en fecha", async () => {
