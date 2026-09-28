@@ -203,6 +203,20 @@ Canal interno entre el agrónomo asignado y el administrador; el productor no pa
 | PATCH | `/solicitudes/:solicitudId/mensajes/leidos` | agronomo, admin | Marca los mensajes como leídos |
 | GET | `/solicitudes/:solicitudId/mensajes/:mensajeId/adjuntos/:adjuntoId` | agronomo, admin | Descarga un adjunto |
 
+### Permisos de contacto (RF-04.10, RF-08.8)
+
+El teléfono del productor solo se entrega al agrónomo asignado cuando el administrador lo habilita para ese caso.
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/solicitudes/:solicitudId/permiso-contacto` | agronomo, admin | Estado del permiso (sin registro responde `habilitado: false`) |
+| PATCH | `/solicitudes/:solicitudId/permiso-contacto/otorgar` | admin | Habilita el contacto al agrónomo asignado; se rechaza sin agrónomo o con el caso cerrado |
+| PATCH | `/solicitudes/:solicitudId/permiso-contacto/revocar` | admin | Extingue el permiso |
+| GET | `/solicitudes/:solicitudId/contacto-productor` | agronomo, admin | Nombre y teléfono del productor; el agrónomo necesita el permiso vigente (**403** si no) |
+
+El permiso queda ligado al agrónomo al que se otorgó: si el caso se **reasigna**, el nuevo evaluador no lo
+hereda y el administrador debe otorgarlo de nuevo. Otorgar o revocar avisa al agrónomo en sus notificaciones.
+
 ### Notificaciones (RF-02.5, RF-02.6)
 
 | Método | Ruta | Acceso | Descripción |
@@ -232,5 +246,4 @@ npm run build     # compilación
 ## Pendiente
 
 - Detecciones, modelos IA y telemetría del dashboard (RF-06, RF-07, RF-09)
-- Permisos de contacto productor–agrónomo (RF-04.10, RF-08.8)
 - Registro de auditoría (RF-09.4, RNF-01.2) y endpoint de ajustes del panel
