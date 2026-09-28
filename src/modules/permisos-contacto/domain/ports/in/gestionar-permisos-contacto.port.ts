@@ -16,6 +16,13 @@ export interface PermisoContactoVista {
     fechaRevocado: Date | null;
 }
 
+// RF-04.10: teléfono del productor del caso
+export interface ContactoProductorVista {
+    solicitudId: string;
+    productorNombre: string;
+    telefono: string;
+}
+
 export interface IObtenerPermisoContactoUseCase {
     ejecutar(consulta: { actor: Actor; solicitudId: string }): Promise<PermisoContactoVista>;
 }
@@ -26,4 +33,8 @@ export interface IOtorgarPermisoContactoUseCase {
 
 export interface IRevocarPermisoContactoUseCase {
     ejecutar(comando: { adminUsuarioId: string; solicitudId: string }): Promise<PermisoContactoVista>;
+}
+
+export interface IObtenerContactoProductorUseCase {
+    ejecutar(consulta: { actor: Actor; solicitudId: string }): Promise<ContactoProductorVista>;
 }
