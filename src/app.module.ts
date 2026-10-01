@@ -11,6 +11,7 @@ import { MensajeriaModule } from "./modules/mensajeria/mensajeria.module";
 import { NotificacionesModule } from "./modules/notificaciones/notificaciones.module";
 import { PermisosContactoModule } from "./modules/permisos-contacto/permisos-contacto.module";
 import { ModelosIaModule } from "./modules/modelos-ia/modelos-ia.module";
+import { DeteccionesModule } from "./modules/detecciones/detecciones.module";
 
 @Module({
     imports: [
@@ -42,6 +43,7 @@ import { ModelosIaModule } from "./modules/modelos-ia/modelos-ia.module";
         NotificacionesModule,
         PermisosContactoModule,
         ModelosIaModule,
+        DeteccionesModule,
     ],
     controllers: [],
     providers: [],

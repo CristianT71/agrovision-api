@@ -59,5 +59,7 @@ import { DescargarArtefactoService } from "./application/use-cases/descargar-art
             useClass: UrlsArtefactosAdapter,
         },
     ],
+    // Las detecciones resuelven la versión que envía la app contra este inventario (RF-07.1)
+    exports: [MODELO_IA_REPOSITORY],
 })
 export class ModelosIaModule {}
