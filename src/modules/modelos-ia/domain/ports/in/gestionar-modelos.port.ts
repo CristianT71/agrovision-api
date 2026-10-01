@@ -1,5 +1,6 @@
 import type { ArchivoSubido } from "../../../../../common/almacenamiento/validar-archivo";
 import type { Canal, FormatoModelo } from "../../entities/modelo-ia.entity";
+import type { AccionAuditoria } from "../../entities/registro-auditoria.entity";
 
 // Lo que ve el panel: las rutas internas de los archivos nunca salen de la API
 export interface ModeloVista {
@@ -33,6 +34,7 @@ export interface MetricaVista {
 }
 
 export interface RegistrarMetricasCommand {
+    adminUsuarioId: string;
     modeloId: string;
     global: { precision: number; recall: number; f1: number };
     porClase?: MetricaVista[];
@@ -40,6 +42,31 @@ export interface RegistrarMetricasCommand {
 
 export interface IRegistrarMetricasUseCase {
     ejecutar(comando: RegistrarMetricasCommand): Promise<ModeloVista>;
+}
+
+export interface CambiarCanalCommand {
+    adminUsuarioId: string;
+    modeloId: string;
+    canal: Canal;
+    porcentajeCanario?: number;
+}
+
+export interface ICambiarCanalUseCase {
+    // Devuelve el modelo y, si lo hubo, el que dejó de estar en producción
+    ejecutar(comando: CambiarCanalCommand): Promise<{ modelo: ModeloVista; retirado: ModeloVista | null }>;
+}
+
+export interface AuditoriaVista {
+    id: string;
+    accion: AccionAuditoria;
+    actorUsuarioId: string;
+    motivo: string | null;
+    detalle: Record<string, unknown> | null;
+    fecha: Date;
+}
+
+export interface IListarAuditoriaModeloUseCase {
+    ejecutar(modeloId: string): Promise<AuditoriaVista[]>;
 }
 
 export interface SubirModeloCommand {

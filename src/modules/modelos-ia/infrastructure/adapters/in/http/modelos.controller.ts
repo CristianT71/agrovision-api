@@ -7,6 +7,7 @@ import {
     HttpStatus,
     Param,
     ParseUUIDPipe,
+    Patch,
     Post,
     Put,
     Query,
@@ -19,7 +20,9 @@ import { SubirModeloService, MAX_BYTES_MODELO } from "../../../../application/us
 import { ListarModelosService } from "../../../../application/use-cases/listar-modelos.service";
 import { ObtenerModeloService } from "../../../../application/use-cases/obtener-modelo.service";
 import { RegistrarMetricasService } from "../../../../application/use-cases/registrar-metricas.service";
-import { ConsultarModelosDto, RegistrarMetricasDto, SubirModeloDto } from "./dto/modelos.dto";
+import { CambiarCanalService } from "../../../../application/use-cases/cambiar-canal.service";
+import { ListarAuditoriaModeloService } from "../../../../application/use-cases/listar-auditoria-modelo.service";
+import { CambiarCanalDto, ConsultarModelosDto, RegistrarMetricasDto, SubirModeloDto } from "./dto/modelos.dto";
 import type { ArchivoSubido } from "../../../../../../common/almacenamiento/validar-archivo";
 import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
@@ -42,12 +45,20 @@ export class ModelosController {
         private readonly listarModelosService: ListarModelosService,
         private readonly obtenerModeloService: ObtenerModeloService,
         private readonly registrarMetricasService: RegistrarMetricasService,
+        private readonly cambiarCanalService: CambiarCanalService,
+        private readonly listarAuditoriaService: ListarAuditoriaModeloService,
     ) {}
 
     // RF-09.1: inventario con versión, canal y compatibilidad
     @Get()
     async listar(@Query() filtros: ConsultarModelosDto) {
         return await this.listarModelosService.ejecutar(filtros);
+    }
+
+    // RF-09.4: historial auditado del modelo. Antes de ":id" para que ninguna ruta lo capture.
+    @Get(":id/auditoria")
+    async auditoria(@Param("id", ParseUUIDPipe) id: string) {
+        return await this.listarAuditoriaService.ejecutar(id);
     }
 
     @Get(":id")
@@ -57,8 +68,29 @@ export class ModelosController {
 
     // RF-09.2: reemplaza las métricas (global y por clase) mientras el modelo no esté publicado
     @Put(":id/metricas")
-    async registrarMetricas(@Param("id", ParseUUIDPipe) id: string, @Body() dto: RegistrarMetricasDto) {
-        return await this.registrarMetricasService.ejecutar({ modeloId: id, ...dto });
+    async registrarMetricas(
+        @Param("id", ParseUUIDPipe) id: string,
+        @Body() dto: RegistrarMetricasDto,
+        @UsuarioActual("id") adminUsuarioId: string,
+    ) {
+        return await this.registrarMetricasService.ejecutar({ modeloId: id, adminUsuarioId, ...dto });
+    }
+
+    // RF-09.5: avanza el modelo en el pipeline (o lo descontinúa). Al llegar a producción,
+    // la versión que estaba vigente pasa a descontinuada en la misma operación.
+    @Patch(":id/canal")
+    @HttpCode(HttpStatus.OK)
+    async cambiarCanal(
+        @Param("id", ParseUUIDPipe) id: string,
+        @Body() dto: CambiarCanalDto,
+        @UsuarioActual("id") adminUsuarioId: string,
+    ) {
+        const resultado = await this.cambiarCanalService.ejecutar({ modeloId: id, adminUsuarioId, ...dto });
+
+        return {
+            message: `Modelo movido a ${resultado.modelo.canal} exitosamente.`,
+            ...resultado,
+        };
     }
 
     // RF-09.5: multipart con el modelo (.tflite o .pt) y, para .tflite, sus etiquetas y calibración

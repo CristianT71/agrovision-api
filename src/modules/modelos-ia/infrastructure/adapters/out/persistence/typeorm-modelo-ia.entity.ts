@@ -7,6 +7,10 @@ import { TypeOrmMetricaModeloEntity } from "./typeorm-metrica-modelo.entity";
 // - "adopcion_pct" no se guarda: se calcula de las detecciones al consultar, para que nunca quede vieja.
 // - Se agregan formato, rutas, tamaño, sha256 y firma de los artefactos (los exige la app para instalar),
 //   el porcentaje del canario y los datos del kill-switch (RF-09.3).
+// Un solo canario y una sola producción a la vez: si dos administradores promueven al mismo tiempo,
+// la base de datos rechaza al segundo en lugar de dejar dos versiones vigentes (RF-09.5)
+@Index("UQ_modelos_ia_canal_produccion", ["canal"], { unique: true, where: `"canal" = 'produccion'` })
+@Index("UQ_modelos_ia_canal_canario", ["canal"], { unique: true, where: `"canal" = 'canario'` })
 @Entity("modelos_ia")
 export class TypeOrmModeloIaEntity {
     @PrimaryColumn("uuid")

@@ -16,6 +16,7 @@ import {
 import type { ArchivoSubido } from "../../../../common/almacenamiento/validar-archivo";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 import { ModeloIa } from "../../domain/entities/modelo-ia.entity";
+import { RegistroAuditoria } from "../../domain/entities/registro-auditoria.entity";
 import {
     detectarFormatoModelo,
     normalizarJson,
@@ -101,7 +102,16 @@ export class SubirModeloService implements ISubirModeloUseCase {
                 },
             });
 
-            if (!(await this.modeloRepository.crear(modelo))) {
+            // RF-09.4: la subida queda auditada en la misma transacción
+            const auditoria = RegistroAuditoria.registrar({
+                id: uuidv4(),
+                modeloId: modelo.id,
+                accion: "subida",
+                actorUsuarioId: comando.adminUsuarioId,
+                detalle: { version: modelo.version, formato, sha256, firmado: firma !== null },
+            });
+
+            if (!(await this.modeloRepository.crear(modelo, auditoria))) {
                 throw new ReglaNegocioError(`Ya existe un modelo con la versión ${comando.version}.`);
             }
 

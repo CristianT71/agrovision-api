@@ -2,6 +2,7 @@ import {
     ArrayMaxSize,
     IsArray,
     IsIn,
+    IsInt,
     IsNumber,
     IsOptional,
     IsString,
@@ -18,6 +19,8 @@ import {
     CANALES,
     FORMATO_VERSION,
     MAX_LONGITUD_NOTAS,
+    MAX_PORCENTAJE_CANARIO,
+    MIN_PORCENTAJE_CANARIO,
     type Canal,
 } from "../../../../../domain/entities/modelo-ia.entity";
 
@@ -77,4 +80,16 @@ export class RegistrarMetricasDto {
     @ValidateNested({ each: true })
     @Type(() => MetricaClaseDto)
     porClase?: MetricaClaseDto[];
+}
+
+// RF-09.5: el porcentaje solo aplica (y es obligatorio) al pasar o ajustar el canario
+export class CambiarCanalDto {
+    @IsIn(CANALES, { message: `El canal debe ser uno de: ${CANALES.join(", ")}` })
+    canal: Canal;
+
+    @IsOptional()
+    @IsInt({ message: "porcentajeCanario debe ser un número entero." })
+    @Min(MIN_PORCENTAJE_CANARIO, { message: `porcentajeCanario debe ser al menos ${MIN_PORCENTAJE_CANARIO}.` })
+    @Max(MAX_PORCENTAJE_CANARIO, { message: `porcentajeCanario no puede superar ${MAX_PORCENTAJE_CANARIO}.` })
+    porcentajeCanario?: number;
 }
