@@ -18,8 +18,10 @@ import { MAX_LONGITUD_CLASE } from "../../../../../domain/entities/metrica-model
 import {
     CANALES,
     FORMATO_VERSION,
+    MAX_LONGITUD_JUSTIFICACION,
     MAX_LONGITUD_NOTAS,
     MAX_PORCENTAJE_CANARIO,
+    MIN_LONGITUD_JUSTIFICACION,
     MIN_PORCENTAJE_CANARIO,
     type Canal,
 } from "../../../../../domain/entities/modelo-ia.entity";
@@ -92,4 +94,16 @@ export class CambiarCanalDto {
     @Min(MIN_PORCENTAJE_CANARIO, { message: `porcentajeCanario debe ser al menos ${MIN_PORCENTAJE_CANARIO}.` })
     @Max(MAX_PORCENTAJE_CANARIO, { message: `porcentajeCanario no puede superar ${MAX_PORCENTAJE_CANARIO}.` })
     porcentajeCanario?: number;
+}
+
+// RF-09.3: la causa del retiro queda en base de datos antes de procesar la señal
+export class ActivarKillSwitchDto {
+    @IsString({ message: "La justificación debe ser texto." })
+    @MinLength(MIN_LONGITUD_JUSTIFICACION, {
+        message: `La justificación debe tener al menos ${MIN_LONGITUD_JUSTIFICACION} caracteres.`,
+    })
+    @MaxLength(MAX_LONGITUD_JUSTIFICACION, {
+        message: `La justificación no puede superar ${MAX_LONGITUD_JUSTIFICACION} caracteres.`,
+    })
+    justificacion: string;
 }

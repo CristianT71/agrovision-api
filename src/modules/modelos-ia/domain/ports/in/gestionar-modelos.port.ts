@@ -56,6 +56,16 @@ export interface ICambiarCanalUseCase {
     ejecutar(comando: CambiarCanalCommand): Promise<{ modelo: ModeloVista; retirado: ModeloVista | null }>;
 }
 
+export interface ActivarKillSwitchCommand {
+    adminUsuarioId: string;
+    modeloId: string;
+    justificacion: string;
+}
+
+export interface IActivarKillSwitchUseCase {
+    ejecutar(comando: ActivarKillSwitchCommand): Promise<ModeloVista>;
+}
+
 export interface AuditoriaVista {
     id: string;
     accion: AccionAuditoria;

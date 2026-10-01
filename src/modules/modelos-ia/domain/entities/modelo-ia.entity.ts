@@ -27,6 +27,10 @@ const SIGUIENTE_CANAL: Record<Canal, Canal | null> = {
 export const MIN_PORCENTAJE_CANARIO = 1;
 export const MAX_PORCENTAJE_CANARIO = 50;
 
+// RF-09.3: la justificación del kill-switch debe explicar la causa, no ser un "ok"
+export const MIN_LONGITUD_JUSTIFICACION = 20;
+export const MAX_LONGITUD_JUSTIFICACION = 1000;
+
 // Dónde quedó cada archivo y con qué huella. Las rutas nunca salen de la API.
 export interface ArtefactosModelo {
     rutaModelo: string;
@@ -119,6 +123,35 @@ export class ModeloIa {
         }
 
         this.metricas = metricas;
+    }
+
+    // Regla de Negocio (RF-09.3): interrupción forzada de una versión que ya está en dispositivos.
+    // Exige una justificación documentada; los teléfonos vuelven a su modelo anterior sin descargar nada.
+    public activarKillSwitch(justificacion: string): void {
+        if (this.canal !== "canario" && this.canal !== "produccion") {
+            throw new ReglaNegocioError("El kill-switch solo aplica a modelos publicados en canario o producción.");
+        }
+
+        if (this.killSwitch) {
+            throw new ReglaNegocioError("El kill-switch de este modelo ya está activo.");
+        }
+
+        const motivo = justificacion?.trim() ?? "";
+        if (motivo.length < MIN_LONGITUD_JUSTIFICACION) {
+            throw new ReglaNegocioError(
+                `La justificación del kill-switch debe tener al menos ${MIN_LONGITUD_JUSTIFICACION} caracteres.`,
+            );
+        }
+
+        if (motivo.length > MAX_LONGITUD_JUSTIFICACION) {
+            throw new ReglaNegocioError(
+                `La justificación del kill-switch no puede superar ${MAX_LONGITUD_JUSTIFICACION} caracteres.`,
+            );
+        }
+
+        this.killSwitch = true;
+        this.motivoKillSwitch = motivo;
+        this.fechaKillSwitch = new Date();
     }
 
     public metricaGlobal(): MetricaModelo | null {

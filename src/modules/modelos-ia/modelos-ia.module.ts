@@ -20,6 +20,7 @@ import { ObtenerModeloService } from "./application/use-cases/obtener-modelo.ser
 import { RegistrarMetricasService } from "./application/use-cases/registrar-metricas.service";
 import { CambiarCanalService } from "./application/use-cases/cambiar-canal.service";
 import { ListarAuditoriaModeloService } from "./application/use-cases/listar-auditoria-modelo.service";
+import { ActivarKillSwitchService } from "./application/use-cases/activar-kill-switch.service";
 
 @Module({
     // Los artefactos van a almacenamiento privado y se firman con la clave de MODEL_SIGNING_PRIVATE_KEY
@@ -36,6 +37,7 @@ import { ListarAuditoriaModeloService } from "./application/use-cases/listar-aud
         RegistrarMetricasService,
         CambiarCanalService,
         ListarAuditoriaModeloService,
+        ActivarKillSwitchService,
         {
             provide: MODELO_IA_REPOSITORY,
             useClass: TypeOrmModeloIaRepository,

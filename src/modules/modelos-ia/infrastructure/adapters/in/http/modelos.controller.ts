@@ -22,7 +22,14 @@ import { ObtenerModeloService } from "../../../../application/use-cases/obtener-
 import { RegistrarMetricasService } from "../../../../application/use-cases/registrar-metricas.service";
 import { CambiarCanalService } from "../../../../application/use-cases/cambiar-canal.service";
 import { ListarAuditoriaModeloService } from "../../../../application/use-cases/listar-auditoria-modelo.service";
-import { CambiarCanalDto, ConsultarModelosDto, RegistrarMetricasDto, SubirModeloDto } from "./dto/modelos.dto";
+import { ActivarKillSwitchService } from "../../../../application/use-cases/activar-kill-switch.service";
+import {
+    ActivarKillSwitchDto,
+    CambiarCanalDto,
+    ConsultarModelosDto,
+    RegistrarMetricasDto,
+    SubirModeloDto,
+} from "./dto/modelos.dto";
 import type { ArchivoSubido } from "../../../../../../common/almacenamiento/validar-archivo";
 import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
@@ -47,6 +54,7 @@ export class ModelosController {
         private readonly registrarMetricasService: RegistrarMetricasService,
         private readonly cambiarCanalService: CambiarCanalService,
         private readonly listarAuditoriaService: ListarAuditoriaModeloService,
+        private readonly activarKillSwitchService: ActivarKillSwitchService,
     ) {}
 
     // RF-09.1: inventario con versión, canal y compatibilidad
@@ -90,6 +98,23 @@ export class ModelosController {
         return {
             message: `Modelo movido a ${resultado.modelo.canal} exitosamente.`,
             ...resultado,
+        };
+    }
+
+    // RF-09.3: retiro de emergencia. Los teléfonos con esta versión vuelven a la anterior
+    // en su próxima consulta del manifiesto, sin descargar nada.
+    @Patch(":id/kill-switch")
+    @HttpCode(HttpStatus.OK)
+    async activarKillSwitch(
+        @Param("id", ParseUUIDPipe) id: string,
+        @Body() dto: ActivarKillSwitchDto,
+        @UsuarioActual("id") adminUsuarioId: string,
+    ) {
+        const modelo = await this.activarKillSwitchService.ejecutar({ modeloId: id, adminUsuarioId, ...dto });
+
+        return {
+            message: "Kill-switch activado: la versión se retira de los dispositivos.",
+            modelo,
         };
     }
 
