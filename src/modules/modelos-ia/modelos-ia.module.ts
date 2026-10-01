@@ -7,11 +7,14 @@ import { TypeOrmMetricaModeloEntity } from "./infrastructure/adapters/out/persis
 import { TypeOrmAuditoriaModeloEntity } from "./infrastructure/adapters/out/persistence/typeorm-auditoria-modelo.entity";
 import { TypeOrmModeloIaRepository } from "./infrastructure/adapters/out/persistence/typeorm-modelo-ia.repository";
 import { Ed25519FirmadorModelosAdapter } from "./infrastructure/adapters/out/firmador/ed25519-firmador-modelos.adapter";
+import { UrlsArtefactosAdapter } from "./infrastructure/adapters/out/urls/urls-artefactos.adapter";
 import { ModelosController } from "./infrastructure/adapters/in/http/modelos.controller";
+import { ManifiestoModelosController } from "./infrastructure/adapters/in/http/manifiesto-modelos.controller";
 import { AlmacenamientoModule } from "../../common/almacenamiento/almacenamiento.module";
 
 import { MODELO_IA_REPOSITORY } from "./domain/ports/out/modelo-ia.repository";
 import { FIRMADOR_MODELOS } from "./domain/ports/out/firmador-modelos.port";
+import { URLS_ARTEFACTOS } from "./domain/ports/out/urls-artefactos.port";
 
 // Casos de uso
 import { SubirModeloService } from "./application/use-cases/subir-modelo.service";
@@ -21,15 +24,18 @@ import { RegistrarMetricasService } from "./application/use-cases/registrar-metr
 import { CambiarCanalService } from "./application/use-cases/cambiar-canal.service";
 import { ListarAuditoriaModeloService } from "./application/use-cases/listar-auditoria-modelo.service";
 import { ActivarKillSwitchService } from "./application/use-cases/activar-kill-switch.service";
+import { ObtenerManifiestoService } from "./application/use-cases/obtener-manifiesto.service";
+import { DescargarArtefactoService } from "./application/use-cases/descargar-artefacto.service";
 
 @Module({
-    // Los artefactos van a almacenamiento privado y se firman con la clave de MODEL_SIGNING_PRIVATE_KEY
+    // Los artefactos van a almacenamiento privado y se firman con la clave de MODEL_SIGNING_PRIVATE_KEY.
+    // La app los descarga por la superficie pública (ManifiestoModelosController).
     imports: [
         TypeOrmModule.forFeature([TypeOrmModeloIaEntity, TypeOrmMetricaModeloEntity, TypeOrmAuditoriaModeloEntity]),
         AlmacenamientoModule,
         ConfigModule,
     ],
-    controllers: [ModelosController],
+    controllers: [ModelosController, ManifiestoModelosController],
     providers: [
         SubirModeloService,
         ListarModelosService,
@@ -38,6 +44,8 @@ import { ActivarKillSwitchService } from "./application/use-cases/activar-kill-s
         CambiarCanalService,
         ListarAuditoriaModeloService,
         ActivarKillSwitchService,
+        ObtenerManifiestoService,
+        DescargarArtefactoService,
         {
             provide: MODELO_IA_REPOSITORY,
             useClass: TypeOrmModeloIaRepository,
@@ -45,6 +53,10 @@ import { ActivarKillSwitchService } from "./application/use-cases/activar-kill-s
         {
             provide: FIRMADOR_MODELOS,
             useClass: Ed25519FirmadorModelosAdapter,
+        },
+        {
+            provide: URLS_ARTEFACTOS,
+            useClass: UrlsArtefactosAdapter,
         },
     ],
 })
