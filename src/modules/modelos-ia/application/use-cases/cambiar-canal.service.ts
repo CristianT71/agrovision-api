@@ -41,11 +41,14 @@ export class CambiarCanalService implements ICambiarCanalUseCase {
             }
         }
 
-        // 4. Una sola producción: la vigente se retira en la misma transacción
+        // 4. Lo que llega a teléfonos debe superar a producción (la app no instala versiones menores),
+        //    y al promoverse a producción la vigente se retira en la misma transacción
         let retirado: ModeloIa | null = null;
-        if (comando.canal === "produccion") {
+        if (comando.canal === "canario" || comando.canal === "produccion") {
             const [vigente] = await this.modeloRepository.findAll({ canal: "produccion" });
-            if (vigente && vigente.id !== modelo.id) {
+            modelo.validarSucesorDe(vigente ?? null);
+
+            if (comando.canal === "produccion" && vigente && vigente.id !== modelo.id) {
                 vigente.cambiarCanal("descontinuado");
                 retirado = vigente;
             }

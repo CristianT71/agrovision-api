@@ -1,5 +1,6 @@
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 import type { MetricaModelo } from "./metrica-modelo.entity";
+import { compararVersiones, leerVersion } from "../services/versiones";
 
 // Entornos de publicación del modelo (documento de base de datos, RF-09.1)
 export const CANALES = ["borrador", "interno", "canario", "produccion", "descontinuado"] as const;
@@ -204,6 +205,20 @@ export class ModeloIa {
 
         this.canal = destino;
         this.fechaPublicacion ??= new Date();
+    }
+
+    // Regla de Negocio (RF-09.5): la app solo instala una versión MAYOR que la que ya tiene.
+    // Publicar una igual o menor que la de producción no llegaría a ningún teléfono.
+    public validarSucesorDe(vigente: ModeloIa | null): void {
+        if (!vigente || vigente.id === this.id) return;
+
+        const propia = leerVersion(this.version);
+        const actual = leerVersion(vigente.version);
+        if (propia && actual && compararVersiones(propia, actual) <= 0) {
+            throw new ReglaNegocioError(
+                `La versión ${this.version} debe ser mayor que la de producción (${vigente.version}) para que los teléfonos la instalen.`,
+            );
+        }
     }
 
     // Lo que exige la app para instalarlo, más las métricas que justifican publicarlo
