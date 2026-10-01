@@ -31,6 +31,7 @@ Copia `.env.example` a `.env` y completa los valores:
 | `PORT` | No | Puerto de la API (por defecto `3000`) |
 | `UPLOADS_DIR` | No | Carpeta de archivos subidos (por defecto `./uploads`) |
 | `ZAVU_API_URL`, `ZAVU_API_KEY`, `ZAVU_SENDER_ID` | No | Proveedor de SMS real (ver [Códigos OTP](#códigos-otp)) |
+| `MODEL_SIGNING_PRIVATE_KEY` | No | Clave Ed25519 con la que se firman los modelos IA. Sin ella se suben, pero no se pueden publicar (ver [Firma de modelos](#firma-de-modelos)) |
 
 Para generar un `JWT_SECRET` seguro:
 
@@ -155,6 +156,12 @@ aún no recibe los embeddings del modelo; cuando exista el módulo de deteccione
 | POST | `/v1/review-requests/batch` | productor | Envía un lote de solicitudes; responde con las URLs firmadas para subir cada foto |
 | GET | `/v1/review-requests/mine` | productor | Mis solicitudes (`?since=` para sincronizar solo los cambios) |
 | PUT | `/v1/uploads/:token` | URL firmada | Sube el binario de una foto |
+| POST | `/v1/captures/batch` | productor | Envía un lote de hasta 100 capturas (inferencias del modelo en el teléfono); responde `accepted`, `duplicate` o `rejected` por captura |
+| GET | `/public/v1/models/current` | Público | Manifiesto del modelo que le toca al dispositivo (`?appVersion=&deviceId=`); **204** si no hay modelo publicado |
+| GET | `/public/v1/models/:version/:artefacto` | Público | Descarga `model`, `labels` o `calibration` de un modelo publicado |
+
+Las rutas `public/` no llevan JWT a propósito: la app no pide inicio de sesión al abrir por primera vez y un
+usuario anónimo quedaría congelado en el modelo de fábrica. Las protege el límite por IP y la firma de los modelos.
 
 ### Agrónomos (RF-01.6, RF-10)
 
@@ -217,6 +224,56 @@ El teléfono del productor solo se entrega al agrónomo asignado cuando el admin
 El permiso queda ligado al agrónomo al que se otorgó: si el caso se **reasigna**, el nuevo evaluador no lo
 hereda y el administrador debe otorgarlo de nuevo. Otorgar o revocar avisa al agrónomo en sus notificaciones.
 
+### Modelos IA (RF-09)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/modelos` | admin | Inventario con canal, compatibilidad, métricas y adopción de los últimos 30 días (`?canal=`) |
+| GET | `/modelos/:id` | admin | Detalle |
+| POST | `/modelos` | admin | Sube un modelo (multipart: `modelo`, `etiquetas`, `calibracion`, `version`, `versionMinApp`, `notas`); entra como **borrador** |
+| PUT | `/modelos/:id/metricas` | admin | Precisión, recall y F1 global y por clase (valores de 0 a 1) — RF-09.2 |
+| PATCH | `/modelos/:id/canal` | admin | Avanza en el pipeline o lo descontinúa (`{ "canal", "porcentajeCanario" }`) — RF-09.5 |
+| PATCH | `/modelos/:id/kill-switch` | admin | Retiro de emergencia; exige `{ "justificacion" }` de al menos 20 caracteres — RF-09.3 |
+| GET | `/modelos/:id/auditoria` | admin | Historial inmutable: operador, fecha y causa de cada acción — RF-09.4 |
+
+**Pipeline:** `borrador → interno → canario → produccion`, y desde cualquiera a `descontinuado`. Para llegar a
+los teléfonos (canario o producción) el modelo debe ser `.tflite`, con etiquetas, calibración, firma y métricas,
+y su versión debe ser **mayor** que la de producción (la app no instala versiones menores). Hay un solo canario y
+una sola producción: al promover a producción, la anterior pasa a descontinuada en la misma operación. El canario
+llega al porcentaje elegido (1 a 50) según un hash estable del `deviceId`.
+
+Un `.pt` (por ejemplo el Teacher) se puede subir y registrar, pero nunca se publica a la app.
+
+La tabla `auditoria_modelos` tiene un trigger que rechaza cualquier `UPDATE`, `DELETE` o `TRUNCATE`.
+
+#### Firma de modelos
+
+La app verifica cada modelo con una clave pública Ed25519 embebida (`MODEL_SIGNING_PUBLIC_KEY`). Para generar el
+par de claves:
+
+```bash
+node -e "const k=require('crypto').generateKeyPairSync('ed25519');console.log('MODEL_SIGNING_PRIVATE_KEY='+k.privateKey.export({type:'pkcs8',format:'der'}).toString('base64'));console.log('Pública para la app: '+Buffer.from(k.publicKey.export({format:'jwk'}).x,'base64url').toString('base64'))"
+```
+
+La privada va en el `.env` de la API y la pública en la configuración de la app. La firma cubre el conjunto
+(modelo + etiquetas + calibración), igual que lo verifica la app.
+
+### Detecciones (RF-07)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/detecciones` | admin | Inferencias de los teléfonos, la más reciente primero (`?pagina=&limite=`) |
+| GET | `/detecciones/resumen` | admin | Totales por categoría, divergentes y defectuosas con los mismos filtros |
+| GET | `/detecciones/:id` | admin | Detalle |
+
+Filtros: `incluir` y `excluir` (listas separadas por comas de `enfermedad`, `plaga`, `deficiencia`, `sano`,
+`no_reconocido`, `otra`) — RF-07.2; `revision=divergente|coincide|sin_revision` — RF-07.3; `defectuosas=true|false`
+(confianza de cero) — RF-07.4; `modeloVersion`, `municipio`, `desde` y `hasta`.
+
+La categoría sale del nombre de la clase (`Enfermedad_Roya`, `Plaga_Minador`, `Sana`). La revisión compara la
+predicción con la corrección del productor en la app y con la resolución del agrónomo cuando de esa captura salió
+una solicitud; si hay ambas, manda la del agrónomo.
+
 ### Notificaciones (RF-02.5, RF-02.6)
 
 | Método | Ruta | Acceso | Descripción |
@@ -231,7 +288,7 @@ hereda y el administrador debe otorgarlo de nuevo. Otorgar o revocar avisa al ag
 Se guardan en `UPLOADS_DIR` (fuera del repositorio):
 
 - `publico/`: fotos del catálogo, servidas en `http://localhost:3000/archivos/...`
-- `privado/`: documentos de acreditación, que solo se descargan con un token de administrador
+- `privado/`: documentos de acreditación, fotos de solicitudes, anexos y modelos IA; solo salen por la API
 
 El tipo se valida por el contenido real del archivo (PDF, PNG, JPG o WEBP), no por la extensión.
 
@@ -245,5 +302,7 @@ npm run build     # compilación
 
 ## Pendiente
 
-- Detecciones, modelos IA y telemetría del dashboard (RF-06, RF-07, RF-09)
-- Registro de auditoría (RF-09.4, RNF-01.2) y endpoint de ajustes del panel
+- Telemetría del dashboard (RF-06)
+- Exportación del dataset anonimizado para reentrenar (RF-09.6, RNF-01.3): la app aún no sube la imagen de cada captura
+- Cifrado del almacenamiento de la auditoría (RNF-01.2): hoy es inmutable, pero el cifrado depende del disco o del servidor de base de datos
+- Endpoint de ajustes del panel
