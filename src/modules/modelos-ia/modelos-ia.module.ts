@@ -8,6 +8,7 @@ import { TypeOrmAuditoriaModeloEntity } from "./infrastructure/adapters/out/pers
 import { TypeOrmModeloIaRepository } from "./infrastructure/adapters/out/persistence/typeorm-modelo-ia.repository";
 import { Ed25519FirmadorModelosAdapter } from "./infrastructure/adapters/out/firmador/ed25519-firmador-modelos.adapter";
 import { UrlsArtefactosAdapter } from "./infrastructure/adapters/out/urls/urls-artefactos.adapter";
+import { TypeOrmConsultaAdopcionAdapter } from "./infrastructure/adapters/out/persistence/typeorm-consulta-adopcion.adapter";
 import { ModelosController } from "./infrastructure/adapters/in/http/modelos.controller";
 import { ManifiestoModelosController } from "./infrastructure/adapters/in/http/manifiesto-modelos.controller";
 import { AlmacenamientoModule } from "../../common/almacenamiento/almacenamiento.module";
@@ -15,6 +16,7 @@ import { AlmacenamientoModule } from "../../common/almacenamiento/almacenamiento
 import { MODELO_IA_REPOSITORY } from "./domain/ports/out/modelo-ia.repository";
 import { FIRMADOR_MODELOS } from "./domain/ports/out/firmador-modelos.port";
 import { URLS_ARTEFACTOS } from "./domain/ports/out/urls-artefactos.port";
+import { CONSULTA_ADOPCION } from "./domain/ports/out/consulta-adopcion.port";
 
 // Casos de uso
 import { SubirModeloService } from "./application/use-cases/subir-modelo.service";
@@ -57,6 +59,10 @@ import { DescargarArtefactoService } from "./application/use-cases/descargar-art
         {
             provide: URLS_ARTEFACTOS,
             useClass: UrlsArtefactosAdapter,
+        },
+        {
+            provide: CONSULTA_ADOPCION,
+            useClass: TypeOrmConsultaAdopcionAdapter,
         },
     ],
     // Las detecciones resuelven la versión que envía la app contra este inventario (RF-07.1)

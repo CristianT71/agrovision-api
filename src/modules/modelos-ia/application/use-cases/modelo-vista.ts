@@ -1,7 +1,9 @@
 import type { ModeloIa } from "../../domain/entities/modelo-ia.entity";
 import type { ModeloVista } from "../../domain/ports/in/gestionar-modelos.port";
+import type { AdopcionModelo } from "../../domain/ports/out/consulta-adopcion.port";
 
-export function aModeloVista(modelo: ModeloIa): ModeloVista {
+// "adopcion" solo se calcula en el inventario (listar y obtener); las respuestas de escritura no la traen
+export function aModeloVista(modelo: ModeloIa, adopcion?: Map<string, AdopcionModelo>): ModeloVista {
     return {
         id: modelo.id,
         version: modelo.version,
@@ -22,5 +24,6 @@ export function aModeloVista(modelo: ModeloIa): ModeloVista {
         motivoKillSwitch: modelo.motivoKillSwitch,
         fechaKillSwitch: modelo.fechaKillSwitch,
         metricas: modelo.metricas.map(({ clase, precision, recall, f1 }) => ({ clase, precision, recall, f1 })),
+        ...(adopcion && { adopcion: adopcion.get(modelo.id) ?? { porcentaje: 0, productores: 0 } }),
     };
 }

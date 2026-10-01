@@ -1,6 +1,7 @@
 import type { ArchivoSubido } from "../../../../../common/almacenamiento/validar-archivo";
 import type { Canal, FormatoModelo } from "../../entities/modelo-ia.entity";
 import type { AccionAuditoria } from "../../entities/registro-auditoria.entity";
+import type { AdopcionModelo } from "../out/consulta-adopcion.port";
 
 // Lo que ve el panel: las rutas internas de los archivos nunca salen de la API
 export interface ModeloVista {
@@ -24,7 +25,12 @@ export interface ModeloVista {
     fechaKillSwitch: Date | null;
     // RF-09.2: la global (clase null) primero y luego las de cada clase
     metricas: MetricaVista[];
+    // RF-09.1: penetración instalada en los últimos días (solo en el inventario)
+    adopcion?: AdopcionModelo;
 }
+
+// Días hacia atrás con los que se mide la adopción
+export const VENTANA_ADOPCION_DIAS = 30;
 
 export interface MetricaVista {
     clase: string | null;
