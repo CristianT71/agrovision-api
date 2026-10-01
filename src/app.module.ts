@@ -10,6 +10,7 @@ import { PlagasModule } from "./modules/plagas/plagas.module";
 import { MensajeriaModule } from "./modules/mensajeria/mensajeria.module";
 import { NotificacionesModule } from "./modules/notificaciones/notificaciones.module";
 import { PermisosContactoModule } from "./modules/permisos-contacto/permisos-contacto.module";
+import { ModelosIaModule } from "./modules/modelos-ia/modelos-ia.module";
 
 @Module({
     imports: [
@@ -40,6 +41,7 @@ import { PermisosContactoModule } from "./modules/permisos-contacto/permisos-con
         MensajeriaModule,
         NotificacionesModule,
         PermisosContactoModule,
+        ModelosIaModule,
     ],
     controllers: [],
     providers: [],
