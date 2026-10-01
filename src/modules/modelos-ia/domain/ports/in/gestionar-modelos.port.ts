@@ -21,6 +21,25 @@ export interface ModeloVista {
     killSwitch: boolean;
     motivoKillSwitch: string | null;
     fechaKillSwitch: Date | null;
+    // RF-09.2: la global (clase null) primero y luego las de cada clase
+    metricas: MetricaVista[];
+}
+
+export interface MetricaVista {
+    clase: string | null;
+    precision: number;
+    recall: number;
+    f1: number;
+}
+
+export interface RegistrarMetricasCommand {
+    modeloId: string;
+    global: { precision: number; recall: number; f1: number };
+    porClase?: MetricaVista[];
+}
+
+export interface IRegistrarMetricasUseCase {
+    ejecutar(comando: RegistrarMetricasCommand): Promise<ModeloVista>;
 }
 
 export interface SubirModeloCommand {

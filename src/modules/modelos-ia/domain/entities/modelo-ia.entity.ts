@@ -1,4 +1,5 @@
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
+import type { MetricaModelo } from "./metrica-modelo.entity";
 
 // Entornos de publicación del modelo (documento de base de datos, RF-09.1)
 export const CANALES = ["borrador", "interno", "canario", "produccion", "descontinuado"] as const;
@@ -43,6 +44,7 @@ export class ModeloIa {
         public killSwitch: boolean = false,
         public motivoKillSwitch: string | null = null,
         public fechaKillSwitch: Date | null = null,
+        public metricas: MetricaModelo[] = [],
     ) {}
 
     // Regla de Negocio (RF-09.5): todo modelo nuevo entra al pipeline como borrador
@@ -79,6 +81,35 @@ export class ModeloIa {
             datos.creadoPor,
             new Date(),
         );
+    }
+
+    // Regla de Negocio (RF-09.2): una métrica global y, opcionalmente, una por clase.
+    // Se reemplazan completas; una vez el modelo llega a dispositivos ya no se reescriben.
+    public registrarMetricas(metricas: MetricaModelo[]): void {
+        if (this.canal !== "borrador" && this.canal !== "interno") {
+            throw new ReglaNegocioError("Las métricas de un modelo publicado o descontinuado no se pueden cambiar.");
+        }
+
+        const globales = metricas.filter((metrica) => metrica.clase === null);
+        if (globales.length !== 1) {
+            throw new ReglaNegocioError("Debe registrarse exactamente una métrica global del modelo.");
+        }
+
+        const clases = metricas.filter((metrica) => metrica.clase !== null).map((metrica) => metrica.clase);
+        if (new Set(clases).size !== clases.length) {
+            throw new ReglaNegocioError("Cada clase solo puede tener una métrica.");
+        }
+
+        const { numeroClases } = this.artefactos;
+        if (numeroClases !== null && clases.length > numeroClases) {
+            throw new ReglaNegocioError(`El modelo tiene ${numeroClases} clases: no admite más métricas por clase.`);
+        }
+
+        this.metricas = metricas;
+    }
+
+    public metricaGlobal(): MetricaModelo | null {
+        return this.metricas.find((metrica) => metrica.clase === null) ?? null;
     }
 
     // Lo que ve un dispositivo: publicado en canario o producción y sin kill-switch

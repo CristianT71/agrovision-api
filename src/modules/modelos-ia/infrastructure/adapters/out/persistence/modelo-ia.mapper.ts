@@ -1,5 +1,14 @@
 import { ModeloIa, type Canal, type FormatoModelo } from "../../../../domain/entities/modelo-ia.entity";
+import { MetricaModelo } from "../../../../domain/entities/metrica-modelo.entity";
 import type { TypeOrmModeloIaEntity } from "./typeorm-modelo-ia.entity";
+import type { TypeOrmMetricaModeloEntity } from "./typeorm-metrica-modelo.entity";
+
+// La global primero y luego las clases en orden alfabético: el panel las muestra así
+function metricasADominio(entities: TypeOrmMetricaModeloEntity[] = []): MetricaModelo[] {
+    return entities
+        .map((entity) => new MetricaModelo(entity.clase, entity.precision, entity.recall, entity.f1))
+        .sort((a, b) => (a.clase === null ? -1 : b.clase === null ? 1 : a.clase.localeCompare(b.clase)));
+}
 
 // Mapper: Convierte el Esquema de TypeORM a Entidad pura de Dominio
 export function modeloADominio(entity: TypeOrmModeloIaEntity): ModeloIa {
@@ -26,6 +35,7 @@ export function modeloADominio(entity: TypeOrmModeloIaEntity): ModeloIa {
         entity.killSwitch,
         entity.motivoKillSwitch,
         entity.fechaKillSwitch,
+        metricasADominio(entity.metricas),
     );
 }
 

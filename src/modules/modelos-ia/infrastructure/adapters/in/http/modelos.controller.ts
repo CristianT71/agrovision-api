@@ -8,6 +8,7 @@ import {
     Param,
     ParseUUIDPipe,
     Post,
+    Put,
     Query,
     UploadedFiles,
     UseGuards,
@@ -17,7 +18,8 @@ import { FileFieldsInterceptor } from "@nestjs/platform-express";
 import { SubirModeloService, MAX_BYTES_MODELO } from "../../../../application/use-cases/subir-modelo.service";
 import { ListarModelosService } from "../../../../application/use-cases/listar-modelos.service";
 import { ObtenerModeloService } from "../../../../application/use-cases/obtener-modelo.service";
-import { ConsultarModelosDto, SubirModeloDto } from "./dto/modelos.dto";
+import { RegistrarMetricasService } from "../../../../application/use-cases/registrar-metricas.service";
+import { ConsultarModelosDto, RegistrarMetricasDto, SubirModeloDto } from "./dto/modelos.dto";
 import type { ArchivoSubido } from "../../../../../../common/almacenamiento/validar-archivo";
 import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
@@ -39,6 +41,7 @@ export class ModelosController {
         private readonly subirModeloService: SubirModeloService,
         private readonly listarModelosService: ListarModelosService,
         private readonly obtenerModeloService: ObtenerModeloService,
+        private readonly registrarMetricasService: RegistrarMetricasService,
     ) {}
 
     // RF-09.1: inventario con versión, canal y compatibilidad
@@ -50,6 +53,12 @@ export class ModelosController {
     @Get(":id")
     async obtener(@Param("id", ParseUUIDPipe) id: string) {
         return await this.obtenerModeloService.ejecutar(id);
+    }
+
+    // RF-09.2: reemplaza las métricas (global y por clase) mientras el modelo no esté publicado
+    @Put(":id/metricas")
+    async registrarMetricas(@Param("id", ParseUUIDPipe) id: string, @Body() dto: RegistrarMetricasDto) {
+        return await this.registrarMetricasService.ejecutar({ modeloId: id, ...dto });
     }
 
     // RF-09.5: multipart con el modelo (.tflite o .pt) y, para .tflite, sus etiquetas y calibración

@@ -21,5 +21,6 @@ export function aModeloVista(modelo: ModeloIa): ModeloVista {
         killSwitch: modelo.killSwitch,
         motivoKillSwitch: modelo.motivoKillSwitch,
         fechaKillSwitch: modelo.fechaKillSwitch,
+        metricas: modelo.metricas.map(({ clase, precision, recall, f1 }) => ({ clase, precision, recall, f1 })),
     };
 }

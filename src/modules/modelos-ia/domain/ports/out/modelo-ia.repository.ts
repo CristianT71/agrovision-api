@@ -10,6 +10,8 @@ export interface IModeloIaRepository {
     findAll(filtros?: FiltrosModelo): Promise<ModeloIa[]>;
     // Devuelve false si la versión ya existía (otra subida llegó primero)
     crear(modelo: ModeloIa): Promise<boolean>;
+    // RF-09.2: reemplaza todas las métricas del modelo
+    guardarMetricas(modelo: ModeloIa): Promise<void>;
 }
 
 // Token de inyección PARA dependencias de NestJS

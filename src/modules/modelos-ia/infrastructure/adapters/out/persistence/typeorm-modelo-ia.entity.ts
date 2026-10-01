@@ -1,5 +1,6 @@
-import { Entity, PrimaryColumn, Column, Index, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, PrimaryColumn, Column, Index, ManyToOne, JoinColumn, OneToMany } from "typeorm";
 import { TypeOrmUsuarioEntity } from "../../../../../autenticacion/infrastructure/adapters/out/persistence/typeorm-usuario.entity";
+import { TypeOrmMetricaModeloEntity } from "./typeorm-metrica-modelo.entity";
 
 // Inventario de empaquetados IA (RF-09.1, RF-09.5).
 // NOTA: frente al documento de base de datos original:
@@ -79,4 +80,7 @@ export class TypeOrmModeloIaEntity {
 
     @Column({ name: "fecha_kill_switch", type: "timestamp", nullable: true })
     fechaKillSwitch: Date | null;
+
+    @OneToMany(() => TypeOrmMetricaModeloEntity, (metrica) => metrica.modelo)
+    metricas?: TypeOrmMetricaModeloEntity[];
 }
