@@ -6,6 +6,8 @@ export interface UsuarioAutenticado {
     id: string;
     telefono: string;
     rol: string;
+    // Id de la sesión en el servidor (jti del token): lo usa el cierre de sesión
+    sesionId: string;
 }
 
 interface RequestConUsuario extends Request {

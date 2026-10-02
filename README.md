@@ -31,6 +31,7 @@ Copia `.env.example` a `.env` y completa los valores:
 | `PORT` | No | Puerto de la API (por defecto `3000`) |
 | `UPLOADS_DIR` | No | Carpeta de archivos subidos (por defecto `./uploads`) |
 | `ZAVU_API_URL`, `ZAVU_API_KEY`, `ZAVU_SENDER_ID` | No | Proveedor de SMS real (ver [Códigos OTP](#códigos-otp)) |
+| `MODEL_SIGNING_PRIVATE_KEY` | No | Clave Ed25519 con la que se firman los modelos IA. Sin ella se suben, pero no se pueden publicar (ver [Firma de modelos](#firma-de-modelos)) |
 
 Para generar un `JWT_SECRET` seguro:
 
@@ -88,7 +89,11 @@ Reglas del login:
 - Hay que esperar **30 segundos** entre solicitudes (RF-01.5).
 - El rol elegido debe ser el de la cuenta; nunca se cambia desde el login (RF-01.2).
 - Un número desconocido solo se registra solo si es de la **app móvil** (productor). Desde el panel se rechaza.
-- El token dura **30 minutos** (RNF-02.2).
+- Cada login abre una **sesión en el servidor** (tabla `sesiones_usuario`). En el panel se cierra tras
+  **30 minutos sin actividad** (RNF-02.2) y a las 12 horas como máximo; en la app del productor dura 30 días.
+- `POST /auth/cerrar-sesion` invalida el token en el servidor (RF-01.8).
+- Límite por IP: 5 solicitudes de código por minuto, 10 validaciones por minuto y 5 registros de agrónomo
+  cada 10 minutos. Al superarlo responde **429**.
 
 ## Arquitectura
 
@@ -124,15 +129,39 @@ Todas las rutas llevan el prefijo `/api`. Roles: **admin**, **agronomo** (Profes
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
 | POST | `/auth/solicitar-otp` | Público | Envía el código OTP |
-| POST | `/auth/validar-otp` | Público | Valida el código y entrega el JWT |
+| POST | `/auth/validar-otp` | Público | Valida el código, abre la sesión y entrega el JWT |
+| POST | `/auth/cerrar-sesion` | Autenticado | Cierra la sesión en el servidor |
 
 ### Solicitudes (RF-03, RF-04)
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| GET | `/solicitudes` | agronomo, admin | Lista con filtros `estado`, `agronomoId` y `soloMias` |
-| GET | `/solicitudes/:id` | agronomo, admin | Detalle |
-| PATCH | `/solicitudes/:id/resolver` | agronomo | Resolución del agrónomo asignado; queda en solo lectura |
+| GET | `/solicitudes` | agronomo, admin | Lista con el nombre del productor; filtros `estado`, `agronomoId`, `soloMias` y `busqueda` (productor, finca, vereda, municipio o código `SOL-…`) |
+| GET | `/solicitudes/:id` | agronomo, admin | Detalle con el nombre del productor |
+| GET | `/solicitudes/:id/fotos` | agronomo, admin | Fotos que subió la app (ángulo, orden y si ya está subida) |
+| GET | `/solicitudes/:id/fotos/:fotoId` | agronomo, admin | Descarga una foto |
+| GET | `/solicitudes/:id/similares` | agronomo, admin | Casos resueltos más parecidos (`?limite=3`, máx. 10) — RF-04.3 |
+| GET | `/solicitudes/:id/anexos` | agronomo, admin | Anexos de la resolución — RF-04.6 |
+| GET | `/solicitudes/:id/anexos/:anexoId` | agronomo, admin | Descarga un anexo |
+| PATCH | `/solicitudes/:id/resolver` | agronomo | Resolución del agrónomo asignado; JSON o multipart con hasta 5 anexos (PDF o imagen, campo `anexos`) |
+| PATCH | `/solicitudes/:id/asignar` | admin | Asigna o reasigna el caso a un agrónomo activo — RF-08.3 |
+
+Los **casos similares** se calculan por contexto (órgano afectado, cultivo, cercanía y fecha) porque la API
+aún no recibe los embeddings del modelo; cuando exista el módulo de detecciones se puede comparar por imagen.
+
+### App móvil del productor
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| POST | `/v1/review-requests/batch` | productor | Envía un lote de solicitudes; responde con las URLs firmadas para subir cada foto |
+| GET | `/v1/review-requests/mine` | productor | Mis solicitudes (`?since=` para sincronizar solo los cambios) |
+| PUT | `/v1/uploads/:token` | URL firmada | Sube el binario de una foto |
+| POST | `/v1/captures/batch` | productor | Envía un lote de hasta 100 capturas (inferencias del modelo en el teléfono); responde `accepted`, `duplicate` o `rejected` por captura |
+| GET | `/public/v1/models/current` | Público | Manifiesto del modelo que le toca al dispositivo (`?appVersion=&deviceId=`); **204** si no hay modelo publicado |
+| GET | `/public/v1/models/:version/:artefacto` | Público | Descarga `model`, `labels` o `calibration` de un modelo publicado |
+
+Las rutas `public/` no llevan JWT a propósito: la app no pide inicio de sesión al abrir por primera vez y un
+usuario anónimo quedaría congelado en el modelo de fábrica. Las protege el límite por IP y la firma de los modelos.
 
 ### Agrónomos (RF-01.6, RF-10)
 
@@ -181,6 +210,70 @@ Canal interno entre el agrónomo asignado y el administrador; el productor no pa
 | PATCH | `/solicitudes/:solicitudId/mensajes/leidos` | agronomo, admin | Marca los mensajes como leídos |
 | GET | `/solicitudes/:solicitudId/mensajes/:mensajeId/adjuntos/:adjuntoId` | agronomo, admin | Descarga un adjunto |
 
+### Permisos de contacto (RF-04.10, RF-08.8)
+
+El teléfono del productor solo se entrega al agrónomo asignado cuando el administrador lo habilita para ese caso.
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/solicitudes/:solicitudId/permiso-contacto` | agronomo, admin | Estado del permiso (sin registro responde `habilitado: false`) |
+| PATCH | `/solicitudes/:solicitudId/permiso-contacto/otorgar` | admin | Habilita el contacto al agrónomo asignado; se rechaza sin agrónomo o con el caso cerrado |
+| PATCH | `/solicitudes/:solicitudId/permiso-contacto/revocar` | admin | Extingue el permiso |
+| GET | `/solicitudes/:solicitudId/contacto-productor` | agronomo, admin | Nombre y teléfono del productor; el agrónomo necesita el permiso vigente (**403** si no) |
+
+El permiso queda ligado al agrónomo al que se otorgó: si el caso se **reasigna**, el nuevo evaluador no lo
+hereda y el administrador debe otorgarlo de nuevo. Otorgar o revocar avisa al agrónomo en sus notificaciones.
+
+### Modelos IA (RF-09)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/modelos` | admin | Inventario con canal, compatibilidad, métricas y adopción de los últimos 30 días (`?canal=`) |
+| GET | `/modelos/:id` | admin | Detalle |
+| POST | `/modelos` | admin | Sube un modelo (multipart: `modelo`, `etiquetas`, `calibracion`, `version`, `versionMinApp`, `notas`); entra como **borrador** |
+| PUT | `/modelos/:id/metricas` | admin | Precisión, recall y F1 global y por clase (valores de 0 a 1) — RF-09.2 |
+| PATCH | `/modelos/:id/canal` | admin | Avanza en el pipeline o lo descontinúa (`{ "canal", "porcentajeCanario" }`) — RF-09.5 |
+| PATCH | `/modelos/:id/kill-switch` | admin | Retiro de emergencia; exige `{ "justificacion" }` de al menos 20 caracteres — RF-09.3 |
+| GET | `/modelos/:id/auditoria` | admin | Historial inmutable: operador, fecha y causa de cada acción — RF-09.4 |
+
+**Pipeline:** `borrador → interno → canario → produccion`, y desde cualquiera a `descontinuado`. Para llegar a
+los teléfonos (canario o producción) el modelo debe ser `.tflite`, con etiquetas, calibración, firma y métricas,
+y su versión debe ser **mayor** que la de producción (la app no instala versiones menores). Hay un solo canario y
+una sola producción: al promover a producción, la anterior pasa a descontinuada en la misma operación. El canario
+llega al porcentaje elegido (1 a 50) según un hash estable del `deviceId`.
+
+Un `.pt` (por ejemplo el Teacher) se puede subir y registrar, pero nunca se publica a la app.
+
+La tabla `auditoria_modelos` tiene un trigger que rechaza cualquier `UPDATE`, `DELETE` o `TRUNCATE`.
+
+#### Firma de modelos
+
+La app verifica cada modelo con una clave pública Ed25519 embebida (`MODEL_SIGNING_PUBLIC_KEY`). Para generar el
+par de claves:
+
+```bash
+node -e "const k=require('crypto').generateKeyPairSync('ed25519');console.log('MODEL_SIGNING_PRIVATE_KEY='+k.privateKey.export({type:'pkcs8',format:'der'}).toString('base64'));console.log('Pública para la app: '+Buffer.from(k.publicKey.export({format:'jwk'}).x,'base64url').toString('base64'))"
+```
+
+La privada va en el `.env` de la API y la pública en la configuración de la app. La firma cubre el conjunto
+(modelo + etiquetas + calibración), igual que lo verifica la app.
+
+### Detecciones (RF-07)
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/detecciones` | admin | Inferencias de los teléfonos, la más reciente primero (`?pagina=&limite=`) |
+| GET | `/detecciones/resumen` | admin | Totales por categoría, divergentes y defectuosas con los mismos filtros |
+| GET | `/detecciones/:id` | admin | Detalle |
+
+Filtros: `incluir` y `excluir` (listas separadas por comas de `enfermedad`, `plaga`, `deficiencia`, `sano`,
+`no_reconocido`, `otra`) — RF-07.2; `revision=divergente|coincide|sin_revision` — RF-07.3; `defectuosas=true|false`
+(confianza de cero) — RF-07.4; `modeloVersion`, `municipio`, `desde` y `hasta`.
+
+La categoría sale del nombre de la clase (`Enfermedad_Roya`, `Plaga_Minador`, `Sana`). La revisión compara la
+predicción con la corrección del productor en la app y con la resolución del agrónomo cuando de esa captura salió
+una solicitud; si hay ambas, manda la del agrónomo.
+
 ### Notificaciones (RF-02.5, RF-02.6)
 
 | Método | Ruta | Acceso | Descripción |
@@ -195,7 +288,7 @@ Canal interno entre el agrónomo asignado y el administrador; el productor no pa
 Se guardan en `UPLOADS_DIR` (fuera del repositorio):
 
 - `publico/`: fotos del catálogo, servidas en `http://localhost:3000/archivos/...`
-- `privado/`: documentos de acreditación, que solo se descargan con un token de administrador
+- `privado/`: documentos de acreditación, fotos de solicitudes, anexos y modelos IA; solo salen por la API
 
 El tipo se valida por el contenido real del archivo (PDF, PNG, JPG o WEBP), no por la extensión.
 
@@ -209,6 +302,7 @@ npm run build     # compilación
 
 ## Pendiente
 
-- Registro de solicitudes desde la app móvil, fotos de la solicitud y permisos de contacto (RF-04)
-- Asignación de casos, dashboard, detecciones y modelos IA (RF-06 a RF-09)
-- Límite de peticiones en las rutas públicas (registro y OTP)
+- Telemetría del dashboard (RF-06)
+- Exportación del dataset anonimizado para reentrenar (RF-09.6, RNF-01.3): la app aún no sube la imagen de cada captura
+- Cifrado del almacenamiento de la auditoría (RNF-01.2): hoy es inmutable, pero el cifrado depende del disco o del servidor de base de datos
+- Endpoint de ajustes del panel

@@ -4,6 +4,8 @@ import { FindOptionsWhere, IsNull, Repository } from "typeorm";
 import { ISolicitudRepository, FiltrosSolicitud } from "../../../../domain/ports/out/solicitud.repository";
 import { Solicitud, EstadoSolicitud } from "../../../../domain/entities/solicitud.entity";
 import { TypeOrmSolicitudEntity } from "./typeorm-solicitud.entity";
+import { TypeOrmAnexoResolucionEntity } from "./typeorm-anexo-resolucion.entity";
+import type { AnexoResolucion } from "../../../../domain/entities/anexo-resolucion.entity";
 import { solicitudADominio, solicitudAPersistencia } from "./solicitud.mapper";
 
 @Injectable()
@@ -36,23 +38,45 @@ export class TypeOrmSolicitudRepository implements ISolicitudRepository {
         await this.repository.save(solicitudAPersistencia(solicitud));
     }
 
-    async guardarResolucion(solicitud: Solicitud): Promise<boolean> {
-        if (!solicitud.agronomoId) return false;
+    async guardarResolucion(solicitud: Solicitud, anexos: AnexoResolucion[] = []): Promise<boolean> {
+        const agronomoId = solicitud.agronomoId;
+        if (!agronomoId) return false;
 
-        // UPDATE condicionado: solo pasa si la fila sigue "Asignada" al mismo agrónomo,
-        // así dos resoluciones simultáneas no se pisan (RF-04.8)
-        const resultado = await this.repository.update(
-            { id: solicitud.id, estado: "Asignada", agronomoId: solicitud.agronomoId },
-            {
-                estado: solicitud.estado,
-                respuestaProfesional: solicitud.respuestaProfesional,
-                tipoResultado: solicitud.tipoResultado,
-                plagaIdentificada: solicitud.plagaIdentificada,
-                fechaResolucion: solicitud.fechaResolucion,
-            },
-        );
+        // Todo o nada: la resolución y sus anexos se confirman juntos
+        return await this.repository.manager.transaction(async (manager) => {
+            // UPDATE condicionado: solo pasa si la fila sigue "Asignada" al mismo agrónomo,
+            // así dos resoluciones simultáneas no se pisan (RF-04.8)
+            const resultado = await manager.update(
+                TypeOrmSolicitudEntity,
+                { id: solicitud.id, estado: "Asignada", agronomoId },
+                {
+                    estado: solicitud.estado,
+                    respuestaProfesional: solicitud.respuestaProfesional,
+                    tipoResultado: solicitud.tipoResultado,
+                    plagaIdentificada: solicitud.plagaIdentificada,
+                    fechaResolucion: solicitud.fechaResolucion,
+                },
+            );
 
-        return (resultado.affected ?? 0) > 0;
+            if ((resultado.affected ?? 0) === 0) return false;
+
+            if (anexos.length > 0) {
+                await manager.insert(
+                    TypeOrmAnexoResolucionEntity,
+                    anexos.map((anexo) => ({
+                        id: anexo.id,
+                        solicitudId: anexo.solicitudId,
+                        ruta: anexo.ruta,
+                        nombreOriginal: anexo.nombreOriginal,
+                        tipoMime: anexo.tipoMime,
+                        tamanoBytes: anexo.tamanoBytes,
+                        fechaSubida: anexo.fechaSubida,
+                    })),
+                );
+            }
+
+            return true;
+        });
     }
 
     async guardarAsignacion(

@@ -72,7 +72,10 @@ export class TypeOrmSolicitudEntity {
     @Column({ name: "id_cliente", type: "uuid", nullable: true, unique: true })
     idCliente: string | null;
 
-    // Sin FK por ahora: la tabla de capturas llegará con el módulo de detecciones
+    // Id que la app dio a la captura (detecciones_app.id_cliente). Sin FK: la app sincroniza capturas
+    // y solicitudes por separado y la solicitud puede llegar antes que su captura.
+    // Indexado porque el monitor de detecciones busca la resolución de cada captura (RF-07.3).
+    @Index()
     @Column({ name: "captura_id", type: "uuid", nullable: true })
     capturaId: string | null;
 
