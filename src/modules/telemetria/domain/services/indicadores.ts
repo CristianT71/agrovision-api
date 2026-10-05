@@ -52,6 +52,33 @@ export function calcularIndicadores(conteo: ConteoModelo): IndicadoresModelo {
     };
 }
 
+// Conteos de un día (YYYY-MM-DD en America/Bogota) para una versión de modelo
+export type ConteoDiaModelo = Omit<ConteoModelo, "latenciaPromedioMs"> & { dia: string };
+
+// RF-06.3: un punto de la serie diaria que dibujan las gráficas
+export interface PuntoSerie {
+    dia: string;
+    versionModelo: string;
+    escaneos: number;
+    noReconocidos: number;
+    tasaNoReconocido: number | null;
+    correcciones: number;
+}
+
+// Misma regla que el resumen por modelo: los rechazos por calidad no cuentan como no reconocidos
+export function calcularPuntoSerie(conteo: ConteoDiaModelo): PuntoSerie {
+    const indicadores = calcularIndicadores({ ...conteo, latenciaPromedioMs: null });
+
+    return {
+        dia: conteo.dia,
+        versionModelo: indicadores.versionModelo,
+        escaneos: indicadores.escaneos,
+        noReconocidos: indicadores.noReconocidos,
+        tasaNoReconocido: indicadores.tasaNoReconocido,
+        correcciones: indicadores.correcciones,
+    };
+}
+
 export interface ConteoActualizacion {
     versionDestino: string;
     exitos: number;

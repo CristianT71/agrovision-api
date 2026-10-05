@@ -3,7 +3,12 @@ import { RegistrarEventoService } from "./registrar-evento.service";
 import { ResumirTelemetriaService } from "./resumir-telemetria.service";
 import type { ITelemetriaRepository } from "../../domain/ports/out/telemetria.repository";
 import type { EventoTelemetria } from "../../domain/entities/evento-telemetria.entity";
-import type { ConteoActualizacion, ConteoModelo, VentanaTiempo } from "../../domain/services/indicadores";
+import type {
+    ConteoActualizacion,
+    ConteoDiaModelo,
+    ConteoModelo,
+    VentanaTiempo,
+} from "../../domain/services/indicadores";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 
 // uuid se publica como ESM y Jest no lo carga: se reemplaza por el generador nativo
@@ -13,6 +18,7 @@ describe("Telemetría - casos de uso", () => {
     let guardar: jest.Mock<Promise<void>, [EventoTelemetria]>;
     let contarPorModelo: jest.Mock<Promise<ConteoModelo[]>, [VentanaTiempo]>;
     let contarActualizaciones: jest.Mock<Promise<ConteoActualizacion[]>, [VentanaTiempo]>;
+    let contarPorDiaYModelo: jest.Mock<Promise<ConteoDiaModelo[]>, [VentanaTiempo]>;
     let repositorio: ITelemetriaRepository;
 
     beforeEach(() => {
@@ -32,7 +38,27 @@ describe("Telemetría - casos de uso", () => {
         contarActualizaciones = jest.fn<Promise<ConteoActualizacion[]>, [VentanaTiempo]>(() =>
             Promise.resolve([{ versionDestino: "2.3.1", exitos: 4, fallos: 0 }]),
         );
-        repositorio = { guardar, contarPorModelo, contarActualizaciones };
+        contarPorDiaYModelo = jest.fn<Promise<ConteoDiaModelo[]>, [VentanaTiempo]>(() =>
+            Promise.resolve([
+                {
+                    dia: "2026-10-03",
+                    versionModelo: "2.3.1",
+                    escaneos: 6,
+                    identificados: 4,
+                    rechazadosPorCalidad: 1,
+                    correcciones: 1,
+                },
+                {
+                    dia: "2026-10-04",
+                    versionModelo: "2.3.1",
+                    escaneos: 4,
+                    identificados: 4,
+                    rechazadosPorCalidad: 0,
+                    correcciones: 0,
+                },
+            ]),
+        );
+        repositorio = { guardar, contarPorModelo, contarActualizaciones, contarPorDiaYModelo };
     });
 
     describe("RegistrarEventoService", () => {
@@ -65,6 +91,38 @@ describe("Telemetría - casos de uso", () => {
             expect(resumen.actualizaciones[0].tasaExito).toBe(1);
         });
 
+        it("arma la serie diaria con la misma ventana y sin contar los rechazos por calidad", async () => {
+            const resumen = await new ResumirTelemetriaService(repositorio).ejecutar({});
+
+            expect(contarPorDiaYModelo.mock.calls[0][0]).toEqual(contarPorModelo.mock.calls[0][0]);
+            expect(resumen.serie).toEqual([
+                {
+                    dia: "2026-10-03",
+                    versionModelo: "2.3.1",
+                    escaneos: 6,
+                    noReconocidos: 1,
+                    tasaNoReconocido: 0.2,
+                    correcciones: 1,
+                },
+                {
+                    dia: "2026-10-04",
+                    versionModelo: "2.3.1",
+                    escaneos: 4,
+                    noReconocidos: 0,
+                    tasaNoReconocido: 0,
+                    correcciones: 0,
+                },
+            ]);
+        });
+
+        it("sin eventos en la ventana la serie queda vacía", async () => {
+            contarPorDiaYModelo.mockResolvedValue([]);
+
+            const resumen = await new ResumirTelemetriaService(repositorio).ejecutar({});
+
+            expect(resumen.serie).toEqual([]);
+        });
+
         it("rechaza una ventana inválida sin consultar la base de datos", async () => {
             const hasta = new Date("2026-10-01");
 
@@ -72,6 +130,7 @@ describe("Telemetría - casos de uso", () => {
                 new ResumirTelemetriaService(repositorio).ejecutar({ desde: new Date("2026-10-05"), hasta }),
             ).rejects.toBeInstanceOf(ReglaNegocioError);
             expect(contarPorModelo).not.toHaveBeenCalled();
+            expect(contarPorDiaYModelo).not.toHaveBeenCalled();
         });
     });
 });
