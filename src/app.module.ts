@@ -12,10 +12,13 @@ import { NotificacionesModule } from "./modules/notificaciones/notificaciones.mo
 import { PermisosContactoModule } from "./modules/permisos-contacto/permisos-contacto.module";
 import { ModelosIaModule } from "./modules/modelos-ia/modelos-ia.module";
 import { DeteccionesModule } from "./modules/detecciones/detecciones.module";
+import { TelemetriaModule } from "./modules/telemetria/telemetria.module";
 
 @Module({
     imports: [
-        ConfigModule.forRoot(),
+        ConfigModule.forRoot({
+            isGlobal: true,
+        }),
         // Límite de peticiones por IP para las rutas públicas (OTP y registro). Solo se aplica
         // donde se usa ThrottlerGuard; cada ruta ajusta su límite con @Throttle.
         ThrottlerModule.forRoot({
@@ -44,6 +47,7 @@ import { DeteccionesModule } from "./modules/detecciones/detecciones.module";
         PermisosContactoModule,
         ModelosIaModule,
         DeteccionesModule,
+        TelemetriaModule,
     ],
     controllers: [],
     providers: [],
