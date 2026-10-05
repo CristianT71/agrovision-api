@@ -1,10 +1,16 @@
 import { Inject, Injectable, UnauthorizedException, ForbiddenException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
+import { randomUUID } from "node:crypto";
 import { IValidarOtpUseCase, ValidarOtpCommand, RespuestaAutenticacion } from "../../domain/ports/in/validar-otp.port";
 import { USUARIO_REPOSITORY, type IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
 import { SESION_OTP_REPOSITORY, type ISesionOtpRepository } from "../../domain/ports/out/sesion-otp.repository";
 import { AGRONOMO_REPOSITORY, type IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
+import {
+    SESION_USUARIO_REPOSITORY,
+    type ISesionUsuarioRepository,
+} from "../../domain/ports/out/sesion-usuario.repository";
 import type { Usuario } from "../../domain/entities/usuario.entity";
+import { SesionUsuario } from "../../domain/entities/sesion-usuario.entity";
 
 // Un solo mensaje para cualquier fallo de credenciales: no revela si el teléfono existe
 const CREDENCIALES_INVALIDAS = "El código OTP es inválido o ha expirado.";
@@ -19,6 +25,8 @@ export class ValidarOtpService implements IValidarOtpUseCase {
         private readonly sesionOtpRepository: ISesionOtpRepository,
         @Inject(AGRONOMO_REPOSITORY)
         private readonly agronomoRepository: IAgronomoRepository,
+        @Inject(SESION_USUARIO_REPOSITORY)
+        private readonly sesionUsuarioRepository: ISesionUsuarioRepository,
         private readonly jwtService: JwtService,
     ) {}
 
@@ -54,9 +62,16 @@ export class ValidarOtpService implements IValidarOtpUseCase {
             throw new UnauthorizedException(CREDENCIALES_INVALIDAS);
         }
 
+        // RNF-02.2 / RF-01.8: la sesión queda en el servidor y su id viaja en el token (jti)
+        const sesion = SesionUsuario.iniciar({ id: randomUUID(), usuarioId: usuario.id, rol: usuario.rol });
+        await this.sesionUsuarioRepository.crear(sesion);
+
         // Generar Token JWT
         const payload = { sub: usuario.id, telefono: usuario.telefono, rol: usuario.rol };
-        const accessToken = this.jwtService.sign(payload);
+        const accessToken = this.jwtService.sign(payload, {
+            jwtid: sesion.id,
+            expiresIn: sesion.segundosDeVida(),
+        });
 
         return {
             accessToken,

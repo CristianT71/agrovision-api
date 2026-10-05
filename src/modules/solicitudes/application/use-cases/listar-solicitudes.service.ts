@@ -2,30 +2,38 @@ import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import type {
     IListarSolicitudesUseCase,
     ListarSolicitudesQuery,
+    SolicitudVista,
 } from "../../domain/ports/in/consultar-solicitudes.port";
-import type { ISolicitudRepository, FiltrosSolicitud } from "../../domain/ports/out/solicitud.repository";
-import { SOLICITUD_REPOSITORY } from "../../domain/ports/out/solicitud.repository";
+import {
+    LECTURA_SOLICITUDES,
+    type FiltrosLecturaSolicitudes,
+    type ILecturaSolicitudes,
+} from "../../domain/ports/out/lectura-solicitudes.port";
 import { AGRONOMO_REPOSITORY, type IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
-import type { Solicitud } from "../../domain/entities/solicitud.entity";
 
 @Injectable()
 export class ListarSolicitudesService implements IListarSolicitudesUseCase {
     constructor(
-        @Inject(SOLICITUD_REPOSITORY)
-        private readonly solicitudRepository: ISolicitudRepository,
+        @Inject(LECTURA_SOLICITUDES)
+        private readonly lecturaSolicitudes: ILecturaSolicitudes,
         @Inject(AGRONOMO_REPOSITORY)
         private readonly agronomoRepository: IAgronomoRepository,
     ) {}
 
-    async ejecutar(consulta: ListarSolicitudesQuery): Promise<Solicitud[]> {
-        const filtros: FiltrosSolicitud = { estado: consulta.estado, agronomoId: consulta.agronomoId };
+    async ejecutar(consulta: ListarSolicitudesQuery): Promise<SolicitudVista[]> {
+        const filtros: FiltrosLecturaSolicitudes = {
+            estado: consulta.estado,
+            agronomoId: consulta.agronomoId,
+            busqueda: consulta.busqueda,
+        };
 
         // RF-03.3: "mis asignadas" se resuelve con el agrónomo del token, no con un id del cliente
         if (consulta.soloMias) {
             filtros.agronomoId = await this.obtenerAgronomoId(consulta.usuario);
         }
 
-        return await this.solicitudRepository.findAll(filtros);
+        const resultados = await this.lecturaSolicitudes.listar(filtros);
+        return resultados.map(({ solicitud, productorNombre }) => Object.assign(solicitud, { productorNombre }));
     }
 
     private async obtenerAgronomoId(usuario: { id: string; rol: string }): Promise<string> {

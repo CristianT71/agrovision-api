@@ -1,4 +1,4 @@
-import { IsOptional, IsIn, IsUUID, IsBoolean } from "class-validator";
+import { IsOptional, IsIn, IsUUID, IsBoolean, IsString, MaxLength } from "class-validator";
 import { Transform } from "class-transformer";
 import { ESTADOS_SOLICITUD, type EstadoSolicitud } from "../../../../domain/entities/solicitud.entity";
 
@@ -18,4 +18,10 @@ export class ConsultarSolicitudesDto {
     @Transform(({ value }) => value === true || value === "true")
     @IsBoolean({ message: "soloMias debe ser true o false" })
     soloMias?: boolean;
+
+    // RF-03.5: nombre del productor, finca, vereda, municipio o código SOL-XXXXXXXX
+    @IsOptional()
+    @IsString()
+    @MaxLength(100)
+    busqueda?: string;
 }
