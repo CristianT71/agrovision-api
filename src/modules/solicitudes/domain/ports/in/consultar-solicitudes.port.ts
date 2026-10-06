@@ -18,5 +18,6 @@ export interface IListarSolicitudesUseCase {
 }
 
 export interface IObtenerSolicitudPorIdUseCase {
-    ejecutar(id: string): Promise<SolicitudVista>;
+    // El agrónomo solo puede ver las que tiene asignadas
+    ejecutar(usuario: { id: string; rol: string }, id: string): Promise<SolicitudVista>;
 }

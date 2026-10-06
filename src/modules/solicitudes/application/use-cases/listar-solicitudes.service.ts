@@ -27,11 +27,22 @@ export class ListarSolicitudesService implements IListarSolicitudesUseCase {
             busqueda: consulta.busqueda,
         };
 
-        // RF-03.3: "mis asignadas" se resuelve con el agrónomo del token, no con un id del cliente
-        if (consulta.soloMias) {
+        // El agrónomo solo ve lo que tiene asignado: su agrónomo sale del token y se ignoran
+        // agronomoId y soloMias del cliente (RF-03.3). "Mis asignadas" no aplica al administrador.
+        if (consulta.usuario.rol === "agronomo" || consulta.soloMias) {
             filtros.agronomoId = await this.obtenerAgronomoId(consulta.usuario);
         }
 
+        return await this.listarConFiltros(filtros);
+    }
+
+    // Solo para otros módulos (mensajería), que ya tradujeron el usuario a su agrónomo.
+    // Nunca se expone por HTTP.
+    async listarPorAgronomo(agronomoId: string): Promise<SolicitudVista[]> {
+        return await this.listarConFiltros({ agronomoId });
+    }
+
+    private async listarConFiltros(filtros: FiltrosLecturaSolicitudes): Promise<SolicitudVista[]> {
         const resultados = await this.lecturaSolicitudes.listar(filtros);
         return resultados.map(({ solicitud, productorNombre }) => Object.assign(solicitud, { productorNombre }));
     }

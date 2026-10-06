@@ -134,15 +134,19 @@ Todas las rutas llevan el prefijo `/api`. Roles: **admin**, **agronomo** (Profes
 
 ### Solicitudes (RF-03, RF-04)
 
+El **administrador** ve todas las solicitudes. El **agrónomo** solo ve las que tiene asignadas: está para
+responder lo que el administrador le delega. En las rutas de una solicitud, si no es suya (asignada a otro
+o sin asignar) responde **404**, igual que si no existiera, para no revelar que existe.
+
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| GET | `/solicitudes` | agronomo, admin | Lista con el nombre del productor; filtros `estado`, `agronomoId`, `soloMias` y `busqueda` (productor, finca, vereda, municipio o código `SOL-…`) |
-| GET | `/solicitudes/:id` | agronomo, admin | Detalle con el nombre del productor |
-| GET | `/solicitudes/:id/fotos` | agronomo, admin | Fotos que subió la app (ángulo, orden y si ya está subida) |
-| GET | `/solicitudes/:id/fotos/:fotoId` | agronomo, admin | Descarga una foto |
-| GET | `/solicitudes/:id/similares` | agronomo, admin | Casos resueltos más parecidos (`?limite=3`, máx. 10) — RF-04.3 |
-| GET | `/solicitudes/:id/anexos` | agronomo, admin | Anexos de la resolución — RF-04.6 |
-| GET | `/solicitudes/:id/anexos/:anexoId` | agronomo, admin | Descarga un anexo |
+| GET | `/solicitudes` | admin: todas · agronomo: solo las suyas | Lista con el nombre del productor; filtros `estado`, `agronomoId`, `soloMias` y `busqueda` (productor, finca, vereda, municipio o código `SOL-…`). Al agrónomo siempre se le filtra por su perfil: `agronomoId` y `soloMias` se ignoran |
+| GET | `/solicitudes/:id` | admin · agronomo asignado | Detalle con el nombre del productor |
+| GET | `/solicitudes/:id/fotos` | admin · agronomo asignado | Fotos que subió la app (ángulo, orden y si ya está subida) |
+| GET | `/solicitudes/:id/fotos/:fotoId` | admin · agronomo asignado | Descarga una foto |
+| GET | `/solicitudes/:id/similares` | admin · agronomo asignado | Casos resueltos más parecidos (`?limite=3`, máx. 10) — RF-04.3. El agrónomo no recibe productor, finca, vereda ni municipio de los otros expedientes |
+| GET | `/solicitudes/:id/anexos` | admin · agronomo asignado | Anexos de la resolución — RF-04.6 |
+| GET | `/solicitudes/:id/anexos/:anexoId` | admin · agronomo asignado | Descarga un anexo |
 | PATCH | `/solicitudes/:id/resolver` | agronomo | Resolución del agrónomo asignado; JSON o multipart con hasta 5 anexos (PDF o imagen, campo `anexos`) |
 | PATCH | `/solicitudes/:id/asignar` | admin | Asigna o reasigna el caso a un agrónomo activo — RF-08.3 |
 

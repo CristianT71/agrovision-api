@@ -1,5 +1,8 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { RecibirLoteSolicitudesService } from "./recibir-lote-solicitudes.service";
+import { VerificarAccesoSolicitudService } from "./verificar-acceso-solicitud.service";
+import type { ILecturaSolicitudes } from "../../domain/ports/out/lectura-solicitudes.port";
+import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
 import { SubirFotoSolicitudService } from "./subir-foto-solicitud.service";
 import { ListarMisSolicitudesService } from "./listar-mis-solicitudes.service";
 import { ListarFotosSolicitudService } from "./listar-fotos-solicitud.service";
@@ -412,13 +415,25 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
     });
 
     describe("Fotos en el panel", () => {
+        // El acceso por rol se prueba en verificar-acceso-solicitud.service.spec.ts; aquí consulta el administrador
+        const ADMIN = { id: "u-admin", rol: "admin" };
+        let verificarAcceso: VerificarAccesoSolicitudService;
+
         beforeEach(() => {
             solicitudes.set("c-1", crearSolicitud());
             fotos.push(crearFoto("f-1", 1, true), crearFoto("f-2", 2), crearFoto("f-9", 1, true, "s-otra"));
+
+            const lectura = {
+                obtener: async (id: string) => {
+                    const solicitud = await solicitudRepository.findById(id);
+                    return solicitud ? { solicitud, productorNombre: null } : null;
+                },
+            } as unknown as ILecturaSolicitudes;
+            verificarAcceso = new VerificarAccesoSolicitudService(lectura, {} as IAgronomoRepository);
         });
 
         it("lista las fotos de la solicitud sin exponer la ruta interna", async () => {
-            const vista = await new ListarFotosSolicitudService(solicitudRepository, appRepository).ejecutar("s-1");
+            const vista = await new ListarFotosSolicitudService(verificarAcceso, appRepository).ejecutar(ADMIN, "s-1");
 
             expect(vista).toEqual([
                 { id: "f-1", angulo: "HAZ", orden: 1, tipoMime: "image/jpeg", subida: true },
@@ -428,17 +443,19 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
 
         it("responde 404 al listar fotos de una solicitud que no existe", async () => {
             await expect(
-                new ListarFotosSolicitudService(solicitudRepository, appRepository).ejecutar("s-nada"),
+                new ListarFotosSolicitudService(verificarAcceso, appRepository).ejecutar(ADMIN, "s-nada"),
             ).rejects.toThrow(NotFoundException);
         });
 
         it("descarga una foto subida de la solicitud", async () => {
-            const { foto, contenido } = await new DescargarFotoSolicitudService(appRepository, almacenamiento).ejecutar(
-                {
-                    solicitudId: "s-1",
-                    fotoId: "f-1",
-                },
-            );
+            const { foto, contenido } = await new DescargarFotoSolicitudService(
+                appRepository,
+                almacenamiento,
+                verificarAcceso,
+            ).ejecutar(ADMIN, {
+                solicitudId: "s-1",
+                fotoId: "f-1",
+            });
 
             expect(foto.id).toBe("f-1");
             expect(contenido).toEqual(JPEG);
@@ -450,7 +467,7 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             ["que no existe", "f-x"],
         ])("responde 404 para una foto %s", async (_, fotoId) => {
             await expect(
-                new DescargarFotoSolicitudService(appRepository, almacenamiento).ejecutar({
+                new DescargarFotoSolicitudService(appRepository, almacenamiento, verificarAcceso).ejecutar(ADMIN, {
                     solicitudId: "s-1",
                     fotoId,
                 }),

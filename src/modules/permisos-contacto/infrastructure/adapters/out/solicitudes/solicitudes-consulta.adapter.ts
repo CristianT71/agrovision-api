@@ -11,7 +11,7 @@ export class SolicitudesConsultaAdapter implements IConsultaSolicitudes {
 
     async obtenerContexto(solicitudId: string): Promise<ContextoSolicitud | null> {
         try {
-            const solicitud = await this.obtenerSolicitudPorIdService.ejecutar(solicitudId);
+            const solicitud = await this.obtenerSolicitudPorIdService.obtenerInterno(solicitudId);
 
             return {
                 id: solicitud.id,
