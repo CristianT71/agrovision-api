@@ -140,7 +140,9 @@ o sin asignar) responde **404**, igual que si no existiera, para no revelar que 
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| GET | `/solicitudes` | admin: todas · agronomo: solo las suyas | Lista con el nombre del productor; filtros `estado`, `agronomoId`, `soloMias` y `busqueda` (productor, finca, vereda, municipio o código `SOL-…`). Al agrónomo siempre se le filtra por su perfil: `agronomoId` y `soloMias` se ignoran |
+| GET | `/solicitudes` | admin: todas · agronomo: solo las suyas | Página `{ datos, total, pagina, limite }` (como `/detecciones`), con el nombre del productor y ordenada por fecha descendente — RNF-03.1. Parámetros: `pagina` (1), `limite` (20, máx. 100), `estado`, `busqueda` (productor, finca, vereda, municipio o código `SOL-…`), `agronomoId` y `sinAsignar=true` (solo administrador: las **Enviada** sin agrónomo). Al agrónomo siempre se le filtra por su perfil: `agronomoId` y `sinAsignar` se ignoran |
+| GET | `/solicitudes/contadores` | admin: todas · agronomo: solo las suyas | `{ total, porEstado: { Pendiente, Enviada, Asignada, Resuelta, Descartada }, sinAsignar }`, todos los estados siempre presentes — RF-03.4, RF-08.2. `sinAsignar` son las **Enviada** sin agrónomo (las que se pueden asignar); para el agrónomo es 0 |
+| GET | `/solicitudes/resoluciones` | admin | Resoluciones por tipo y plagas nuevas para el tablero (`?desde=&hasta=` ISO; por defecto los últimos 30 días, máx. 90) — RF-06.5 a RF-06.7 |
 | GET | `/solicitudes/:id` | admin · agronomo asignado | Detalle con el nombre del productor |
 | GET | `/solicitudes/:id/fotos` | admin · agronomo asignado | Fotos que subió la app (ángulo, orden y si ya está subida) |
 | GET | `/solicitudes/:id/fotos/:fotoId` | admin · agronomo asignado | Descarga una foto |
@@ -152,6 +154,17 @@ o sin asignar) responde **404**, igual que si no existiera, para no revelar que 
 
 Los **casos similares** se calculan por contexto (órgano afectado, cultivo, cercanía y fecha) porque la API
 aún no recibe los embeddings del modelo; cuando exista el módulo de detecciones se puede comparar por imagen.
+
+En **resoluciones**, `total` y `porTipo` cuentan las solicitudes **Resuelta** con fecha de resolución en la
+ventana (una fila por tipo de resultado, con 0 si no hay). `plagasNuevas` trae el umbral semanal (5), los casos
+de **Plaga nueva** de los últimos 7 días, si la alerta está activa, la serie por día y los 50 casos más recientes
+de la ventana. Los días se cortan en hora de Colombia: `fecha_resolucion` es `timestamp` sin zona y se guarda en
+la hora del proceso de Node, así que el corte no se hace en SQL sino sobre el instante ya leído.
+
+**Alerta de plagas nuevas (RF-06.7):** al resolver una solicitud como **Plaga nueva**, si en los últimos 7 días
+hay 5 o más, todos los administradores activos reciben una notificación `alerta_plaga`. Sale una vez por
+episodio: no se repite si ya se emitió una en los últimos 7 días. Si la notificación falla, la resolución se
+mantiene.
 
 ### App móvil del productor
 
@@ -287,6 +300,9 @@ una solicitud; si hay ambas, manda la del agrónomo.
 | PATCH | `/notificaciones/leidas` | Todos | Marca todas como leídas |
 | PATCH | `/notificaciones/:id/leida` | Todos | Marca una como leída |
 
+Avisos automáticos ya implementados: solicitud asignada (al agrónomo), permiso de contacto otorgado o revocado,
+mensajes nuevos y la **alerta de plagas nuevas** (`alerta_plaga`, a todos los administradores) — RF-06.7.
+
 ## Archivos subidos
 
 Se guardan en `UPLOADS_DIR` (fuera del repositorio):
@@ -306,7 +322,6 @@ npm run build     # compilación
 
 ## Pendiente
 
-- Telemetría del dashboard (RF-06)
 - Exportación del dataset anonimizado para reentrenar (RF-09.6, RNF-01.3): la app aún no sube la imagen de cada captura
 - Cifrado del almacenamiento de la auditoría (RNF-01.2): hoy es inmutable, pero el cifrado depende del disco o del servidor de base de datos
 - Endpoint de ajustes del panel

@@ -21,6 +21,8 @@ export interface INotificacionRepository {
     marcarTodasLeidas(usuarioId: string): Promise<number>;
     // Evita repetir el mismo aviso mientras el usuario no lo haya leído
     existeNoLeida(usuarioId: string, tipo: TipoNotificacion, referenciaId: string): Promise<boolean>;
+    // Avisos de episodio (alerta de plagas): ¿ya se emitió alguno de este tipo, a quien sea, desde esa fecha?
+    existeDeTipoDesde(tipo: TipoNotificacion, desde: Date): Promise<boolean>;
 }
 
 // Token de inyección PARA dependencias de NestJS

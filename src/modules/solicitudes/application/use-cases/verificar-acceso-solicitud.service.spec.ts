@@ -12,6 +12,7 @@ import { AnexoResolucion } from "../../domain/entities/anexo-resolucion.entity";
 import type {
     FiltrosLecturaSolicitudes,
     ILecturaSolicitudes,
+    PaginaLectura,
     SolicitudConProductor,
 } from "../../domain/ports/out/lectura-solicitudes.port";
 import type { ISolicitudAppRepository } from "../../domain/ports/out/solicitud-app.repository";
@@ -42,6 +43,10 @@ describe("Acceso a las solicitudes del panel", () => {
     let expedientes: Map<string, SolicitudConProductor>;
     let agronomoIdDeCuenta: Map<string, string>;
     let listar: jest.Mock<Promise<SolicitudConProductor[]>, [FiltrosLecturaSolicitudes]>;
+    let listarPagina: jest.Mock<
+        Promise<{ total: number; resultados: SolicitudConProductor[] }>,
+        [FiltrosLecturaSolicitudes, PaginaLectura]
+    >;
     let lecturasDeDatos: jest.Mock[];
 
     let verificarAcceso: VerificarAccesoSolicitudService;
@@ -64,6 +69,10 @@ describe("Acceso a las solicitudes del panel", () => {
         ]);
 
         listar = jest.fn<Promise<SolicitudConProductor[]>, [FiltrosLecturaSolicitudes]>(() => Promise.resolve([]));
+        listarPagina = jest.fn<
+            Promise<{ total: number; resultados: SolicitudConProductor[] }>,
+            [FiltrosLecturaSolicitudes, PaginaLectura]
+        >(() => Promise.resolve({ total: 0, resultados: [] }));
         const listarResueltas = jest.fn(() => Promise.resolve([]));
         const listarAnexos = jest.fn((solicitudId: string) =>
             Promise.resolve([
@@ -88,6 +97,7 @@ describe("Acceso a las solicitudes del panel", () => {
         const lectura = {
             obtener: (id: string) => Promise.resolve(expedientes.get(id) ?? null),
             listar,
+            listarPagina,
             listarResueltas,
             listarAnexos,
             obtenerAnexo,
@@ -189,28 +199,28 @@ describe("Acceso a las solicitudes del panel", () => {
         it("el agrónomo solo recibe las suyas aunque mande ?agronomoId=<otro>", async () => {
             await listarSolicitudes.ejecutar({ agronomoId: "a-2", usuario: AGRONOMO });
 
-            expect(listar).toHaveBeenCalledWith(expect.objectContaining({ agronomoId: "a-1" }));
+            expect(listarPagina.mock.calls[0][0].agronomoId).toBe("a-1");
         });
 
-        it("al agrónomo se le filtra por su perfil aunque no pida soloMias", async () => {
+        it("al agrónomo se le filtra por su perfil aunque no mande ningún filtro de agrónomo", async () => {
             await listarSolicitudes.ejecutar({ estado: "Asignada", usuario: AGRONOMO });
 
-            expect(listar).toHaveBeenCalledWith(expect.objectContaining({ agronomoId: "a-1", estado: "Asignada" }));
+            expect(listarPagina.mock.calls[0][0]).toMatchObject({ agronomoId: "a-1", estado: "Asignada" });
         });
 
         it("el administrador ve todas y puede filtrar por cualquier agrónomo", async () => {
             await listarSolicitudes.ejecutar({ usuario: ADMIN });
             await listarSolicitudes.ejecutar({ agronomoId: "a-2", usuario: ADMIN });
 
-            expect(listar.mock.calls[0][0].agronomoId).toBeUndefined();
-            expect(listar.mock.calls[1][0].agronomoId).toBe("a-2");
+            expect(listarPagina.mock.calls[0][0].agronomoId).toBeUndefined();
+            expect(listarPagina.mock.calls[1][0].agronomoId).toBe("a-2");
         });
 
         it("un agrónomo sin perfil recibe 403", async () => {
             agronomoIdDeCuenta.clear();
 
             await expect(listarSolicitudes.ejecutar({ usuario: AGRONOMO })).rejects.toBeInstanceOf(ForbiddenException);
-            expect(listar).not.toHaveBeenCalled();
+            expect(listarPagina).not.toHaveBeenCalled();
         });
 
         it("listarPorAgronomo, de uso interno, filtra por el agrónomo que recibe", async () => {

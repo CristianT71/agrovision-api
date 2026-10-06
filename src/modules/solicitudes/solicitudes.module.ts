@@ -38,6 +38,8 @@ import { DescargarFotoSolicitudService } from "./application/use-cases/descargar
 import { AnexosResolucionService } from "./application/use-cases/anexos-resolucion.service";
 import { CasosSimilaresService } from "./application/use-cases/casos-similares.service";
 import { VerificarAccesoSolicitudService } from "./application/use-cases/verificar-acceso-solicitud.service";
+import { ContarSolicitudesService } from "./application/use-cases/contar-solicitudes.service";
+import { ResumirResolucionesService } from "./application/use-cases/resumir-resoluciones.service";
 
 @Module({
     // Se necesita el agrónomo del usuario autenticado para resolver y filtrar (RF-03.3)
@@ -66,6 +68,8 @@ import { VerificarAccesoSolicitudService } from "./application/use-cases/verific
         AnexosResolucionService,
         CasosSimilaresService,
         VerificarAccesoSolicitudService,
+        ContarSolicitudesService,
+        ResumirResolucionesService,
         {
             provide: SOLICITUD_REPOSITORY,
             useClass: TypeOrmSolicitudRepository,

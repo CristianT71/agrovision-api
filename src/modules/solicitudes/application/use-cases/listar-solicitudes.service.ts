@@ -1,15 +1,21 @@
 import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
-import type {
-    IListarSolicitudesUseCase,
-    ListarSolicitudesQuery,
-    SolicitudVista,
+import {
+    LIMITE_POR_DEFECTO,
+    MAX_LIMITE,
+    PAGINA_POR_DEFECTO,
+    type IListarSolicitudesUseCase,
+    type ListarSolicitudesQuery,
+    type PaginaSolicitudes,
+    type SolicitudVista,
 } from "../../domain/ports/in/consultar-solicitudes.port";
 import {
     LECTURA_SOLICITUDES,
     type FiltrosLecturaSolicitudes,
     type ILecturaSolicitudes,
+    type SolicitudConProductor,
 } from "../../domain/ports/out/lectura-solicitudes.port";
 import { AGRONOMO_REPOSITORY, type IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
+import { obtenerAgronomoIdDeCuenta } from "./verificar-acceso-solicitud.service";
 
 @Injectable()
 export class ListarSolicitudesService implements IListarSolicitudesUseCase {
@@ -20,43 +26,38 @@ export class ListarSolicitudesService implements IListarSolicitudesUseCase {
         private readonly agronomoRepository: IAgronomoRepository,
     ) {}
 
-    async ejecutar(consulta: ListarSolicitudesQuery): Promise<SolicitudVista[]> {
-        const filtros: FiltrosLecturaSolicitudes = {
-            estado: consulta.estado,
-            agronomoId: consulta.agronomoId,
-            busqueda: consulta.busqueda,
-        };
+    async ejecutar(consulta: ListarSolicitudesQuery): Promise<PaginaSolicitudes> {
+        const { usuario } = consulta;
+        const pagina = Math.max(PAGINA_POR_DEFECTO, Math.trunc(consulta.pagina ?? PAGINA_POR_DEFECTO));
+        // El DTO ya rechaza más de 100; el tope se repite aquí para que ningún llamador barra la tabla
+        const limite = Math.min(MAX_LIMITE, Math.max(1, Math.trunc(consulta.limite ?? LIMITE_POR_DEFECTO)));
 
-        // El agrónomo solo ve lo que tiene asignado: su agrónomo sale del token y se ignoran
-        // agronomoId y soloMias del cliente (RF-03.3). "Mis asignadas" no aplica al administrador.
-        if (consulta.usuario.rol === "agronomo" || consulta.soloMias) {
-            filtros.agronomoId = await this.obtenerAgronomoId(consulta.usuario);
+        const filtros: FiltrosLecturaSolicitudes = { estado: consulta.estado, busqueda: consulta.busqueda };
+
+        if (usuario.rol === "agronomo") {
+            // El agrónomo solo ve lo que tiene asignado: su agrónomo sale del token y se ignoran
+            // agronomoId y sinAsignar del cliente (RF-03.3)
+            filtros.agronomoId = await obtenerAgronomoIdDeCuenta(this.agronomoRepository, usuario.id);
+        } else if (usuario.rol === "admin") {
+            filtros.agronomoId = consulta.agronomoId;
+            filtros.sinAsignar = consulta.sinAsignar;
+        } else {
+            throw new ForbiddenException("La bandeja de solicitudes es solo para agrónomos y administradores.");
         }
 
-        return await this.listarConFiltros(filtros);
+        const { total, resultados } = await this.lecturaSolicitudes.listarPagina(filtros, { numero: pagina, limite });
+
+        return { datos: resultados.map(aVista), total, pagina, limite };
     }
 
     // Solo para otros módulos (mensajería), que ya tradujeron el usuario a su agrónomo.
     // Nunca se expone por HTTP.
     async listarPorAgronomo(agronomoId: string): Promise<SolicitudVista[]> {
-        return await this.listarConFiltros({ agronomoId });
+        const resultados = await this.lecturaSolicitudes.listar({ agronomoId });
+        return resultados.map(aVista);
     }
+}
 
-    private async listarConFiltros(filtros: FiltrosLecturaSolicitudes): Promise<SolicitudVista[]> {
-        const resultados = await this.lecturaSolicitudes.listar(filtros);
-        return resultados.map(({ solicitud, productorNombre }) => Object.assign(solicitud, { productorNombre }));
-    }
-
-    private async obtenerAgronomoId(usuario: { id: string; rol: string }): Promise<string> {
-        if (usuario.rol !== "agronomo") {
-            throw new ForbiddenException("El filtro de solicitudes asignadas solo aplica a agrónomos.");
-        }
-
-        const agronomo = await this.agronomoRepository.findByUsuarioId(usuario.id);
-        if (!agronomo) {
-            throw new ForbiddenException("No existe un perfil de agrónomo asociado a esta cuenta.");
-        }
-
-        return agronomo.id;
-    }
+function aVista({ solicitud, productorNombre }: SolicitudConProductor): SolicitudVista {
+    return Object.assign(solicitud, { productorNombre });
 }

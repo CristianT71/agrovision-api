@@ -22,7 +22,10 @@ import { ListarFotosSolicitudService } from "../../../../application/use-cases/l
 import { DescargarFotoSolicitudService } from "../../../../application/use-cases/descargar-foto-solicitud.service";
 import { AnexosResolucionService } from "../../../../application/use-cases/anexos-resolucion.service";
 import { CasosSimilaresService } from "../../../../application/use-cases/casos-similares.service";
+import { ContarSolicitudesService } from "../../../../application/use-cases/contar-solicitudes.service";
+import { ResumirResolucionesService } from "../../../../application/use-cases/resumir-resoluciones.service";
 import { CasosSimilaresDto } from "./dto/casos-similares.dto";
+import { ConsultarResolucionesDto } from "./dto/consultar-resoluciones.dto";
 import { MAX_ANEXOS_RESOLUCION } from "../../../../domain/entities/anexo-resolucion.entity";
 import {
     TIPOS_DOCUMENTO,
@@ -57,11 +60,26 @@ export class SolicitudesController {
         private readonly descargarFotoSolicitudService: DescargarFotoSolicitudService,
         private readonly anexosResolucionService: AnexosResolucionService,
         private readonly casosSimilaresService: CasosSimilaresService,
+        private readonly contarSolicitudesService: ContarSolicitudesService,
+        private readonly resumirResolucionesService: ResumirResolucionesService,
     ) {}
 
     @Get()
     async listar(@Query() filtros: ConsultarSolicitudesDto, @UsuarioActual() usuario: UsuarioAutenticado) {
         return await this.listarSolicitudesService.ejecutar({ ...filtros, usuario });
+    }
+
+    // RF-03.4, RF-08.2. Las rutas fijas van antes de ":id" para que Nest no las tome como un id.
+    @Get("contadores")
+    async contadores(@UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.contarSolicitudesService.ejecutar(usuario);
+    }
+
+    // RF-06.5 a RF-06.7: tablero de resoluciones y plagas nuevas
+    @Get("resoluciones")
+    @Roles("admin")
+    async resoluciones(@Query() consulta: ConsultarResolucionesDto, @UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.resumirResolucionesService.ejecutar(usuario, consulta);
     }
 
     // Fotos que subió la app móvil. Declaradas antes de ":id" para que ninguna ruta las capture.

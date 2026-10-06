@@ -32,18 +32,15 @@ export class VerificarAccesoSolicitudService {
             throw new ForbiddenException("No tienes acceso a esta solicitud.");
         }
 
-        const agronomo = await this.agronomoRepository.findByUsuarioId(usuario.id);
-        if (!agronomo) {
-            throw new ForbiddenException("No existe un perfil de agrónomo asociado a esta cuenta.");
-        }
+        const agronomoId = await obtenerAgronomoIdDeCuenta(this.agronomoRepository, usuario.id);
 
         // Una solicitud ajena o sin asignar responde igual que una inexistente: no se revela que existe
         const resultado = await this.obtener(solicitudId);
-        if (resultado.solicitud.agronomoId !== agronomo.id) {
+        if (resultado.solicitud.agronomoId !== agronomoId) {
             throw this.noEncontrada(solicitudId);
         }
 
-        return { ...resultado, agronomoId: agronomo.id };
+        return { ...resultado, agronomoId };
     }
 
     private async obtener(solicitudId: string): Promise<SolicitudConProductor> {
@@ -58,4 +55,18 @@ export class VerificarAccesoSolicitudService {
     private noEncontrada(solicitudId: string): NotFoundException {
         return new NotFoundException(`La solicitud con ID ${solicitudId} no fue encontrada.`);
     }
+}
+
+// El agrónomo de una cuenta, tomado del token y nunca de lo que mande el cliente.
+// La comparten la bandeja, los contadores y el acceso a cada solicitud.
+export async function obtenerAgronomoIdDeCuenta(
+    agronomoRepository: IAgronomoRepository,
+    usuarioId: string,
+): Promise<string> {
+    const agronomo = await agronomoRepository.findByUsuarioId(usuarioId);
+    if (!agronomo) {
+        throw new ForbiddenException("No existe un perfil de agrónomo asociado a esta cuenta.");
+    }
+
+    return agronomo.id;
 }

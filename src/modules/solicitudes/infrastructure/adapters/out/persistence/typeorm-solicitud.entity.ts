@@ -2,6 +2,9 @@ import { Entity, PrimaryColumn, Column, Index, ManyToOne, JoinColumn, UpdateDate
 import { TypeOrmProductorEntity } from "../../../../../productores/infrastructure/adapters/out/persistence/typeorm-productor.entity";
 import { TypeOrmAgronomoEntity } from "../../../../../agronomos/infrastructure/adapters/out/persistence/typeorm-agronomo.entity";
 
+// RNF-03.1: la bandeja filtra por estado y ordena por fecha DESC. (estado, fecha DESC) no se puede declarar aquí:
+// el índice lo crea la migración IndexarBandejaSolicitudes y synchronize: false evita que se intente recrear.
+@Index("IDX_solicitudes_estado_fecha", { synchronize: false })
 @Entity("solicitudes")
 export class TypeOrmSolicitudEntity {
     @PrimaryColumn("uuid")
