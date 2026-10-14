@@ -17,7 +17,7 @@ Proyecto de formación — SENA, Análisis y Desarrollo de Software (ADSO), fich
 ### 1. Requisitos
 
 - Node.js 22 o superior
-- Docker Desktop
+- Docker
 
 ### 2. Variables de entorno
 
