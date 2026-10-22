@@ -50,7 +50,7 @@ describe("AsignarSolicitudService", () => {
             guardarAsignacion,
         };
         agronomos = { findById: () => Promise.resolve(agronomo) } as unknown as IAgronomoRepository;
-        notificador = { notificarAsignacion };
+        notificador = { notificarAsignacion, hayAlertaPlagasDesde: jest.fn(), notificarAlertaPlagas: jest.fn() };
     });
 
     const asignar = (agronomoId = "a-1") =>

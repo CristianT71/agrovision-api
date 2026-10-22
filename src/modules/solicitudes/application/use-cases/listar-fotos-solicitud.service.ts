@@ -1,25 +1,22 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { FotoSolicitudVista, IListarFotosSolicitudUseCase } from "../../domain/ports/in/solicitudes-app.port";
 import {
     SOLICITUD_APP_REPOSITORY,
     type ISolicitudAppRepository,
 } from "../../domain/ports/out/solicitud-app.repository";
-import { SOLICITUD_REPOSITORY, type ISolicitudRepository } from "../../domain/ports/out/solicitud.repository";
+import { VerificarAccesoSolicitudService } from "./verificar-acceso-solicitud.service";
 
 @Injectable()
 export class ListarFotosSolicitudService implements IListarFotosSolicitudUseCase {
     constructor(
-        @Inject(SOLICITUD_REPOSITORY)
-        private readonly solicitudRepository: ISolicitudRepository,
+        private readonly verificarAcceso: VerificarAccesoSolicitudService,
         @Inject(SOLICITUD_APP_REPOSITORY)
         private readonly solicitudAppRepository: ISolicitudAppRepository,
     ) {}
 
-    async ejecutar(solicitudId: string): Promise<FotoSolicitudVista[]> {
-        const solicitud = await this.solicitudRepository.findById(solicitudId);
-        if (!solicitud) {
-            throw new NotFoundException(`La solicitud con ID ${solicitudId} no fue encontrada.`);
-        }
+    async ejecutar(usuario: { id: string; rol: string }, solicitudId: string): Promise<FotoSolicitudVista[]> {
+        // También confirma que la solicitud existe
+        await this.verificarAcceso.ejecutar(usuario, solicitudId);
 
         const fotos = await this.solicitudAppRepository.listarFotos(solicitudId);
 

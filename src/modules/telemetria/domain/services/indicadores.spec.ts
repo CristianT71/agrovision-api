@@ -1,4 +1,4 @@
-import { calcularIndicadores, calcularTasaExito, resolverVentana } from "./indicadores";
+import { calcularIndicadores, calcularPuntoSerie, calcularTasaExito, resolverVentana } from "./indicadores";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 
 const AHORA = new Date("2026-10-05T12:00:00Z");
@@ -54,6 +54,43 @@ describe("Indicadores de telemetría", () => {
 
             expect(r.tasaNoReconocido).toBeNull();
             expect(r.tasaCorreccion).toBeNull();
+        });
+    });
+
+    describe("calcularPuntoSerie (RF-06.3)", () => {
+        it("calcula la tasa del día sin contar los rechazos por calidad", () => {
+            const punto = calcularPuntoSerie({
+                dia: "2026-10-04",
+                versionModelo: "2.3.1",
+                escaneos: 25,
+                identificados: 16,
+                rechazadosPorCalidad: 5,
+                correcciones: 2,
+            });
+
+            // 20 evaluados, 4 sin reconocer
+            expect(punto).toEqual({
+                dia: "2026-10-04",
+                versionModelo: "2.3.1",
+                escaneos: 25,
+                noReconocidos: 4,
+                tasaNoReconocido: 0.2,
+                correcciones: 2,
+            });
+        });
+
+        it("un día solo con rechazos por calidad tiene tasa null", () => {
+            const punto = calcularPuntoSerie({
+                dia: "2026-10-04",
+                versionModelo: "2.3.1",
+                escaneos: 3,
+                identificados: 0,
+                rechazadosPorCalidad: 3,
+                correcciones: 0,
+            });
+
+            expect(punto.noReconocidos).toBe(0);
+            expect(punto.tasaNoReconocido).toBeNull();
         });
     });
 

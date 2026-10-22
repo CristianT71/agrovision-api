@@ -15,7 +15,7 @@ export class SolicitudesConsultaAdapter implements IConsultaSolicitudes {
 
     async obtenerContexto(solicitudId: string): Promise<ContextoSolicitud | null> {
         try {
-            const solicitud = await this.obtenerSolicitudPorIdService.ejecutar(solicitudId);
+            const solicitud = await this.obtenerSolicitudPorIdService.obtenerInterno(solicitudId);
 
             return { id: solicitud.id, agronomoId: solicitud.agronomoId, estado: solicitud.estado };
         } catch (error) {
@@ -26,11 +26,8 @@ export class SolicitudesConsultaAdapter implements IConsultaSolicitudes {
     }
 
     async listarIdsAsignadas(agronomoId: string): Promise<string[]> {
-        // Se filtra por agronomoId explícito (no por "soloMias"): aquí ya se tradujo el usuario
-        const solicitudes = await this.listarSolicitudesService.ejecutar({
-            agronomoId,
-            usuario: { id: "", rol: "agronomo" },
-        });
+        // Aquí ya se tradujo el usuario a su agrónomo: se lista directo por agronomoId
+        const solicitudes = await this.listarSolicitudesService.listarPorAgronomo(agronomoId);
 
         return solicitudes.map((solicitud) => solicitud.id);
     }

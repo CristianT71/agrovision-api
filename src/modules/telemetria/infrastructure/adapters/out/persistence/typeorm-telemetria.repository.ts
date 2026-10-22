@@ -3,7 +3,12 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import type { ITelemetriaRepository } from "../../../../domain/ports/out/telemetria.repository";
 import type { EventoTelemetria } from "../../../../domain/entities/evento-telemetria.entity";
-import type { ConteoActualizacion, ConteoModelo, VentanaTiempo } from "../../../../domain/services/indicadores";
+import type {
+    ConteoActualizacion,
+    ConteoDiaModelo,
+    ConteoModelo,
+    VentanaTiempo,
+} from "../../../../domain/services/indicadores";
 import { TypeOrmEventoTelemetriaEntity } from "./typeorm-evento-telemetria.entity";
 
 interface FilaModelo {
@@ -13,6 +18,15 @@ interface FilaModelo {
     rechazados_por_calidad: string;
     correcciones: string;
     latencia_promedio_ms: string | null;
+}
+
+interface FilaDiaModelo {
+    dia: string;
+    version_modelo: string;
+    escaneos: string;
+    identificados: string;
+    rechazados_por_calidad: string;
+    correcciones: string;
 }
 
 interface FilaActualizacion {
@@ -58,6 +72,38 @@ export class TypeOrmTelemetriaRepository implements ITelemetriaRepository {
             rechazadosPorCalidad: Number(f.rechazados_por_calidad),
             correcciones: Number(f.correcciones),
             latenciaPromedioMs: f.latencia_promedio_ms === null ? null : Math.round(Number(f.latencia_promedio_ms)),
+        }));
+    }
+
+    // El día se corta en hora de Colombia: un escaneo a las 9 p. m. no debe caer en el día siguiente.
+    // to_char lo devuelve ya como texto para que el driver no lo convierta a Date con otra zona
+    async contarPorDiaYModelo(ventana: VentanaTiempo): Promise<ConteoDiaModelo[]> {
+        const filas = await this.repository
+            .createQueryBuilder("e")
+            .select("to_char(date_trunc('day', e.ocurrido_en AT TIME ZONE 'America/Bogota'), 'YYYY-MM-DD')", "dia")
+            .addSelect("e.version_modelo", "version_modelo")
+            .addSelect("COUNT(*) FILTER (WHERE e.tipo = 'scan')", "escaneos")
+            .addSelect("COUNT(*) FILTER (WHERE e.tipo = 'scan' AND e.resultado = 'IDENTIFIED')", "identificados")
+            .addSelect(
+                "COUNT(*) FILTER (WHERE e.tipo = 'scan' AND e.resultado = 'QUALITY_REJECTED')",
+                "rechazados_por_calidad",
+            )
+            .addSelect("COUNT(*) FILTER (WHERE e.tipo = 'correction')", "correcciones")
+            .where("e.tipo IN ('scan', 'correction')")
+            .andWhere("e.ocurrido_en >= :desde AND e.ocurrido_en < :hasta", ventana)
+            .groupBy("date_trunc('day', e.ocurrido_en AT TIME ZONE 'America/Bogota')")
+            .addGroupBy("e.version_modelo")
+            .orderBy("date_trunc('day', e.ocurrido_en AT TIME ZONE 'America/Bogota')", "ASC")
+            .addOrderBy("e.version_modelo", "DESC")
+            .getRawMany<FilaDiaModelo>();
+
+        return filas.map((f) => ({
+            dia: f.dia,
+            versionModelo: f.version_modelo,
+            escaneos: Number(f.escaneos),
+            identificados: Number(f.identificados),
+            rechazadosPorCalidad: Number(f.rechazados_por_calidad),
+            correcciones: Number(f.correcciones),
         }));
     }
 

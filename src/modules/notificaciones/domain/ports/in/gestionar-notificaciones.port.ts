@@ -37,6 +37,8 @@ export interface ICrearNotificacionesUseCase {
         datos: Omit<NuevaNotificacion, "usuarioId">,
         opciones?: { excluirUsuarioId?: string; evitarDuplicadasNoLeidas?: boolean },
     ): Promise<number>;
+    // Para avisos de episodio que no deben repetirse (RF-06.7): ¿ya salió uno de este tipo desde esa fecha?
+    seEmitioDesde(tipo: TipoNotificacion, desde: Date): Promise<boolean>;
 }
 
 export interface IListarNotificacionesUseCase {

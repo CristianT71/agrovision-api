@@ -5,6 +5,7 @@ import {
     type IAlmacenamientoArchivos,
 } from "../../../../common/almacenamiento/almacenamiento.port";
 import type { AnexoResolucion } from "../../domain/entities/anexo-resolucion.entity";
+import { VerificarAccesoSolicitudService } from "./verificar-acceso-solicitud.service";
 
 // Lo que ve el panel de cada anexo: la ruta interna nunca sale de la API
 export interface AnexoResolucionVista {
@@ -23,9 +24,12 @@ export class AnexosResolucionService {
         private readonly lecturaSolicitudes: ILecturaSolicitudes,
         @Inject(ALMACENAMIENTO_ARCHIVOS)
         private readonly almacenamiento: IAlmacenamientoArchivos,
+        private readonly verificarAcceso: VerificarAccesoSolicitudService,
     ) {}
 
-    async listar(solicitudId: string): Promise<AnexoResolucionVista[]> {
+    async listar(usuario: { id: string; rol: string }, solicitudId: string): Promise<AnexoResolucionVista[]> {
+        await this.verificarAcceso.ejecutar(usuario, solicitudId);
+
         const anexos = await this.lecturaSolicitudes.listarAnexos(solicitudId);
 
         return anexos.map((anexo) => ({
@@ -37,7 +41,13 @@ export class AnexosResolucionService {
         }));
     }
 
-    async descargar(solicitudId: string, anexoId: string): Promise<{ anexo: AnexoResolucion; contenido: Buffer }> {
+    async descargar(
+        usuario: { id: string; rol: string },
+        solicitudId: string,
+        anexoId: string,
+    ): Promise<{ anexo: AnexoResolucion; contenido: Buffer }> {
+        await this.verificarAcceso.ejecutar(usuario, solicitudId);
+
         // Se busca por solicitud y anexo juntos: no se puede pedir un anexo ajeno cambiando la URL
         const anexo = await this.lecturaSolicitudes.obtenerAnexo(solicitudId, anexoId);
         if (!anexo) {

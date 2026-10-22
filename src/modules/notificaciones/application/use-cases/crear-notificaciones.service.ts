@@ -6,7 +6,7 @@ import type {
 } from "../../domain/ports/in/gestionar-notificaciones.port";
 import { NOTIFICACION_REPOSITORY, type INotificacionRepository } from "../../domain/ports/out/notificacion.repository";
 import { CONSULTA_USUARIOS, type IConsultaUsuarios } from "../../domain/ports/out/consulta-usuarios.port";
-import { Notificacion } from "../../domain/entities/notificacion.entity";
+import { Notificacion, type TipoNotificacion } from "../../domain/entities/notificacion.entity";
 
 // Puerta de entrada del resto del sistema: los demás módulos notifican por aquí (RF-02.5)
 @Injectable()
@@ -57,6 +57,10 @@ export class CrearNotificacionesService implements ICrearNotificacionesUseCase {
             destinatarios.map((usuarioId) => ({ ...datos, usuarioId })),
             { evitarDuplicadasNoLeidas: opciones?.evitarDuplicadasNoLeidas },
         );
+    }
+
+    async seEmitioDesde(tipo: TipoNotificacion, desde: Date): Promise<boolean> {
+        return await this.notificacionRepository.existeDeTipoDesde(tipo, desde);
     }
 
     // Un chat activo no debe llenar la campana del mismo aviso: mientras el usuario no lea

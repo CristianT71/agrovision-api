@@ -59,6 +59,8 @@ export interface MiSolicitudApp {
     resolvedPestId: string | null;
     agronomistResponse: string | null;
     resolvedAt: number | null;
+    // actualizado_en en epoch ms: la app lo manda de vuelta como ?since= en la siguiente consulta
+    updatedAt: number;
 }
 
 export interface ListarMisSolicitudesQuery {
@@ -81,9 +83,12 @@ export interface FotoSolicitudVista {
 }
 
 export interface IListarFotosSolicitudUseCase {
-    ejecutar(solicitudId: string): Promise<FotoSolicitudVista[]>;
+    ejecutar(usuario: { id: string; rol: string }, solicitudId: string): Promise<FotoSolicitudVista[]>;
 }
 
 export interface IDescargarFotoSolicitudUseCase {
-    ejecutar(consulta: { solicitudId: string; fotoId: string }): Promise<{ foto: FotoSolicitud; contenido: Buffer }>;
+    ejecutar(
+        usuario: { id: string; rol: string },
+        consulta: { solicitudId: string; fotoId: string },
+    ): Promise<{ foto: FotoSolicitud; contenido: Buffer }>;
 }

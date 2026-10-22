@@ -28,6 +28,7 @@ describe("Notificaciones - casos de uso", () => {
     // Mocks sueltos para las aserciones: evita referenciar métodos del objeto (unbound-method)
     let guardarVarias: jest.Mock<Promise<void>, [Notificacion[]]>;
     let existeNoLeida: jest.Mock<Promise<boolean>, [string, TipoNotificacion, string]>;
+    let existeDeTipoDesde: jest.Mock<Promise<boolean>, [TipoNotificacion, Date]>;
     let listarPorUsuario: jest.Mock<Promise<{ items: Notificacion[]; total: number }>, [string, FiltrosNotificacion]>;
     let guardar: jest.Mock<Promise<Notificacion>, [Notificacion]>;
     let findById: jest.Mock<Promise<Notificacion | null>, [string]>;
@@ -37,6 +38,7 @@ describe("Notificaciones - casos de uso", () => {
     beforeEach(() => {
         guardarVarias = jest.fn<Promise<void>, [Notificacion[]]>(() => Promise.resolve());
         existeNoLeida = jest.fn<Promise<boolean>, [string, TipoNotificacion, string]>(() => Promise.resolve(false));
+        existeDeTipoDesde = jest.fn<Promise<boolean>, [TipoNotificacion, Date]>(() => Promise.resolve(true));
         listarPorUsuario = jest.fn<Promise<{ items: Notificacion[]; total: number }>, [string, FiltrosNotificacion]>(
             () => Promise.resolve({ items: [notificacionDe("u-1")], total: 7 }),
         );
@@ -52,6 +54,7 @@ describe("Notificaciones - casos de uso", () => {
             contarNoLeidas: jest.fn().mockResolvedValue(3),
             marcarTodasLeidas,
             existeNoLeida,
+            existeDeTipoDesde,
         };
         listarIdsActivosPorRol = jest.fn<Promise<string[]>, [string]>(() =>
             Promise.resolve(["u-admin-1", "u-admin-2", "u-autor"]),
@@ -120,6 +123,13 @@ describe("Notificaciones - casos de uso", () => {
             expect(listarIdsActivosPorRol).toHaveBeenCalledWith("admin");
             expect(creadas).toBe(2);
             expect(guardarVarias.mock.calls[0][0].map((n) => n.usuarioId)).toEqual(["u-admin-1", "u-admin-2"]);
+        });
+
+        it("seEmitioDesde consulta por tipo y fecha, sin importar el destinatario", async () => {
+            const desde = new Date("2026-10-01T00:00:00Z");
+
+            await expect(servicio().seEmitioDesde("alerta_plaga", desde)).resolves.toBe(true);
+            expect(existeDeTipoDesde).toHaveBeenCalledWith("alerta_plaga", desde);
         });
 
         it("notificarRol sin destinatarios no guarda nada", async () => {

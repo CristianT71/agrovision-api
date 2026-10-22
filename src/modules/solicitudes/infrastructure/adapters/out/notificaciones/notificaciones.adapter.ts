@@ -19,4 +19,17 @@ export class NotificacionesSolicitudesAdapter implements INotificadorSolicitudes
             },
         ]);
     }
+
+    async hayAlertaPlagasDesde(desde: Date): Promise<boolean> {
+        return await this.crearNotificacionesService.seEmitioDesde("alerta_plaga", desde);
+    }
+
+    async notificarAlertaPlagas(datos: { casos: number; umbral: number }): Promise<void> {
+        // Sin referencia: el aviso es del conjunto de casos de la semana, no de una solicitud
+        await this.crearNotificacionesService.notificarRol("admin", {
+            tipo: "alerta_plaga",
+            titulo: `Alerta: ${datos.casos} plagas nuevas esta semana`,
+            descripcion: `Se superó el umbral de ${datos.umbral} casos por semana. Se sugiere revisar el reentrenamiento del modelo.`,
+        });
+    }
 }

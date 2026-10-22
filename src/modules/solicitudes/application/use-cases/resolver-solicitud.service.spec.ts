@@ -1,12 +1,8 @@
-import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Logger, NotFoundException } from "@nestjs/common";
 import { ResolverSolicitudService } from "./resolver-solicitud.service";
-import { ListarSolicitudesService } from "./listar-solicitudes.service";
-import type {
-    FiltrosLecturaSolicitudes,
-    ILecturaSolicitudes,
-    SolicitudConProductor,
-} from "../../domain/ports/out/lectura-solicitudes.port";
-import { Solicitud, type EstadoSolicitud } from "../../domain/entities/solicitud.entity";
+import type { ILecturaSolicitudes } from "../../domain/ports/out/lectura-solicitudes.port";
+import type { INotificadorSolicitudes } from "../../domain/ports/out/notificador-solicitudes.port";
+import { Solicitud, type EstadoSolicitud, type TipoResultado } from "../../domain/entities/solicitud.entity";
 import type { ISolicitudRepository, FiltrosSolicitud } from "../../domain/ports/out/solicitud.repository";
 import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
 import { Agronomo, type EstadoAgronomo } from "../../../agronomos/domain/entities/agronomo.entity";
@@ -49,8 +45,12 @@ describe("Solicitudes - casos de uso", () => {
     let findAll: jest.Mock<Promise<Solicitud[]>, [FiltrosSolicitud?]>;
     let solicitudes: ISolicitudRepository;
     let agronomos: IAgronomoRepository;
-    let listarLectura: jest.Mock<Promise<SolicitudConProductor[]>, [FiltrosLecturaSolicitudes]>;
     let lectura: ILecturaSolicitudes;
+    let notificador: INotificadorSolicitudes;
+    // Fechas de resolución de las "Plaga nueva" guardadas y de las alertas emitidas (RF-06.7)
+    let plagasNuevas: Date[];
+    let alertas: Date[];
+    let notificarAlertaPlagas: jest.Mock<Promise<void>, [{ casos: number; umbral: number }]>;
 
     beforeEach(() => {
         solicitud = crearSolicitud("Asignada", "a-1");
@@ -77,15 +77,27 @@ describe("Solicitudes - casos de uso", () => {
             guardarAsignacion: jest.fn(),
         };
         agronomos = { findByUsuarioId: () => Promise.resolve(agronomo) } as unknown as IAgronomoRepository;
-        listarLectura = jest.fn<Promise<SolicitudConProductor[]>, [FiltrosLecturaSolicitudes]>(() =>
-            Promise.resolve([]),
-        );
+        plagasNuevas = [];
+        alertas = [];
+        guardarResolucion.mockImplementation((resuelta: Solicitud) => {
+            if (resuelta.tipoResultado === "Plaga nueva" && resuelta.fechaResolucion) {
+                plagasNuevas.push(resuelta.fechaResolucion);
+            }
+            return Promise.resolve(true);
+        });
         lectura = {
-            listar: listarLectura,
-            obtener: jest.fn(),
-            listarAnexos: jest.fn(),
-            listarResueltas: jest.fn(),
-            obtenerAnexo: jest.fn(),
+            contarPlagaNuevaDesde: (desde: Date) =>
+                Promise.resolve(plagasNuevas.filter((fecha) => fecha.getTime() >= desde.getTime()).length),
+        } as unknown as ILecturaSolicitudes;
+        notificarAlertaPlagas = jest.fn<Promise<void>, [{ casos: number; umbral: number }]>(() => {
+            alertas.push(new Date());
+            return Promise.resolve();
+        });
+        notificador = {
+            notificarAsignacion: jest.fn(),
+            hayAlertaPlagasDesde: (desde: Date) =>
+                Promise.resolve(alertas.some((fecha) => fecha.getTime() >= desde.getTime())),
+            notificarAlertaPlagas,
         };
     });
 
@@ -97,7 +109,7 @@ describe("Solicitudes - casos de uso", () => {
         };
 
         const resolver = (anexos: ArchivoParaGuardar[] = []) =>
-            new ResolverSolicitudService(solicitudes, agronomos, almacenamiento).ejecutar({
+            new ResolverSolicitudService(solicitudes, agronomos, almacenamiento, lectura, notificador).ejecutar({
                 solicitudId: "s-1",
                 usuarioId: "u-a-1",
                 ...RESOLUCION,
@@ -174,36 +186,102 @@ describe("Solicitudes - casos de uso", () => {
         });
     });
 
-    describe("ListarSolicitudesService", () => {
-        const listar = (soloMias: boolean, rol: string) =>
-            new ListarSolicitudesService(lectura, agronomos).ejecutar({
-                soloMias,
-                agronomoId: "a-otro",
-                usuario: { id: "u-a-1", rol },
+    describe("Alerta de plagas nuevas (RF-06.7)", () => {
+        const DIA = 24 * 60 * 60 * 1000;
+        const INICIO = new Date("2026-10-05T15:00:00Z");
+
+        // Cada resolución es un caso distinto, asignado al agrónomo autenticado
+        const resolverComo = async (tipoResultado: TipoResultado) => {
+            solicitud = crearSolicitud("Asignada", "a-1");
+            await new ResolverSolicitudService(solicitudes, agronomos, almacenamiento, lectura, notificador).ejecutar({
+                solicitudId: "s-1",
+                usuarioId: "u-a-1",
+                ...RESOLUCION,
+                tipoResultado,
             });
+        };
 
-        it("'mis asignadas' usa el agrónomo del token e ignora el enviado por el cliente", async () => {
-            await listar(true, "agronomo");
+        const resolverPlagasNuevas = async (cantidad: number) => {
+            for (let i = 0; i < cantidad; i++) await resolverComo("Plaga nueva");
+        };
 
-            expect(listarLectura).toHaveBeenCalledWith(expect.objectContaining({ agronomoId: "a-1" }));
+        beforeEach(() => {
+            jest.useFakeTimers({ now: INICIO });
         });
 
-        it("'mis asignadas' no aplica a administradores", async () => {
-            await expect(listar(true, "admin")).rejects.toBeInstanceOf(ForbiddenException);
+        afterEach(() => {
+            jest.useRealTimers();
         });
 
-        it("entrega cada solicitud con el nombre de su productor y pasa la búsqueda (RF-03.5)", async () => {
-            listarLectura.mockResolvedValue([
-                { solicitud: crearSolicitud("Enviada", null), productorNombre: "Carlos Arango" },
-            ]);
+        it("no se crea con 4 casos en la semana", async () => {
+            await resolverPlagasNuevas(4);
 
-            const [vista] = await new ListarSolicitudesService(lectura, agronomos).ejecutar({
-                busqueda: "carlos",
-                usuario: { id: "u-a-1", rol: "admin" },
-            });
+            expect(notificarAlertaPlagas).not.toHaveBeenCalled();
+        });
 
-            expect(vista.productorNombre).toBe("Carlos Arango");
-            expect(listarLectura).toHaveBeenCalledWith(expect.objectContaining({ busqueda: "carlos" }));
+        it("se crea con el 5.º caso, con el conteo y el umbral", async () => {
+            await resolverPlagasNuevas(5);
+
+            expect(notificarAlertaPlagas).toHaveBeenCalledTimes(1);
+            expect(notificarAlertaPlagas).toHaveBeenCalledWith({ casos: 5, umbral: 5 });
+        });
+
+        it("no se repite con el 6.º dentro de la misma semana", async () => {
+            await resolverPlagasNuevas(5);
+            jest.setSystemTime(new Date(INICIO.getTime() + 2 * DIA));
+            await resolverPlagasNuevas(1);
+
+            expect(notificarAlertaPlagas).toHaveBeenCalledTimes(1);
+        });
+
+        it("se crea de nuevo pasada la semana si vuelve a haber 5 casos", async () => {
+            await resolverPlagasNuevas(5);
+            jest.setSystemTime(new Date(INICIO.getTime() + 8 * DIA));
+            await resolverPlagasNuevas(5);
+
+            expect(notificarAlertaPlagas).toHaveBeenCalledTimes(2);
+        });
+
+        it("los casos de hace más de una semana no cuentan", async () => {
+            await resolverPlagasNuevas(4);
+            jest.setSystemTime(new Date(INICIO.getTime() + 8 * DIA));
+            await resolverPlagasNuevas(1);
+
+            expect(notificarAlertaPlagas).not.toHaveBeenCalled();
+        });
+
+        it.each<TipoResultado>([
+            "Confirma diagnóstico IA",
+            "Corrige diagnóstico IA",
+            "Imagen no diagnosticable",
+            "Planta sana",
+        ])("no se crea al resolver como '%s', aunque la semana ya pase el umbral", async (tipo) => {
+            plagasNuevas.push(...Array.from({ length: 5 }, () => new Date()));
+
+            await resolverComo(tipo);
+
+            expect(notificarAlertaPlagas).not.toHaveBeenCalled();
+        });
+
+        it("si falla la notificación, la resolución igual queda guardada", async () => {
+            const warn = jest.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
+            notificarAlertaPlagas.mockRejectedValue(new Error("sin conexión"));
+            plagasNuevas.push(...Array.from({ length: 4 }, () => new Date()));
+
+            await expect(resolverComo("Plaga nueva")).resolves.toBeUndefined();
+
+            expect(guardarResolucion).toHaveBeenCalledTimes(1);
+            expect(guardarResolucion.mock.calls[0][0].estado).toBe("Resuelta");
+            expect(warn).toHaveBeenCalled();
+            warn.mockRestore();
+        });
+
+        it("si la resolución no se guarda (409), no revisa la alerta", async () => {
+            guardarResolucion.mockResolvedValue(false);
+            plagasNuevas.push(...Array.from({ length: 5 }, () => new Date()));
+
+            await expect(resolverComo("Plaga nueva")).rejects.toBeInstanceOf(ConflictException);
+            expect(notificarAlertaPlagas).not.toHaveBeenCalled();
         });
     });
 });

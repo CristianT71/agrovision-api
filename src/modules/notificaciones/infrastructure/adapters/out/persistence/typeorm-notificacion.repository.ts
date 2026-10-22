@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { MoreThanOrEqual, Repository } from "typeorm";
 import type {
     FiltrosNotificacion,
     INotificacionRepository,
@@ -107,5 +107,9 @@ export class TypeOrmNotificacionRepository implements INotificacionRepository {
         return await this.notificacionRepository.exists({
             where: { usuarioId, tipo, referenciaId, leida: false },
         });
+    }
+
+    async existeDeTipoDesde(tipo: TipoNotificacion, desde: Date): Promise<boolean> {
+        return await this.notificacionRepository.exists({ where: { tipo, fecha: MoreThanOrEqual(desde) } });
     }
 }

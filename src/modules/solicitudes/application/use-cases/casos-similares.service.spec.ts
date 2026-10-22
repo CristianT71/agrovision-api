@@ -3,6 +3,11 @@ import { CasosSimilaresService } from "./casos-similares.service";
 import { Solicitud, type Cultivo, type Organo } from "../../domain/entities/solicitud.entity";
 import { calcularSimilitud, distanciaKm } from "../../domain/services/similitud-casos";
 import type { ILecturaSolicitudes, SolicitudConProductor } from "../../domain/ports/out/lectura-solicitudes.port";
+import { VerificarAccesoSolicitudService } from "./verificar-acceso-solicitud.service";
+import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
+
+const ADMIN = { id: "u-admin", rol: "admin" };
+const AGRONOMO = { id: "u-a-1", rol: "agronomo" };
 
 type Datos = {
     id: string;
@@ -104,23 +109,49 @@ describe("CasosSimilaresService", () => {
             obtener: () => Promise.resolve(base),
             listarResueltas: () => Promise.resolve(resueltas),
         } as unknown as ILecturaSolicitudes;
-        servicio = new CasosSimilaresService(lectura);
+        // El caso base está asignado a "a-1", que es el agrónomo de la cuenta "u-a-1"
+        const agronomos = {
+            findByUsuarioId: () => Promise.resolve({ id: "a-1" }),
+        } as unknown as IAgronomoRepository;
+        servicio = new CasosSimilaresService(lectura, new VerificarAccesoSolicitudService(lectura, agronomos));
     });
 
     it("devuelve los 3 casos resueltos más parecidos, de mayor a menor", async () => {
-        const similares = await servicio.ejecutar("base");
+        const similares = await servicio.ejecutar(ADMIN, "base");
 
         expect(similares.map((c) => c.id)).toEqual(["igual", "otro", "medio"]);
         expect(similares[0]).toMatchObject({ plagaIdentificada: "Roya", productorNombre: "Luz", similitud: 100 });
     });
 
     it("respeta el límite pedido", async () => {
-        expect(await servicio.ejecutar("base", 1)).toHaveLength(1);
+        expect(await servicio.ejecutar(ADMIN, "base", 1)).toHaveLength(1);
     });
 
     it("responde 404 si la solicitud no existe", async () => {
         base = null;
 
-        await expect(servicio.ejecutar("x")).rejects.toBeInstanceOf(NotFoundException);
+        await expect(servicio.ejecutar(ADMIN, "x")).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("al administrador le entrega el productor y la ubicación de cada expediente", async () => {
+        const [caso] = await servicio.ejecutar(ADMIN, "base");
+
+        expect(caso).toMatchObject({
+            productorNombre: "Luz",
+            municipio: "Pitalito",
+            vereda: "El Cedro",
+            finca: "La Esperanza",
+        });
+    });
+
+    it("al agrónomo no le entrega datos del productor de otros expedientes", async () => {
+        const similares = await servicio.ejecutar(AGRONOMO, "base");
+
+        expect(similares.map((c) => c.id)).toEqual(["igual", "otro", "medio"]);
+        for (const caso of similares) {
+            expect(Object.keys(caso).sort()).toEqual(
+                ["fechaResolucion", "id", "plagaIdentificada", "similitud", "tipoResultado"].sort(),
+            );
+        }
     });
 });

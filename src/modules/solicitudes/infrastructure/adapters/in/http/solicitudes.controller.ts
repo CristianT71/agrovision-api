@@ -22,7 +22,10 @@ import { ListarFotosSolicitudService } from "../../../../application/use-cases/l
 import { DescargarFotoSolicitudService } from "../../../../application/use-cases/descargar-foto-solicitud.service";
 import { AnexosResolucionService } from "../../../../application/use-cases/anexos-resolucion.service";
 import { CasosSimilaresService } from "../../../../application/use-cases/casos-similares.service";
+import { ContarSolicitudesService } from "../../../../application/use-cases/contar-solicitudes.service";
+import { ResumirResolucionesService } from "../../../../application/use-cases/resumir-resoluciones.service";
 import { CasosSimilaresDto } from "./dto/casos-similares.dto";
+import { ConsultarResolucionesDto } from "./dto/consultar-resoluciones.dto";
 import { MAX_ANEXOS_RESOLUCION } from "../../../../domain/entities/anexo-resolucion.entity";
 import {
     TIPOS_DOCUMENTO,
@@ -41,7 +44,9 @@ const MAX_BYTES_ANEXO = 10 * 1024 * 1024;
 
 const EXTENSIONES_FOTO: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
 
-// El panel solo lo usan agrónomos y administradores (RF-02.2, RF-02.3)
+// El panel solo lo usan agrónomos y administradores (RF-02.2, RF-02.3).
+// El administrador ve todas las solicitudes; el agrónomo solo las que tiene asignadas: las
+// consultas de una solicitud pasan por VerificarAccesoSolicitudService y responden 404 si no es suya
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("agronomo", "admin")
 @Controller("solicitudes")
@@ -55,6 +60,8 @@ export class SolicitudesController {
         private readonly descargarFotoSolicitudService: DescargarFotoSolicitudService,
         private readonly anexosResolucionService: AnexosResolucionService,
         private readonly casosSimilaresService: CasosSimilaresService,
+        private readonly contarSolicitudesService: ContarSolicitudesService,
+        private readonly resumirResolucionesService: ResumirResolucionesService,
     ) {}
 
     @Get()
@@ -62,15 +69,35 @@ export class SolicitudesController {
         return await this.listarSolicitudesService.ejecutar({ ...filtros, usuario });
     }
 
+    // RF-03.4, RF-08.2. Las rutas fijas van antes de ":id" para que Nest no las tome como un id.
+    @Get("contadores")
+    async contadores(@UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.contarSolicitudesService.ejecutar(usuario);
+    }
+
+    // RF-06.5 a RF-06.7: tablero de resoluciones y plagas nuevas
+    @Get("resoluciones")
+    @Roles("admin")
+    async resoluciones(@Query() consulta: ConsultarResolucionesDto, @UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.resumirResolucionesService.ejecutar(usuario, consulta);
+    }
+
     // Fotos que subió la app móvil. Declaradas antes de ":id" para que ninguna ruta las capture.
     @Get(":id/fotos")
-    async listarFotos(@Param("id", ParseUUIDPipe) id: string) {
-        return await this.listarFotosSolicitudService.ejecutar(id);
+    async listarFotos(@Param("id", ParseUUIDPipe) id: string, @UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.listarFotosSolicitudService.ejecutar(usuario, id);
     }
 
     @Get(":id/fotos/:fotoId")
-    async descargarFoto(@Param("id", ParseUUIDPipe) id: string, @Param("fotoId", ParseUUIDPipe) fotoId: string) {
-        const { foto, contenido } = await this.descargarFotoSolicitudService.ejecutar({ solicitudId: id, fotoId });
+    async descargarFoto(
+        @Param("id", ParseUUIDPipe) id: string,
+        @Param("fotoId", ParseUUIDPipe) fotoId: string,
+        @UsuarioActual() usuario: UsuarioAutenticado,
+    ) {
+        const { foto, contenido } = await this.descargarFotoSolicitudService.ejecutar(usuario, {
+            solicitudId: id,
+            fotoId,
+        });
 
         // El nombre lo arma el servidor: la ruta interna nunca se expone
         return new StreamableFile(contenido, {
@@ -81,19 +108,27 @@ export class SolicitudesController {
 
     // RF-04.3: expedientes resueltos más parecidos al caso. También antes de ":id".
     @Get(":id/similares")
-    async casosSimilares(@Param("id", ParseUUIDPipe) id: string, @Query() consulta: CasosSimilaresDto) {
-        return await this.casosSimilaresService.ejecutar(id, consulta.limite);
+    async casosSimilares(
+        @Param("id", ParseUUIDPipe) id: string,
+        @Query() consulta: CasosSimilaresDto,
+        @UsuarioActual() usuario: UsuarioAutenticado,
+    ) {
+        return await this.casosSimilaresService.ejecutar(usuario, id, consulta.limite);
     }
 
     // RF-04.6: anexos de la resolución. También antes de ":id".
     @Get(":id/anexos")
-    async listarAnexos(@Param("id", ParseUUIDPipe) id: string) {
-        return await this.anexosResolucionService.listar(id);
+    async listarAnexos(@Param("id", ParseUUIDPipe) id: string, @UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.anexosResolucionService.listar(usuario, id);
     }
 
     @Get(":id/anexos/:anexoId")
-    async descargarAnexo(@Param("id", ParseUUIDPipe) id: string, @Param("anexoId", ParseUUIDPipe) anexoId: string) {
-        const { anexo, contenido } = await this.anexosResolucionService.descargar(id, anexoId);
+    async descargarAnexo(
+        @Param("id", ParseUUIDPipe) id: string,
+        @Param("anexoId", ParseUUIDPipe) anexoId: string,
+        @UsuarioActual() usuario: UsuarioAutenticado,
+    ) {
+        const { anexo, contenido } = await this.anexosResolucionService.descargar(usuario, id, anexoId);
 
         return new StreamableFile(contenido, {
             type: anexo.tipoMime,
@@ -103,8 +138,8 @@ export class SolicitudesController {
     }
 
     @Get(":id")
-    async obtenerPorId(@Param("id", ParseUUIDPipe) id: string) {
-        return await this.obtenerSolicitudPorIdService.ejecutar(id);
+    async obtenerPorId(@Param("id", ParseUUIDPipe) id: string, @UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.obtenerSolicitudPorIdService.ejecutar(usuario, id);
     }
 
     // Resolver es tarea del Profesional; el Administrador coordina y asigna (RF-08)

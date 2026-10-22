@@ -4,6 +4,7 @@ import {
     ForbiddenException,
     Inject,
     Injectable,
+    Logger,
     NotFoundException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
@@ -16,9 +17,22 @@ import {
     type IAlmacenamientoArchivos,
 } from "../../../../common/almacenamiento/almacenamiento.port";
 import { AnexoResolucion, MAX_ANEXOS_RESOLUCION } from "../../domain/entities/anexo-resolucion.entity";
+import { LECTURA_SOLICITUDES, type ILecturaSolicitudes } from "../../domain/ports/out/lectura-solicitudes.port";
+import {
+    NOTIFICADOR_SOLICITUDES,
+    type INotificadorSolicitudes,
+} from "../../domain/ports/out/notificador-solicitudes.port";
+import {
+    alcanzaUmbralPlagaNueva,
+    inicioSemanaAlerta,
+    TIPO_PLAGA_NUEVA,
+    UMBRAL_PLAGA_NUEVA_SEMANAL,
+} from "../../domain/services/resoluciones";
 
 @Injectable()
 export class ResolverSolicitudService implements IResolverSolicitudUseCase {
+    private readonly logger = new Logger(ResolverSolicitudService.name);
+
     constructor(
         @Inject(SOLICITUD_REPOSITORY)
         private readonly solicitudRepository: ISolicitudRepository,
@@ -26,6 +40,10 @@ export class ResolverSolicitudService implements IResolverSolicitudUseCase {
         private readonly agronomoRepository: IAgronomoRepository,
         @Inject(ALMACENAMIENTO_ARCHIVOS)
         private readonly almacenamiento: IAlmacenamientoArchivos,
+        @Inject(LECTURA_SOLICITUDES)
+        private readonly lecturaSolicitudes: ILecturaSolicitudes,
+        @Inject(NOTIFICADOR_SOLICITUDES)
+        private readonly notificador: INotificadorSolicitudes,
     ) {}
 
     async ejecutar(comando: ResolverSolicitudCommand): Promise<void> {
@@ -86,6 +104,29 @@ export class ResolverSolicitudService implements IResolverSolicitudUseCase {
 
         if (!guardada) {
             throw new ConflictException("La solicitud cambió mientras se resolvía. Recarga para ver su estado.");
+        }
+
+        // 6. RF-06.7: con la resolución ya guardada, revisar si hay un brote de plagas nuevas
+        if (tipoResultado === TIPO_PLAGA_NUEVA) {
+            await this.alertarSiHayBrote();
+        }
+    }
+
+    // Efecto secundario: si falla, la resolución se mantiene (igual que el aviso de asignar-solicitud)
+    private async alertarSiHayBrote(): Promise<void> {
+        try {
+            const desde = inicioSemanaAlerta(new Date());
+            const casos = await this.lecturaSolicitudes.contarPlagaNuevaDesde(desde);
+            if (!alcanzaUmbralPlagaNueva(casos)) return;
+
+            // Una vez por episodio: si ya salió una alerta esta semana, las resoluciones siguientes no la repiten
+            if (await this.notificador.hayAlertaPlagasDesde(desde)) return;
+
+            await this.notificador.notificarAlertaPlagas({ casos, umbral: UMBRAL_PLAGA_NUEVA_SEMANAL });
+        } catch (error) {
+            this.logger.warn(
+                `No se pudo revisar o emitir la alerta de plagas nuevas: ${error instanceof Error ? error.message : String(error)}`,
+            );
         }
     }
 }
