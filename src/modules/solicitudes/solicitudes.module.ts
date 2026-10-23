@@ -5,6 +5,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { TypeOrmSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.entity";
 import { TypeOrmFotoSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-foto-solicitud.entity";
 import { TypeOrmAnexoResolucionEntity } from "./infrastructure/adapters/out/persistence/typeorm-anexo-resolucion.entity";
+import { TypeOrmDeteccionEntity } from "../detecciones/infrastructure/adapters/out/persistence/typeorm-deteccion.entity";
 import { TypeOrmSolicitudRepository } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.repository";
 import { TypeOrmSolicitudAppRepository } from "./infrastructure/adapters/out/persistence/typeorm-solicitud-app.repository";
 import { TypeOrmLecturaSolicitudesAdapter } from "./infrastructure/adapters/out/persistence/typeorm-lectura-solicitudes.adapter";
@@ -19,6 +20,7 @@ import { SOLICITUD_REPOSITORY } from "./domain/ports/out/solicitud.repository";
 import { SOLICITUD_APP_REPOSITORY } from "./domain/ports/out/solicitud-app.repository";
 import { LECTURA_SOLICITUDES } from "./domain/ports/out/lectura-solicitudes.port";
 import { NOTIFICADOR_SOLICITUDES } from "./domain/ports/out/notificador-solicitudes.port";
+import { CAPTURA_MODELO_REPOSITORY } from "./domain/ports/out/captura-modelo.repository";
 import { FIRMADOR_URLS_SUBIDA, type IFirmadorUrlsSubida } from "./domain/ports/out/firmador-urls-subida.port";
 import { AgronomosModule } from "../agronomos/agronomos.module";
 import { NotificacionesModule } from "../notificaciones/notificaciones.module";
@@ -40,6 +42,7 @@ import { CasosSimilaresService } from "./application/use-cases/casos-similares.s
 import { VerificarAccesoSolicitudService } from "./application/use-cases/verificar-acceso-solicitud.service";
 import { ContarSolicitudesService } from "./application/use-cases/contar-solicitudes.service";
 import { ResumirResolucionesService } from "./application/use-cases/resumir-resoluciones.service";
+import { TypeOrmCapturaModeloRepository } from "./infrastructure/adapters/out/persistence/typeorm-captura-modelo.repository";
 
 @Module({
     // Se necesita el agrónomo del usuario autenticado para resolver y filtrar (RF-03.3)
@@ -47,7 +50,12 @@ import { ResumirResolucionesService } from "./application/use-cases/resumir-reso
     // La app móvil necesita el productor del token, el almacenamiento privado para sus fotos
     // y el secreto con el que se firman las URLs de subida
     imports: [
-        TypeOrmModule.forFeature([TypeOrmSolicitudEntity, TypeOrmFotoSolicitudEntity, TypeOrmAnexoResolucionEntity]),
+        TypeOrmModule.forFeature([
+            TypeOrmSolicitudEntity,
+            TypeOrmFotoSolicitudEntity,
+            TypeOrmAnexoResolucionEntity,
+            TypeOrmDeteccionEntity,
+        ]),
         AgronomosModule,
         NotificacionesModule,
         ProductoresModule,
@@ -85,6 +93,10 @@ import { ResumirResolucionesService } from "./application/use-cases/resumir-reso
         {
             provide: NOTIFICADOR_SOLICITUDES,
             useClass: NotificacionesSolicitudesAdapter,
+        },
+        {
+            provide: CAPTURA_MODELO_REPOSITORY,
+            useClass: TypeOrmCapturaModeloRepository,
         },
         {
             provide: FIRMADOR_URLS_SUBIDA,

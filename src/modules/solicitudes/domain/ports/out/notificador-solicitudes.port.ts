@@ -1,5 +1,6 @@
 // Avisos que genera el ciclo de vida de una solicitud (RF-02.5)
 export interface INotificadorSolicitudes {
+    notificarNuevaSolicitud(datos: { solicitudId: string }): Promise<void>;
     // agronomoUsuarioId es la cuenta de login del agrónomo, no su id de agrónomo
     notificarAsignacion(datos: { solicitudId: string; agronomoUsuarioId: string }): Promise<void>;
     // RF-06.7: la alerta sale una vez por episodio; ¿ya se emitió alguna desde esa fecha?

@@ -14,6 +14,8 @@ import type { ISolicitudAppRepository } from "../../domain/ports/out/solicitud-a
 import type { ISolicitudRepository } from "../../domain/ports/out/solicitud.repository";
 import type { IFirmadorUrlsSubida } from "../../domain/ports/out/firmador-urls-subida.port";
 import type { IProductorRepository } from "../../../productores/domain/ports/out/productor.repository";
+import type { ICapturaModeloRepository } from "../../domain/ports/out/captura-modelo.repository";
+import type { INotificadorSolicitudes } from "../../domain/ports/out/notificador-solicitudes.port";
 import { Productor } from "../../../productores/domain/entities/productor.entity";
 import type {
     ArchivoParaGuardar,
@@ -103,6 +105,8 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
     let solicitudRepository: ISolicitudRepository;
     let productores: IProductorRepository;
     let firmador: IFirmadorUrlsSubida;
+    let capturaModelo: ICapturaModeloRepository;
+    let notificador: INotificadorSolicitudes;
     let almacenamiento: IAlmacenamientoArchivos;
     // Mocks sueltos para las aserciones: evita referenciar métodos del objeto (unbound-method)
     let crearConFotos: jest.Mock<Promise<boolean>, [Solicitud, FotoSolicitud[]]>;
@@ -152,6 +156,13 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
         };
         productores = { findByUsuarioId: () => Promise.resolve(productor) } as unknown as IProductorRepository;
         firmador = { firmar: (fotoId: string) => `http://api/v1/uploads/token-${fotoId}`, verificar };
+        capturaModelo = { obtenerModeloIdPorIdCliente: () => Promise.resolve(null) };
+        notificador = {
+            notificarNuevaSolicitud: jest.fn(),
+            notificarAsignacion: jest.fn(),
+            hayAlertaPlagasDesde: jest.fn(),
+            notificarAlertaPlagas: jest.fn(),
+        };
         almacenamiento = {
             guardarPublico: jest.fn(),
             eliminarPublico: jest.fn(),
@@ -163,7 +174,7 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
 
     describe("RecibirLoteSolicitudesService", () => {
         const recibir = (lote: SolicitudAppEntrada[]) =>
-            new RecibirLoteSolicitudesService(appRepository, productores, firmador).ejecutar({
+            new RecibirLoteSolicitudesService(appRepository, productores, firmador, capturaModelo, notificador).ejecutar({
                 usuarioId: "u-1",
                 solicitudes: lote,
             });

@@ -7,6 +7,16 @@ import { CrearNotificacionesService } from "../../../../../notificaciones/applic
 export class NotificacionesSolicitudesAdapter implements INotificadorSolicitudes {
     constructor(private readonly crearNotificacionesService: CrearNotificacionesService) {}
 
+    async notificarNuevaSolicitud(datos: { solicitudId: string }): Promise<void> {
+        await this.crearNotificacionesService.notificarRol("admin", {
+            tipo: "sistema",
+            titulo: "Nueva solicitud de revisión",
+            descripcion: "Un productor envió una solicitud de revisión para asignar.",
+            referenciaTipo: "solicitud",
+            referenciaId: datos.solicitudId,
+        });
+    }
+
     async notificarAsignacion(datos: { solicitudId: string; agronomoUsuarioId: string }): Promise<void> {
         await this.crearNotificacionesService.ejecutar([
             {
