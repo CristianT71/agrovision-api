@@ -31,16 +31,15 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         //    las cuentas de agrónomo y administrador nacen por su propio flujo (RF-01.6)
         let usuario = await this.usuarioRepository.findByTelefono(telefono);
         if (!usuario) {
-            if (rolSeleccionado && rolSeleccionado !== "productor") {
+            if (rolSeleccionado !== "productor") {
                 throw new NotFoundException(
-                    "No hay una cuenta registrada con este número. Si eres agrónomo, solicita acceso.",
+                    "No hay una cuenta registrada con este número. Si eres agricultor, ingresa desde la app móvil.",
                 );
             }
 
             usuario = Usuario.registrarProductor(uuidv4(), telefono);
             await this.usuarioRepository.guardar(usuario);
         } else if (rolSeleccionado && !usuario.tieneRol(rolSeleccionado)) {
-            // RF-01.2: se avisa antes de enviar un código que de todos modos sería rechazado
             throw new ForbiddenException("El rol seleccionado no corresponde a esta cuenta.");
         } else if (usuario.estado === "pendiente") {
             throw new ForbiddenException("Tu cuenta está pendiente de validación por un administrador.");

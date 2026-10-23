@@ -48,9 +48,7 @@ export class ValidarOtpService implements IValidarOtpUseCase {
             throw new UnauthorizedException(CREDENCIALES_INVALIDAS);
         }
 
-        // RF-01.2: el rol seleccionado se valida contra el de la cuenta, nunca se asigna.
-        // Se revisa antes de consumir el código para que el usuario pueda corregir el rol.
-        if (!usuario.tieneRol(rolSeleccionado)) {
+        if (rolSeleccionado && !usuario.tieneRol(rolSeleccionado)) {
             throw new ForbiddenException("El rol seleccionado no corresponde a esta cuenta.");
         }
 

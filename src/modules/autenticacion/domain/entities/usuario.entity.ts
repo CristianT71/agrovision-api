@@ -25,7 +25,7 @@ export class Usuario {
         return this.estado === "activo";
     }
 
-    // Regla RF-01.2: el rol elegido en el login debe ser el que tiene la cuenta; nunca lo reemplaza
+    // El rol de acceso siempre es el que está registrado en la cuenta.
     public tieneRol(rol: RolUsuario): boolean {
         return this.rol === rol;
     }

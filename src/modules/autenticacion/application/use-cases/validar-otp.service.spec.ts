@@ -20,7 +20,6 @@ describe("ValidarOtpService", () => {
     let usuario: Usuario | null;
     let sesion: SesionOtp | null;
     let agronomo: Agronomo | null;
-    let usuarioGuardado: jest.Mock;
     let intentoFallido: jest.Mock;
     let consumir: jest.Mock;
     let sesionCreada: jest.Mock<Promise<void>, [SesionUsuario]>;
@@ -35,7 +34,6 @@ describe("ValidarOtpService", () => {
         usuario = crearUsuario("admin");
         sesion = SesionOtp.crear({ id: "s-1", usuarioId: "u-1", codigo: CODIGO, minutosVigencia: 5 });
         agronomo = null;
-        usuarioGuardado = jest.fn();
         intentoFallido = jest.fn();
         consumir = jest.fn().mockResolvedValue(true);
         sesionCreada = jest.fn<Promise<void>, [SesionUsuario]>(() => Promise.resolve());
@@ -44,7 +42,7 @@ describe("ValidarOtpService", () => {
         const usuarios: IUsuarioRepository = {
             findByTelefono: () => Promise.resolve(usuario),
             findById: () => Promise.resolve(usuario),
-            guardar: usuarioGuardado,
+            guardar: jest.fn(),
         };
         const sesiones: ISesionOtpRepository = {
             findUltimaPorUsuarioId: () => Promise.resolve(sesion),
@@ -65,7 +63,7 @@ describe("ValidarOtpService", () => {
     });
 
     it("entrega el token con el rol guardado cuando todo es válido", async () => {
-        const respuesta = await servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "admin" });
+        const respuesta = await servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO });
 
         expect(respuesta.usuario.rol).toBe("admin");
         expect(respuesta.accessToken).toEqual(expect.any(String));
@@ -73,33 +71,31 @@ describe("ValidarOtpService", () => {
     });
 
     it("abre una sesión en el servidor y firma el token con su id (jti)", async () => {
-        await servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "admin" });
+        await servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO });
 
         const sesionUsuario = sesionCreada.mock.calls[0][0];
         expect(sesionUsuario.usuarioId).toBe("u-1");
         expect(firmar).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ jwtid: sesionUsuario.id }));
     });
 
+    it("valida el rol móvil sin permitir cambiar el rol guardado", async () => {
+        usuario = crearUsuario("productor");
+
+        await servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "productor" });
+
+        expect(consumir).toHaveBeenCalledWith("s-1");
+    });
+
     it("no abre sesión si el código es incorrecto", async () => {
         await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: "000000", rolSeleccionado: "admin" }),
+            servicio.ejecutar({ telefono: TELEFONO, codigo: "000000" }),
         ).rejects.toBeInstanceOf(UnauthorizedException);
         expect(sesionCreada).not.toHaveBeenCalled();
     });
 
-    it("no permite escalar el rol eligiendo otro en el login", async () => {
-        usuario = crearUsuario("productor");
-
-        await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "admin" }),
-        ).rejects.toBeInstanceOf(ForbiddenException);
-        expect(usuarioGuardado).not.toHaveBeenCalled();
-        expect(consumir).not.toHaveBeenCalled();
-    });
-
     it("registra el intento fallido cuando el código no coincide", async () => {
         await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: "000000", rolSeleccionado: "admin" }),
+            servicio.ejecutar({ telefono: TELEFONO, codigo: "000000" }),
         ).rejects.toBeInstanceOf(UnauthorizedException);
         expect(intentoFallido).toHaveBeenCalledWith("s-1");
     });
@@ -108,7 +104,7 @@ describe("ValidarOtpService", () => {
         sesion!.intentos = MAX_INTENTOS_OTP;
 
         await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "admin" }),
+            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO }),
         ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
@@ -116,7 +112,7 @@ describe("ValidarOtpService", () => {
         consumir.mockResolvedValue(false);
 
         await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "admin" }),
+            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO }),
         ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
@@ -124,7 +120,7 @@ describe("ValidarOtpService", () => {
         usuario!.estado = "inactivo";
 
         await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "admin" }),
+            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO }),
         ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -133,7 +129,7 @@ describe("ValidarOtpService", () => {
         agronomo = crearAgronomo("pendiente");
 
         await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "agronomo" }),
+            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO }),
         ).rejects.toThrow("pendiente de validación");
     });
 
@@ -141,7 +137,7 @@ describe("ValidarOtpService", () => {
         usuario = crearUsuario("agronomo");
         agronomo = crearAgronomo("activo");
 
-        const respuesta = await servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO, rolSeleccionado: "agronomo" });
+        const respuesta = await servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO });
 
         expect(respuesta.usuario.rol).toBe("agronomo");
     });

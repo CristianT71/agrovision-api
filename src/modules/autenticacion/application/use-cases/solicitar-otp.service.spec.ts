@@ -46,31 +46,35 @@ describe("SolicitarOtpService", () => {
     });
 
     it("registra un teléfono nuevo solo como productor", async () => {
-        await servicio.ejecutar({ telefono: TELEFONO });
+        await servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "productor" });
 
         const registrado = usuarioGuardado.mock.calls[0][0];
         expect(registrado.rol).toBe("productor");
     });
 
-    it("desde el panel no crea cuentas: un número desconocido con rol de agrónomo se rechaza", async () => {
-        await expect(servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "agronomo" })).rejects.toBeInstanceOf(
-            NotFoundException,
-        );
+    it("rechaza desde el panel un número que no está registrado", async () => {
+        await expect(servicio.ejecutar({ telefono: TELEFONO })).rejects.toBeInstanceOf(NotFoundException);
         expect(usuarioGuardado).not.toHaveBeenCalled();
         expect(enviarOtp).not.toHaveBeenCalled();
     });
 
-    it("no envía el código si el rol elegido no es el de la cuenta", async () => {
+    it("registra un número nuevo solo desde el flujo móvil de productor", async () => {
+        await servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "productor" });
+
+        expect(usuarioGuardado).toHaveBeenCalledTimes(1);
+        expect(enviarOtp).toHaveBeenCalledTimes(1);
+    });
+
+    it("envía el código usando el rol registrado en la cuenta", async () => {
         usuario = Usuario.registrarProductor("u-1", TELEFONO);
 
-        await expect(servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "admin" })).rejects.toBeInstanceOf(
-            ForbiddenException,
-        );
-        expect(enviarOtp).not.toHaveBeenCalled();
+        await servicio.ejecutar({ telefono: TELEFONO });
+
+        expect(enviarOtp).toHaveBeenCalledTimes(1);
     });
 
     it("envía un código de 6 dígitos y guarda solo su hash", async () => {
-        await servicio.ejecutar({ telefono: TELEFONO });
+        await servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "productor" });
 
         const codigo = enviarOtp.mock.calls[0][1];
         const sesion = sesionGuardada.mock.calls[0][0];

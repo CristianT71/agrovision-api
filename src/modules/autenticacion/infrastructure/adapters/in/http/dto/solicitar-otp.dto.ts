@@ -7,6 +7,6 @@ export class SolicitarOtpDto {
     telefono: string;
 
     @IsOptional()
-    @IsIn(["admin", "agronomo", "productor"], { message: "El rol seleccionado no es válido." })
-    rolSeleccionado?: "admin" | "agronomo" | "productor";
+    @IsIn(["productor"], { message: "El flujo de registro no es válido." })
+    rolSeleccionado?: "productor";
 }
