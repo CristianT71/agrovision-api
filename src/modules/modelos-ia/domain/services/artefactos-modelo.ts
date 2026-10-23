@@ -83,7 +83,10 @@ export function validarEtiquetas(contenido: Buffer): { resumen: ResumenEtiquetas
 
     const { class_count: numeroClases, embedding_dim: dimension, classes } = json;
     if (!esEnteroPositivo(numeroClases)) return { error: "Las etiquetas deben indicar class_count." };
-    if (!esEnteroPositivo(dimension)) return { error: "Las etiquetas deben indicar embedding_dim." };
+    // 0 es un modelo simple, sin embedding (ver modelo-simple.ts)
+    if (!Number.isInteger(dimension) || (dimension as number) < 0) {
+        return { error: "Las etiquetas deben indicar embedding_dim." };
+    }
     if (!Array.isArray(classes) || classes.length !== numeroClases) {
         return { error: "La lista classes de las etiquetas no coincide con class_count." };
     }
@@ -104,7 +107,7 @@ export function validarEtiquetas(contenido: Buffer): { resumen: ResumenEtiquetas
     return {
         resumen: {
             numeroClases,
-            dimensionEmbedding: dimension,
+            dimensionEmbedding: dimension as number,
             clases: ordenadas.map((clase) => clase.class_id as string),
         },
     };
@@ -130,6 +133,17 @@ export function validarCalibracion(contenido: Buffer, etiquetas: ResumenEtiqueta
     if ((json.temperature as number) <= 0) return "La temperatura de calibración debe ser mayor que 0.";
 
     const centroides = json.class_centroids;
+
+    // Modelo simple: sin embedding no hay centroides ni matriz de precisión
+    if (etiquetas.dimensionEmbedding === 0) {
+        const vacios =
+            Array.isArray(centroides) &&
+            centroides.length === 0 &&
+            Array.isArray(json.precision_matrix) &&
+            json.precision_matrix.length === 0;
+        return vacios ? null : "Un modelo sin embedding no lleva centroides ni matriz de precisión.";
+    }
+
     if (!Array.isArray(centroides) || centroides.length !== etiquetas.numeroClases) {
         return "La calibración debe traer un centroide por clase.";
     }

@@ -14,7 +14,13 @@ import {
 import type { ArchivoSubido } from "../../../../common/almacenamiento/validar-archivo";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 import { RegistroAuditoria } from "../../domain/entities/registro-auditoria.entity";
-import { normalizarJson, validarCalibracion, validarEtiquetas } from "../../domain/services/artefactos-modelo";
+import {
+    leerEtiquetasTexto,
+    normalizarJson,
+    validarCalibracion,
+    validarEtiquetas,
+} from "../../domain/services/artefactos-modelo";
+import { generarArtefactosSimples } from "../../domain/services/modelo-simple";
 import { MAX_BYTES_JSON_MODELO } from "./subir-modelo.service";
 import { aModeloVista } from "./modelo-vista";
 
@@ -31,16 +37,28 @@ export class CompletarArtefactosService implements ICompletarArtefactosUseCase {
         private readonly almacenamiento: IAlmacenamientoArchivos,
     ) {}
 
-    async ejecutar(comando: CompletarArtefactosCommand): Promise<ModeloVista> {
-        if (!comando.etiquetas && !comando.calibracion) {
-            throw new BadRequestException("Adjunta labels.json, calibration.json o ambos.");
-        }
-
+    async ejecutar(entrada: CompletarArtefactosCommand): Promise<ModeloVista> {
+        let comando = entrada;
         const modelo = await this.modeloRepository.findById(comando.modeloId);
         if (!modelo) throw new NotFoundException("El modelo no existe.");
 
         // Falla antes de tocar el almacenamiento si el modelo ya no admite cambios
         modelo.exigirArtefactosEditables();
+
+        // Sin labels.json ni calibration.json se arman los de un modelo simple con labels.txt o, si el
+        // modelo se subió con él, con las clases que ya tiene guardadas
+        const simples = this.generarSimples(comando, modelo.artefactos.clases);
+        if (simples) {
+            comando = {
+                ...comando,
+                etiquetas: this.comoArchivo("labels.json", simples.etiquetas),
+                calibracion: this.comoArchivo("calibration.json", simples.calibracion),
+            };
+        }
+
+        if (!comando.etiquetas && !comando.calibracion) {
+            throw new BadRequestException("Adjunta labels.txt, labels.json, calibration.json o una combinación.");
+        }
 
         // Lo que llega ahora reemplaza a lo que hubiera; lo que no, se conserva
         const { artefactos } = modelo;
@@ -127,6 +145,26 @@ export class CompletarArtefactosService implements ICompletarArtefactosUseCase {
             await Promise.all(guardados.map((ruta) => this.almacenamiento.eliminarPrivado(ruta)));
             throw error;
         }
+    }
+
+    private generarSimples(comando: CompletarArtefactosCommand, clasesGuardadas: string[] | null) {
+        if (comando.etiquetas || comando.calibracion) return null;
+
+        let clases = clasesGuardadas;
+        if (comando.etiquetasTexto) {
+            if (comando.etiquetasTexto.size > MAX_BYTES_JSON_MODELO) {
+                throw new BadRequestException("El archivo de etiquetas supera el límite de 5 MB.");
+            }
+            const resultado = leerEtiquetasTexto(comando.etiquetasTexto.buffer);
+            if ("error" in resultado) throw new BadRequestException(resultado.error);
+            clases = resultado.clases;
+        }
+
+        return clases && clases.length > 0 ? generarArtefactosSimples(clases) : null;
+    }
+
+    private comoArchivo(nombre: string, buffer: Buffer): ArchivoSubido {
+        return { originalname: nombre, mimetype: "application/json", size: buffer.length, buffer };
     }
 
     private leerJson(archivo: ArchivoSubido): Buffer {

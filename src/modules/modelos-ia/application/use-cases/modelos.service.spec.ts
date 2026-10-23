@@ -191,8 +191,25 @@ describe("Modelos IA - casos de uso", () => {
                 etiquetasTexto: archivo("labels.txt", Buffer.from("Cerscospora\r\nHealthy\n\nLeaf rust\n")),
             });
 
-            expect(vista).toMatchObject({ numeroClases: 3, clases: ["Cerscospora", "Healthy", "Leaf rust"] });
-            expect(guardarPrivado).toHaveBeenCalledTimes(1);
+            // El .tflite y su labels.txt bastan: se arman labels.json y calibration.json de un modelo
+            // simple, el modelo queda firmado y la app lo puede instalar
+            expect(vista).toMatchObject({
+                numeroClases: 3,
+                clases: ["Cerscospora", "Healthy", "Leaf rust"],
+                firmado: true,
+                artefactosCompletos: true,
+            });
+            expect(guardarPrivado).toHaveBeenCalledTimes(3);
+            const { etiquetas, calibracion } = firmarConjunto.mock.calls[0][0];
+            const labels = JSON.parse(etiquetas.toString()) as {
+                classes: { class_id: string; pest_id: string | null }[];
+            };
+            expect(labels.classes.map((c) => c.pest_id)).toEqual([
+                "Enfermedad_ManchadeHierro",
+                null,
+                "Enfermedad_Roya",
+            ]);
+            expect(JSON.parse(calibracion.toString())).toMatchObject({ class_centroids: [], precision_matrix: [] });
         });
 
         it("rechaza un labels.txt con clases repetidas", async () => {
@@ -248,12 +265,13 @@ describe("Modelos IA - casos de uso", () => {
     });
 
     describe("CompletarArtefactosService", () => {
-        const completar = (archivos: { etiquetas?: Buffer; calibracion?: Buffer }) =>
+        const completar = (archivos: { etiquetas?: Buffer; calibracion?: Buffer; texto?: Buffer }) =>
             new CompletarArtefactosService(repositorio, { firmarConjunto }, almacenamiento).ejecutar({
                 adminUsuarioId: "u-admin",
                 modeloId: "m-1",
                 etiquetas: archivos.etiquetas && archivo("labels.json", archivos.etiquetas),
                 calibracion: archivos.calibracion && archivo("calibration.json", archivos.calibracion),
+                etiquetasTexto: archivos.texto && archivo("labels.txt", archivos.texto),
             });
 
         const soloModelo = (): ModeloIa =>
@@ -308,8 +326,30 @@ describe("Modelos IA - casos de uso", () => {
             expect(guardarPrivado).not.toHaveBeenCalled();
         });
 
-        it("exige al menos un archivo y que el modelo exista", async () => {
+        it("con labels.txt arma los archivos de un modelo simple y lo firma", async () => {
+            repositorio.findById.mockResolvedValue(soloModelo());
+
+            const vista = await completar({ texto: Buffer.from("Healthy\nLeaf rust\n") });
+
+            expect(vista).toMatchObject({ firmado: true, artefactosCompletos: true, numeroClases: 2 });
+        });
+
+        it("sin archivos usa las clases que el modelo guardó al subirse", async () => {
+            const modelo = soloModelo();
+            modelo.artefactos.clases = ["Healthy", "Miner"];
+            modelo.artefactos.numeroClases = 2;
+            repositorio.findById.mockResolvedValue(modelo);
+
+            const vista = await completar({});
+
+            expect(vista).toMatchObject({ firmado: true, artefactosCompletos: true });
+        });
+
+        it("exige algún archivo cuando el modelo no tiene clases, y que el modelo exista", async () => {
+            repositorio.findById.mockResolvedValue(soloModelo());
             await expect(completar({})).rejects.toBeInstanceOf(BadRequestException);
+
+            repositorio.findById.mockResolvedValue(null);
             await expect(completar({ etiquetas: ETIQUETAS })).rejects.toBeInstanceOf(NotFoundException);
         });
     });

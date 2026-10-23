@@ -254,7 +254,7 @@ hereda y el administrador debe otorgarlo de nuevo. Otorgar o revocar avisa al ag
 |---|---|---|---|
 | GET | `/modelos` | admin | Inventario con canal, compatibilidad, métricas y adopción de los últimos 30 días (`?canal=`) |
 | GET | `/modelos/:id` | admin | Detalle |
-| POST | `/modelos` | admin | Sube un modelo (multipart: `modelo` `.tflite`/`.keras`/`.pt`, `version`, `versionMinApp`, `notas`; opcionales `etiquetasTxt` (labels.txt), `etiquetas` (labels.json) y `calibracion`); entra como **borrador**. Basta con el modelo |
+| POST | `/modelos` | admin | Sube un modelo (multipart: `modelo` `.tflite`/`.keras`/`.pt`, `version`, `versionMinApp`, `notas`; opcionales `etiquetasTxt` (labels.txt), `etiquetas` (labels.json) y `calibracion`; con `.tflite` + `etiquetasTxt` queda completo y firmado); entra como **borrador**. Basta con el modelo |
 | PUT | `/modelos/:id/artefactos` | admin | Completa un borrador o interno con `etiquetas` (labels.json) y/o `calibracion`; con las dos se valida y se firma el conjunto |
 | PUT | `/modelos/:id/metricas` | admin | Precisión, recall y F1 global y por clase (valores de 0 a 1) — RF-09.2 |
 | PATCH | `/modelos/:id/canal` | admin | Avanza en el pipeline o lo descontinúa (`{ "canal", "porcentajeCanario" }`) — RF-09.5 |
@@ -272,8 +272,12 @@ Un `.pt` (por ejemplo el Teacher) se puede subir y registrar, pero nunca se publ
 La tabla `auditoria_modelos` tiene un trigger que rechaza cualquier `UPDATE`, `DELETE` o `TRUNCATE`.
 
 Un modelo solo puede pasar a canario o producción cuando es `.tflite` y tiene labels.json, calibración, firma y
-métricas. El `labels.txt` del entrenamiento sirve para ver las clases en el panel, pero la app necesita además
-labels.json y la calibración. Un `.keras` o `.pt` se guarda como referencia y nunca llega a los teléfonos.
+métricas. **Subiendo el `.tflite` con su `labels.txt` basta**: el API genera labels.json y calibration.json de un
+*modelo simple* (clasificador de una sola salida, sin embedding ni detector de muestras desconocidas, que es lo que
+produce el entrenamiento), firma el conjunto y el modelo queda listo para publicar. Las clases conocidas
+(Leaf rust, Miner, Phoma, Cerscospora, Healthy, Otras_Enfermedades) se enlazan con las fichas del catálogo de la app.
+Si ya tienes labels.json y calibration.json de un modelo completo, súbelos y se usan en lugar de los generados.
+Un `.keras` o `.pt` se guarda como referencia y nunca llega a los teléfonos.
 
 #### Firma de modelos
 

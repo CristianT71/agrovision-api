@@ -132,8 +132,9 @@ export class ModelosController {
             [
                 { name: "etiquetas", maxCount: 1 },
                 { name: "calibracion", maxCount: 1 },
+                { name: "etiquetasTxt", maxCount: 1 },
             ],
-            { limits: { fileSize: MAX_BYTES_JSON_MODELO, files: 2 } },
+            { limits: { fileSize: MAX_BYTES_JSON_MODELO, files: 3 } },
         ),
     )
     async completarArtefactos(
@@ -146,6 +147,7 @@ export class ModelosController {
             adminUsuarioId,
             etiquetas: archivos?.etiquetas?.[0],
             calibracion: archivos?.calibracion?.[0],
+            etiquetasTexto: archivos?.etiquetasTxt?.[0],
         });
     }
 

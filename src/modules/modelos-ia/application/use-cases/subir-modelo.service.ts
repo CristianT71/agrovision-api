@@ -17,6 +17,7 @@ import type { ArchivoSubido } from "../../../../common/almacenamiento/validar-ar
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 import { ModeloIa } from "../../domain/entities/modelo-ia.entity";
 import { RegistroAuditoria } from "../../domain/entities/registro-auditoria.entity";
+import { generarArtefactosSimples } from "../../domain/services/modelo-simple";
 import {
     detectarFormatoModelo,
     leerEtiquetasTexto,
@@ -58,13 +59,21 @@ export class SubirModeloService implements ISubirModeloUseCase {
 
         // 3. Basta con el modelo: las etiquetas (labels.txt o labels.json) y la calibración se pueden
         //    completar después. Sin ellas el modelo queda en borrador y no puede publicarse.
-        const etiquetas = comando.etiquetas ? this.leerJson(comando.etiquetas) : null;
-        const calibracion = comando.calibracion ? this.leerJson(comando.calibracion) : null;
+        let etiquetas = comando.etiquetas ? this.leerJson(comando.etiquetas) : null;
+        let calibracion = comando.calibracion ? this.leerJson(comando.calibracion) : null;
         if (calibracion && !etiquetas) {
             throw new BadRequestException("La calibración se valida contra las etiquetas: sube también labels.json.");
         }
-        const resumen = etiquetas ? this.validarConjunto(etiquetas, calibracion) : null;
+
         const clasesTexto = this.leerClasesTexto(comando.etiquetasTexto);
+
+        // Lo que sale del entrenamiento es el .tflite y su labels.txt: con eso basta. Se generan
+        // labels.json y calibration.json de un modelo simple y queda firmado y listo para publicar.
+        if (formato === "tflite" && !etiquetas && !calibracion && clasesTexto.length > 0) {
+            ({ etiquetas, calibracion } = generarArtefactosSimples(clasesTexto));
+        }
+
+        const resumen = etiquetas ? this.validarConjunto(etiquetas, calibracion) : null;
         if (resumen && clasesTexto.length > 0 && clasesTexto.length !== resumen.numeroClases) {
             throw new BadRequestException(
                 `labels.txt tiene ${clasesTexto.length} clases y labels.json declara ${resumen.numeroClases}.`,

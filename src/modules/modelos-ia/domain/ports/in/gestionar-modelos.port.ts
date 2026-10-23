@@ -105,6 +105,8 @@ export interface CompletarArtefactosCommand {
     modeloId: string;
     etiquetas?: ArchivoSubido;
     calibracion?: ArchivoSubido;
+    // labels.txt: con él solo se arman los archivos de un modelo simple
+    etiquetasTexto?: ArchivoSubido;
 }
 
 export interface ICompletarArtefactosUseCase {

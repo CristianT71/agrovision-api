@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { FindOptionsRelations, FindOptionsWhere, ILike, In, Not, Repository } from "typeorm";
-import { escaparLike } from "../../../../../../common/utils/escapar-like";
 import { v4 as uuidv4 } from "uuid";
 import { IPlagaRepository, FiltrosPlaga } from "../../../../domain/ports/out/plaga.repository";
 import { Plaga, TipoPlaga } from "../../../../domain/entities/plaga.entity";
