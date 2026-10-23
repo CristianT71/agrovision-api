@@ -48,6 +48,7 @@ describe("ValidarOtpService", () => {
         };
         const sesiones: ISesionOtpRepository = {
             findUltimaPorUsuarioId: () => Promise.resolve(sesion),
+            contarDesde: () => Promise.resolve(0),
             guardar: jest.fn(),
             registrarIntentoFallido: intentoFallido,
             consumir,

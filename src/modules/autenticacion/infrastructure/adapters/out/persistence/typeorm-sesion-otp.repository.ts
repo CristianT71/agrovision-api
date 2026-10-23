@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { MoreThanOrEqual, Repository } from "typeorm";
 import type { ISesionOtpRepository } from "../../../../domain/ports/out/sesion-otp.repository";
 import { SesionOtp } from "../../../../domain/entities/sesion-otp.entity";
 import { TypeOrmSesionOtpEntity } from "./typeorm-sesion-otp.entity";
@@ -29,6 +29,10 @@ export class TypeOrmSesionOtpRepository implements ISesionOtpRepository {
             entity.creadoEn,
             entity.intentos,
         );
+    }
+
+    async contarDesde(usuarioId: string, desde: Date): Promise<number> {
+        return await this.repository.count({ where: { usuarioId, creadoEn: MoreThanOrEqual(desde) } });
     }
 
     async guardar(sesionOtp: SesionOtp): Promise<void> {

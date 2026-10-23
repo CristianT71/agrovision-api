@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from "uuid";
 
 const SEGUNDOS_ENTRE_SOLICITUDES = 30;
 const MINUTOS_VIGENCIA_OTP = 5;
+export const MAX_CODIGOS_POR_VENTANA = 5;
+export const MINUTOS_VENTANA_CODIGOS = 60;
 
 @Injectable()
 export class SolicitarOtpService implements ISolicitarOtpUseCase {
@@ -52,6 +54,16 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
             const restantes = ultimaSesion.segundosRestantesParaNuevoOtp(SEGUNDOS_ENTRE_SOLICITUDES);
             throw new HttpException(
                 `Debe esperar ${restantes} segundos para solicitar un nuevo código OTP.`,
+                HttpStatus.TOO_MANY_REQUESTS,
+            );
+        }
+
+        // 2b. Tope por cuenta: cada código nuevo reinicia sus 5 intentos, así que sin esto se podría
+        //     adivinar uno a base de pedir códigos. Con 5 por hora quedan como mucho 25 intentos por hora.
+        const hace1Hora = new Date(Date.now() - MINUTOS_VENTANA_CODIGOS * 60 * 1000);
+        if ((await this.sesionOtpRepository.contarDesde(usuario.id, hace1Hora)) >= MAX_CODIGOS_POR_VENTANA) {
+            throw new HttpException(
+                "Se pidieron demasiados códigos para este número. Intenta de nuevo en una hora.",
                 HttpStatus.TOO_MANY_REQUESTS,
             );
         }

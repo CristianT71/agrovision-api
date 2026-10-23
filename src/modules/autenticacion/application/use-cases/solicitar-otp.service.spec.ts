@@ -1,5 +1,5 @@
 import { ForbiddenException, HttpStatus, NotFoundException, type HttpException } from "@nestjs/common";
-import { SolicitarOtpService } from "./solicitar-otp.service";
+import { MAX_CODIGOS_POR_VENTANA, SolicitarOtpService } from "./solicitar-otp.service";
 import { Usuario } from "../../domain/entities/usuario.entity";
 import { SesionOtp } from "../../domain/entities/sesion-otp.entity";
 import type { IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
@@ -14,6 +14,7 @@ const TELEFONO = "+573114528801";
 describe("SolicitarOtpService", () => {
     let usuario: Usuario | null;
     let ultimaSesion: SesionOtp | null;
+    let codigosUltimaHora: number;
     let usuarioGuardado: jest.Mock<Promise<Usuario>, [Usuario]>;
     let sesionGuardada: jest.Mock<Promise<void>, [SesionOtp]>;
     let enviarOtp: jest.Mock<Promise<boolean>, [string, string]>;
@@ -22,6 +23,7 @@ describe("SolicitarOtpService", () => {
     beforeEach(() => {
         usuario = null;
         ultimaSesion = null;
+        codigosUltimaHora = 0;
         usuarioGuardado = jest.fn((u: Usuario) => Promise.resolve(u));
         sesionGuardada = jest.fn<Promise<void>, [SesionOtp]>(() => Promise.resolve());
         enviarOtp = jest.fn<Promise<boolean>, [string, string]>(() => Promise.resolve(true));
@@ -33,6 +35,7 @@ describe("SolicitarOtpService", () => {
         };
         const sesiones: ISesionOtpRepository = {
             findUltimaPorUsuarioId: () => Promise.resolve(ultimaSesion),
+            contarDesde: () => Promise.resolve(codigosUltimaHora),
             guardar: sesionGuardada,
             registrarIntentoFallido: jest.fn(),
             consumir: jest.fn(),
@@ -84,6 +87,26 @@ describe("SolicitarOtpService", () => {
 
         expect(error.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
         expect(enviarOtp).not.toHaveBeenCalled();
+    });
+
+    it("responde 429 al pedir el sexto código en una hora: no se puede adivinar uno a base de pedir códigos", async () => {
+        usuario = Usuario.registrarProductor("u-1", TELEFONO);
+        codigosUltimaHora = MAX_CODIGOS_POR_VENTANA;
+
+        const error = (await servicio.ejecutar({ telefono: TELEFONO }).catch((e: unknown) => e)) as HttpException;
+
+        expect(error.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+        expect(sesionGuardada).not.toHaveBeenCalled();
+        expect(enviarOtp).not.toHaveBeenCalled();
+    });
+
+    it("con el tope sin alcanzar sigue enviando el código", async () => {
+        usuario = Usuario.registrarProductor("u-1", TELEFONO);
+        codigosUltimaHora = MAX_CODIGOS_POR_VENTANA - 1;
+
+        await servicio.ejecutar({ telefono: TELEFONO });
+
+        expect(enviarOtp).toHaveBeenCalledTimes(1);
     });
 
     it("no envía códigos a cuentas inactivas", async () => {
