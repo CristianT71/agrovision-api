@@ -10,6 +10,8 @@ export const MAX_SOLICITUDES_POR_LOTE = 20;
 export interface SolicitudAppEntrada {
     idCliente: string;
     capturaId: string | null;
+    // Versión del modelo que hizo la lectura, tal como la declara la app
+    modeloVersion: string | null;
     cultivo: Cultivo;
     organo: Organo;
     nota: string | null;

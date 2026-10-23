@@ -90,7 +90,10 @@ export class RecibirLoteSolicitudesService implements IRecibirLoteSolicitudesUse
             throw error;
         }
 
-        const modeloVersionId = await this.capturaModeloRepository.obtenerModeloIdPorIdCliente(entrada.capturaId);
+        // La captura es la fuente más fiable; si nunca se subió, vale la versión que declara la app
+        const modeloVersionId =
+            (await this.capturaModeloRepository.obtenerModeloIdPorIdCliente(entrada.capturaId)) ??
+            (await this.capturaModeloRepository.obtenerModeloIdPorVersion(entrada.modeloVersion));
         const solicitud = modeloVersionId
             ? new Solicitud(
                   creada.solicitud.id,

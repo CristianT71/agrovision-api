@@ -9,6 +9,7 @@ import {
     IsOptional,
     IsString,
     IsUUID,
+    MaxLength,
     Min,
     ValidateNested,
 } from "class-validator";
@@ -52,6 +53,11 @@ export class SolicitudAppDto {
     @IsOptional()
     @IsUUID("all", { message: "captureId debe ser un UUID." })
     captureId?: string | null;
+
+    @IsOptional()
+    @IsString({ message: "modelVersion debe ser texto." })
+    @MaxLength(30, { message: "modelVersion no puede superar 30 caracteres." })
+    modelVersion?: string | null;
 
     @IsIn(CULTIVOS, { message: `cropType debe ser uno de: ${CULTIVOS.join(", ")}` })
     cropType: Cultivo;

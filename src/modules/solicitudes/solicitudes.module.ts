@@ -2,6 +2,7 @@ import { Inject, MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 
+import { TypeOrmModeloIaEntity } from "../modelos-ia/infrastructure/adapters/out/persistence/typeorm-modelo-ia.entity";
 import { TypeOrmSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.entity";
 import { TypeOrmFotoSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-foto-solicitud.entity";
 import { TypeOrmAnexoResolucionEntity } from "./infrastructure/adapters/out/persistence/typeorm-anexo-resolucion.entity";
@@ -51,6 +52,7 @@ import { TypeOrmCapturaModeloRepository } from "./infrastructure/adapters/out/pe
     // y el secreto con el que se firman las URLs de subida
     imports: [
         TypeOrmModule.forFeature([
+            TypeOrmModeloIaEntity,
             TypeOrmSolicitudEntity,
             TypeOrmFotoSolicitudEntity,
             TypeOrmAnexoResolucionEntity,

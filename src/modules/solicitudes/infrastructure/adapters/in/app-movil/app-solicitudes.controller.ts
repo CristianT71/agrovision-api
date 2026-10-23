@@ -38,6 +38,7 @@ export class AppSolicitudesController {
         return {
             idCliente: dto.id,
             capturaId: dto.captureId ?? null,
+            modeloVersion: dto.modelVersion ?? null,
             cultivo: dto.cropType,
             organo: dto.plantOrgan,
             nota: dto.noteText ?? null,

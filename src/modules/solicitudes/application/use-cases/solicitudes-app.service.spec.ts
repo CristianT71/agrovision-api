@@ -44,6 +44,7 @@ const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 
 const entrada = (idCliente: string, cantidadFotos = 2): SolicitudAppEntrada => ({
     idCliente,
     capturaId: null,
+    modeloVersion: null,
     cultivo: "CAFE",
     organo: "HOJA",
     nota: "Manchas en el haz",
@@ -156,7 +157,10 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
         };
         productores = { findByUsuarioId: () => Promise.resolve(productor) } as unknown as IProductorRepository;
         firmador = { firmar: (fotoId: string) => `http://api/v1/uploads/token-${fotoId}`, verificar };
-        capturaModelo = { obtenerModeloIdPorIdCliente: () => Promise.resolve(null) };
+        capturaModelo = {
+            obtenerModeloIdPorIdCliente: () => Promise.resolve(null),
+            obtenerModeloIdPorVersion: () => Promise.resolve(null),
+        };
         notificador = {
             notificarNuevaSolicitud: jest.fn(),
             notificarAsignacion: jest.fn(),
@@ -174,7 +178,13 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
 
     describe("RecibirLoteSolicitudesService", () => {
         const recibir = (lote: SolicitudAppEntrada[]) =>
-            new RecibirLoteSolicitudesService(appRepository, productores, firmador, capturaModelo, notificador).ejecutar({
+            new RecibirLoteSolicitudesService(
+                appRepository,
+                productores,
+                firmador,
+                capturaModelo,
+                notificador,
+            ).ejecutar({
                 usuarioId: "u-1",
                 solicitudes: lote,
             });
@@ -201,6 +211,16 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             expect(solicitud.estado).toBe("Pendiente");
             expect(solicitud.finca).toBe("La Esperanza");
             expect(creadas).toHaveLength(3);
+        });
+
+        it("toma la versión del modelo de la captura y, si el servidor no la tiene, de la que declara la app", async () => {
+            capturaModelo.obtenerModeloIdPorVersion = (version) => Promise.resolve(version === "1.0.0" ? "m-1" : null);
+
+            await recibir([{ ...entrada("c-1", 2), modeloVersion: "1.0.0" }]);
+            await recibir([{ ...entrada("c-2", 2), modeloVersion: "9.9.9" }]);
+
+            expect(crearConFotos.mock.calls[0][0].modeloVersionId).toBe("m-1");
+            expect(crearConFotos.mock.calls[1][0].modeloVersionId).toBeNull();
         });
 
         it("una solicitud repetida sale como duplicate con el mismo serverId y URLs solo de las fotos pendientes", async () => {
