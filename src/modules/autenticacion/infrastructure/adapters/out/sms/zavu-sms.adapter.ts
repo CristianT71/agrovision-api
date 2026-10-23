@@ -1,11 +1,12 @@
 import { Injectable, Logger, InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { ISmsService } from "../../../../domain/ports/out/sms.service";
+import { elegirCanalZavu, ocultarTelefono, type CanalZavu } from "./proveedor-sms";
 
 interface ZavuPayload {
     to: string;
     text: string;
-    channel: "sms" | "auto";
+    channel: CanalZavu;
     messageType: "text";
 }
 
@@ -28,7 +29,7 @@ export class ZavuSmsAdapter implements ISmsService {
         const payload: ZavuPayload = {
             to: telefono,
             text: `Tu código de verificación AgroVision es: ${codigo}. Válido por 5 minutos.`,
-            channel: "auto",
+            channel: elegirCanalZavu(this.configService.get<string>("ZAVU_CHANNEL")),
             messageType: "text",
         };
 
@@ -54,7 +55,7 @@ export class ZavuSmsAdapter implements ISmsService {
                 throw new InternalServerErrorException("No se pudo entregar el mensaje SMS.");
             }
 
-            this.logger.log(`SMS OTP despachado vía Zavu hacia ${telefono}`);
+            this.logger.log(`SMS OTP despachado vía Zavu hacia ${ocultarTelefono(telefono)}`);
             return true;
         } catch (error) {
             if (error instanceof InternalServerErrorException) {

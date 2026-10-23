@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Logger, Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { JwtModule } from "@nestjs/jwt";
@@ -10,7 +10,8 @@ import { TypeOrmUsuarioRepository } from "./infrastructure/adapters/out/persiste
 import { TypeOrmSesionOtpRepository } from "./infrastructure/adapters/out/persistence/typeorm-sesion-otp.repository";
 import { TypeOrmSesionUsuarioEntity } from "./infrastructure/adapters/out/persistence/typeorm-sesion-usuario.entity";
 import { TypeOrmSesionUsuarioRepository } from "./infrastructure/adapters/out/persistence/typeorm-sesion-usuario.repository";
-//import { ZavuSmsAdapter } from "./infrastructure/adapters/out/sms/zavu-sms.adapter";
+import { ZavuSmsAdapter } from "./infrastructure/adapters/out/sms/zavu-sms.adapter";
+import { elegirProveedorSms } from "./infrastructure/adapters/out/sms/proveedor-sms";
 import { LoggerSmsAdapter } from "./infrastructure/adapters/out/sms/logger-sms.adapter";
 import { AuthController } from "./infrastructure/adapters/in/http/auth.controller";
 import { JwtStrategy } from "./infrastructure/adapters/in/http/strategies/jwt.strategy";
@@ -61,7 +62,23 @@ import { AgronomosModule } from "../agronomos/agronomos.module";
         },
         {
             provide: SMS_SERVICE,
-            useClass: LoggerSmsAdapter,
+            inject: [ConfigService],
+            // SMS_PROVIDER=log escribe el código en la consola (desarrollo); SMS_PROVIDER=zavu lo envía de verdad.
+            // Una configuración inválida tumba el arranque, no el primer intento de login.
+            useFactory: (configService: ConfigService) => {
+                const proveedor = elegirProveedorSms({
+                    proveedor: configService.get<string>("SMS_PROVIDER"),
+                    nodeEnv: process.env.NODE_ENV,
+                    zavuApiKey: configService.get<string>("ZAVU_API_KEY"),
+                });
+
+                if (proveedor === "zavu") return new ZavuSmsAdapter(configService);
+
+                new Logger("AutenticacionModule").warn(
+                    "SMS_PROVIDER=log: los códigos OTP se escriben en la consola. Úsalo solo en desarrollo.",
+                );
+                return new LoggerSmsAdapter();
+            },
         },
     ],
     exports: [SolicitarOtpService, ValidarOtpService, JwtModule, PassportModule],
