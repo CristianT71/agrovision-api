@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { FindOptionsWhere, Repository } from "typeorm";
+import { FindOptionsWhere, IsNull, Repository } from "typeorm";
 import { IAgronomoRepository, FiltrosAgronomo } from "../../../../domain/ports/out/agronomo.repository";
 import { Agronomo, EstadoAgronomo } from "../../../../domain/entities/agronomo.entity";
 import { DocumentoAcreditacion } from "../../../../domain/entities/documento-acreditacion.entity";
 import type { Usuario } from "../../../../../autenticacion/domain/entities/usuario.entity";
 import { TypeOrmUsuarioEntity } from "../../../../../autenticacion/infrastructure/adapters/out/persistence/typeorm-usuario.entity";
+import { TypeOrmSesionUsuarioEntity } from "../../../../../autenticacion/infrastructure/adapters/out/persistence/typeorm-sesion-usuario.entity";
 import { TypeOrmAgronomoEntity } from "./typeorm-agronomo.entity";
 import { TypeOrmDocumentoAgronomoEntity } from "./typeorm-documento-agronomo.entity";
 
@@ -140,6 +141,16 @@ export class TypeOrmAgronomoRepository implements IAgronomoRepository {
         const saved = await this.repository.manager.transaction(async (manager) => {
             const entity = await manager.save(TypeOrmAgronomoEntity, this.toPersistence(agronomo));
             await manager.update(TypeOrmUsuarioEntity, { id: agronomo.usuarioId }, { estado: agronomo.estado });
+
+            // Un agrónomo desactivado pierde el acceso en ese momento: el JWT por sí solo seguiría sirviendo
+            // hasta que venza (12 horas, o más si mantiene actividad), así que se cierran sus sesiones abiertas
+            if (agronomo.estado === "inactivo") {
+                await manager.update(
+                    TypeOrmSesionUsuarioEntity,
+                    { usuarioId: agronomo.usuarioId, revocadaEn: IsNull() },
+                    { revocadaEn: new Date() },
+                );
+            }
 
             return entity;
         });
