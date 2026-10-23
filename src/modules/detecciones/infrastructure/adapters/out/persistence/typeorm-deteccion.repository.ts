@@ -1,7 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { In, Repository } from "typeorm";
-import type { DeteccionExistente, IDeteccionRepository } from "../../../../domain/ports/out/deteccion.repository";
+import type {
+    DeteccionExistente,
+    IDeteccionRepository,
+    RevisionProductor,
+} from "../../../../domain/ports/out/deteccion.repository";
 import type { Deteccion } from "../../../../domain/entities/deteccion.entity";
 import { TypeOrmDeteccionEntity } from "./typeorm-deteccion.entity";
 
@@ -38,6 +42,18 @@ export class TypeOrmDeteccionRepository implements IDeteccionRepository {
 
         const filas = resultado.raw as { id_cliente: string }[];
         return new Set(filas.map((fila) => fila.id_cliente));
+    }
+
+    async actualizarRevision(productorId: string, revisiones: RevisionProductor[]): Promise<void> {
+        for (const revision of revisiones) {
+            await this.deteccionRepository.update(
+                { idCliente: revision.idCliente, productorId },
+                {
+                    correccionProductor: revision.correccionProductor,
+                    confirmadaProductor: revision.confirmadaProductor,
+                },
+            );
+        }
     }
 
     private toPersistence(deteccion: Deteccion): TypeOrmDeteccionEntity {

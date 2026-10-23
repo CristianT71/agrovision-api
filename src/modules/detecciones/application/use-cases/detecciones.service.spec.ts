@@ -5,7 +5,11 @@ import { ObtenerDeteccionService } from "./obtener-deteccion.service";
 import { ResumirDeteccionesService } from "./resumir-detecciones.service";
 import { Deteccion } from "../../domain/entities/deteccion.entity";
 import type { CapturaEntrada } from "../../domain/ports/in/recibir-capturas.port";
-import type { DeteccionExistente, IDeteccionRepository } from "../../domain/ports/out/deteccion.repository";
+import type {
+    DeteccionExistente,
+    IDeteccionRepository,
+    RevisionProductor,
+} from "../../domain/ports/out/deteccion.repository";
 import type { IConsultaModelos } from "../../domain/ports/out/consulta-modelos.port";
 import type { DeteccionLeida, ILecturaDetecciones } from "../../domain/ports/out/lectura-detecciones.port";
 import type { IProductorRepository } from "../../../productores/domain/ports/out/productor.repository";
@@ -76,6 +80,7 @@ describe("Detecciones - casos de uso", () => {
         // Mocks sueltos para las aserciones: evita referenciar métodos del objeto (unbound-method)
         let insertarNuevas: jest.Mock<Promise<Set<string>>, [Deteccion[]]>;
         let findExistentes: jest.Mock<Promise<DeteccionExistente[]>, [string[]]>;
+        let actualizarRevision: jest.Mock<Promise<void>, [string, RevisionProductor[]]>;
         let obtenerIdPorVersion: jest.Mock<Promise<string | null>, [string]>;
 
         beforeEach(() => {
@@ -84,7 +89,8 @@ describe("Detecciones - casos de uso", () => {
             );
             findExistentes = jest.fn<Promise<DeteccionExistente[]>, [string[]]>(() => Promise.resolve([]));
             obtenerIdPorVersion = jest.fn<Promise<string | null>, [string]>(() => Promise.resolve("m-1"));
-            repositorio = { findExistentes, insertarNuevas };
+            actualizarRevision = jest.fn<Promise<void>, [string, RevisionProductor[]]>(() => Promise.resolve());
+            repositorio = { findExistentes, insertarNuevas, actualizarRevision };
             productores = {
                 findById: jest.fn(),
                 findByUsuarioId: jest.fn().mockResolvedValue(PRODUCTOR),
@@ -123,6 +129,46 @@ describe("Detecciones - casos de uso", () => {
 
             expect(results[0]).toMatchObject({ status: "duplicate", serverId: "d-9" });
             expect(insertarNuevas.mock.calls[0][0]).toHaveLength(0);
+        });
+
+        it("si la app reenvía una captura corregida, actualiza la guardada", async () => {
+            findExistentes.mockResolvedValue([{ id: "d-9", idCliente: "c-1", productorId: "p-1" }]);
+
+            await recibir([captura("c-1", { correccionProductor: " Roya ", confirmadaProductor: true })]);
+
+            expect(actualizarRevision).toHaveBeenCalledWith("p-1", [
+                { idCliente: "c-1", correccionProductor: "Roya", confirmadaProductor: true },
+            ]);
+        });
+
+        it("no modifica la captura de otro productor aunque repita el id", async () => {
+            findExistentes.mockResolvedValue([{ id: "d-9", idCliente: "c-1", productorId: "p-otro" }]);
+
+            await recibir([captura("c-1", { correccionProductor: "Roya" })]);
+
+            expect(actualizarRevision).toHaveBeenCalledWith("p-1", []);
+        });
+
+        it("sin consentimiento vigente rechaza todo el lote", async () => {
+            productores.findByUsuarioId.mockResolvedValue(
+                new Productor(
+                    "p-1",
+                    "u-prod",
+                    "Ana Pérez",
+                    "La Esperanza",
+                    "Bruselas",
+                    "Pitalito",
+                    "+573001234567",
+                    "validado",
+                    false,
+                    null,
+                ),
+            );
+
+            const { results } = await recibir([captura("c-1")]);
+
+            expect(results[0]).toMatchObject({ status: "rejected", reason: "sin_consentimiento" });
+            expect(insertarNuevas).not.toHaveBeenCalled();
         });
 
         it("nunca revela la captura de otro productor con el mismo id", async () => {
