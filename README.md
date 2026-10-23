@@ -30,7 +30,10 @@ Copia `.env.example` a `.env` y completa los valores:
 | `JWT_SECRET` | Sí | Secreto para firmar los tokens. **La API no arranca sin él** |
 | `PORT` | No | Puerto de la API (por defecto `3000`) |
 | `UPLOADS_DIR` | No | Carpeta de archivos subidos (por defecto `./uploads`) |
-| `ZAVU_API_URL`, `ZAVU_API_KEY`, `ZAVU_SENDER_ID` | No | Proveedor de SMS real (ver [Códigos OTP](#códigos-otp)) |
+| `CORS_ORIGINS` | No | Orígenes del panel permitidos, separados por comas y sin barra final (por defecto `http://localhost:5173`) |
+| `TRUST_PROXY` | No | Saltos de proxy de confianza, de 0 a 5 (`1` detrás de un túnel o proxy; por defecto `0`) |
+| `SMS_PROVIDER` | No | `log` (código por consola, por defecto) o `zavu` (envío real) |
+| `ZAVU_API_URL`, `ZAVU_API_KEY`, `ZAVU_SENDER_ID`, `ZAVU_CHANNEL` | No | Proveedor de SMS real (ver [Códigos OTP](#códigos-otp)) |
 | `MODEL_SIGNING_PRIVATE_KEY` | No | Clave Ed25519 con la que se firman los modelos IA. Sin ella se suben, pero no se pueden publicar (ver [Firma de modelos](#firma-de-modelos)) |
 
 Para generar un `JWT_SECRET` seguro:
@@ -60,7 +63,9 @@ npm run migration:generate -- src/database/migrations/NombreDelCambio
 npm run start:dev    # http://localhost:3000/api
 ```
 
-El CORS está habilitado para el panel en `http://localhost:5173`.
+El CORS permite por defecto el panel en `http://localhost:5173`. Para abrirlo desde otro origen (por ejemplo un
+túnel de VS Code) agrega ese origen, sin barra final, a `CORS_ORIGINS` (varios, separados por comas). Detrás de un
+túnel o proxy pon también `TRUST_PROXY=1`, o el límite por IP vería a todos los usuarios como una sola dirección.
 
 ### 5. Crear el primer administrador
 
@@ -80,13 +85,15 @@ En desarrollo los SMS **no se envían**: el código aparece en la consola de la 
 [SMS DEV] Código OTP generado para +573001234567: 123456
 ```
 
-Para usar el proveedor real, cambia `LoggerSmsAdapter` por `ZavuSmsAdapter` en
-`src/modules/autenticacion/autenticacion.module.ts` y configura las variables `ZAVU_*`.
+Para enviar SMS o WhatsApp reales pon `SMS_PROVIDER=zavu`, configura `ZAVU_API_KEY` y elige el canal con
+`ZAVU_CHANNEL` (`auto`, `sms` o `whatsapp`). Con `SMS_PROVIDER=log` (por defecto) el código solo sale por consola, y
+con `NODE_ENV=production` la API se niega a arrancar así.
 
 Reglas del login:
 
 - El código dura **5 minutos**, admite **5 intentos** y se guarda cifrado (hash SHA-256).
-- Hay que esperar **30 segundos** entre solicitudes (RF-01.5).
+- Hay que esperar **30 segundos** entre solicitudes (RF-01.5) y se generan como máximo **5 códigos por hora** por cuenta.
+- Los teléfonos se guardan en formato internacional (`+573001234567`); el prefijo debe ser de un país admitido (RF-01.3).
 - El rol elegido debe ser el de la cuenta; nunca se cambia desde el login (RF-01.2).
 - Un número desconocido solo se registra solo si es de la **app móvil** (productor). Desde el panel se rechaza.
 - Cada login abre una **sesión en el servidor** (tabla `sesiones_usuario`). En el panel se cierra tras
@@ -247,7 +254,8 @@ hereda y el administrador debe otorgarlo de nuevo. Otorgar o revocar avisa al ag
 |---|---|---|---|
 | GET | `/modelos` | admin | Inventario con canal, compatibilidad, métricas y adopción de los últimos 30 días (`?canal=`) |
 | GET | `/modelos/:id` | admin | Detalle |
-| POST | `/modelos` | admin | Sube un modelo (multipart: `modelo`, `etiquetas`, `calibracion`, `version`, `versionMinApp`, `notas`); entra como **borrador** |
+| POST | `/modelos` | admin | Sube un modelo (multipart: `modelo` `.tflite`/`.keras`/`.pt`, `version`, `versionMinApp`, `notas`; opcionales `etiquetasTxt` (labels.txt), `etiquetas` (labels.json) y `calibracion`); entra como **borrador**. Basta con el modelo |
+| PUT | `/modelos/:id/artefactos` | admin | Completa un borrador o interno con `etiquetas` (labels.json) y/o `calibracion`; con las dos se valida y se firma el conjunto |
 | PUT | `/modelos/:id/metricas` | admin | Precisión, recall y F1 global y por clase (valores de 0 a 1) — RF-09.2 |
 | PATCH | `/modelos/:id/canal` | admin | Avanza en el pipeline o lo descontinúa (`{ "canal", "porcentajeCanario" }`) — RF-09.5 |
 | PATCH | `/modelos/:id/kill-switch` | admin | Retiro de emergencia; exige `{ "justificacion" }` de al menos 20 caracteres — RF-09.3 |
@@ -262,6 +270,10 @@ llega al porcentaje elegido (1 a 50) según un hash estable del `deviceId`.
 Un `.pt` (por ejemplo el Teacher) se puede subir y registrar, pero nunca se publica a la app.
 
 La tabla `auditoria_modelos` tiene un trigger que rechaza cualquier `UPDATE`, `DELETE` o `TRUNCATE`.
+
+Un modelo solo puede pasar a canario o producción cuando es `.tflite` y tiene labels.json, calibración, firma y
+métricas. El `labels.txt` del entrenamiento sirve para ver las clases en el panel, pero la app necesita además
+labels.json y la calibración. Un `.keras` o `.pt` se guarda como referencia y nunca llega a los teléfonos.
 
 #### Firma de modelos
 
