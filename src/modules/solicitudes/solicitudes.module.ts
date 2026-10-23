@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
+import { Inject, MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 
@@ -11,7 +11,7 @@ import { TypeOrmLecturaSolicitudesAdapter } from "./infrastructure/adapters/out/
 import { SolicitudesController } from "./infrastructure/adapters/in/http/solicitudes.controller";
 import { AppSolicitudesController } from "./infrastructure/adapters/in/app-movil/app-solicitudes.controller";
 import { SubidasController } from "./infrastructure/adapters/in/app-movil/subidas.controller";
-import { leerFotoBinaria } from "./infrastructure/adapters/in/app-movil/leer-foto-binaria.middleware";
+import { crearLectorFotoBinaria } from "./infrastructure/adapters/in/app-movil/leer-foto-binaria.middleware";
 import { NotificacionesSolicitudesAdapter } from "./infrastructure/adapters/out/notificaciones/notificaciones.adapter";
 import { HmacFirmadorUrlsSubidaAdapter } from "./infrastructure/adapters/out/firmador/hmac-firmador-urls-subida.adapter";
 
@@ -19,7 +19,7 @@ import { SOLICITUD_REPOSITORY } from "./domain/ports/out/solicitud.repository";
 import { SOLICITUD_APP_REPOSITORY } from "./domain/ports/out/solicitud-app.repository";
 import { LECTURA_SOLICITUDES } from "./domain/ports/out/lectura-solicitudes.port";
 import { NOTIFICADOR_SOLICITUDES } from "./domain/ports/out/notificador-solicitudes.port";
-import { FIRMADOR_URLS_SUBIDA } from "./domain/ports/out/firmador-urls-subida.port";
+import { FIRMADOR_URLS_SUBIDA, type IFirmadorUrlsSubida } from "./domain/ports/out/firmador-urls-subida.port";
 import { AgronomosModule } from "../agronomos/agronomos.module";
 import { NotificacionesModule } from "../notificaciones/notificaciones.module";
 import { ProductoresModule } from "../productores/productores.module";
@@ -94,9 +94,17 @@ import { ResumirResolucionesService } from "./application/use-cases/resumir-reso
     exports: [ResolverSolicitudService, ListarSolicitudesService, ObtenerSolicitudPorIdService],
 })
 export class SolicitudesModule implements NestModule {
+    constructor(
+        @Inject(FIRMADOR_URLS_SUBIDA)
+        private readonly firmador: IFirmadorUrlsSubida,
+    ) {}
+
     // La subida de fotos llega como binario (image/jpeg) con express.raw: solo esa ruta lo
     // acepta, con el mismo límite de 10 MB del caso de uso. El resto de la API sigue en JSON.
     configure(consumer: MiddlewareConsumer): void {
-        consumer.apply(leerFotoBinaria).forRoutes(SubidasController);
+        // Se verifica el token de la URL antes de leer el cuerpo: así un token inventado no cuesta memoria
+        consumer
+            .apply(crearLectorFotoBinaria((token) => this.firmador.verificar(token) !== null))
+            .forRoutes(SubidasController);
     }
 }
