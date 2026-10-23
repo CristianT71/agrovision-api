@@ -16,6 +16,9 @@ export interface ModeloVista {
     sha256: string;
     firmado: boolean;
     numeroClases: number | null;
+    clases: string[] | null;
+    // Con etiquetas y calibración (labels.json y calibration.json) el modelo puede publicarse
+    artefactosCompletos: boolean;
     creadoPor: string;
     fechaCreacion: Date;
     fechaPublicacion: Date | null;
@@ -93,6 +96,19 @@ export interface SubirModeloCommand {
     modelo: ArchivoSubido;
     etiquetas?: ArchivoSubido;
     calibracion?: ArchivoSubido;
+    // labels.txt del entrenamiento: sirve para conocer las clases sin tener aún labels.json
+    etiquetasTexto?: ArchivoSubido;
+}
+
+export interface CompletarArtefactosCommand {
+    adminUsuarioId: string;
+    modeloId: string;
+    etiquetas?: ArchivoSubido;
+    calibracion?: ArchivoSubido;
+}
+
+export interface ICompletarArtefactosUseCase {
+    ejecutar(comando: CompletarArtefactosCommand): Promise<ModeloVista>;
 }
 
 export interface ISubirModeloUseCase {

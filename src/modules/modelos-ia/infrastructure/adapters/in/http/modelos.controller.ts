@@ -16,7 +16,12 @@ import {
     UseInterceptors,
 } from "@nestjs/common";
 import { FileFieldsInterceptor } from "@nestjs/platform-express";
-import { SubirModeloService, MAX_BYTES_MODELO } from "../../../../application/use-cases/subir-modelo.service";
+import {
+    SubirModeloService,
+    MAX_BYTES_MODELO,
+    MAX_BYTES_JSON_MODELO,
+} from "../../../../application/use-cases/subir-modelo.service";
+import { CompletarArtefactosService } from "../../../../application/use-cases/completar-artefactos.service";
 import { ListarModelosService } from "../../../../application/use-cases/listar-modelos.service";
 import { ObtenerModeloService } from "../../../../application/use-cases/obtener-modelo.service";
 import { RegistrarMetricasService } from "../../../../application/use-cases/registrar-metricas.service";
@@ -40,6 +45,7 @@ interface ArchivosModelo {
     modelo?: ArchivoSubido[];
     etiquetas?: ArchivoSubido[];
     calibracion?: ArchivoSubido[];
+    etiquetasTxt?: ArchivoSubido[];
 }
 
 // Orquestación de modelos IA: exclusivo del Administrador (RF-02.3, RF-09)
@@ -49,6 +55,7 @@ interface ArchivosModelo {
 export class ModelosController {
     constructor(
         private readonly subirModeloService: SubirModeloService,
+        private readonly completarArtefactosService: CompletarArtefactosService,
         private readonly listarModelosService: ListarModelosService,
         private readonly obtenerModeloService: ObtenerModeloService,
         private readonly registrarMetricasService: RegistrarMetricasService,
@@ -118,7 +125,32 @@ export class ModelosController {
         };
     }
 
-    // RF-09.5: multipart con el modelo (.tflite o .pt) y, para .tflite, sus etiquetas y calibración
+    // Completa un modelo ya subido con labels.json y/o calibration.json (los dos, para poder publicarlo)
+    @Put(":id/artefactos")
+    @UseInterceptors(
+        FileFieldsInterceptor(
+            [
+                { name: "etiquetas", maxCount: 1 },
+                { name: "calibracion", maxCount: 1 },
+            ],
+            { limits: { fileSize: MAX_BYTES_JSON_MODELO, files: 2 } },
+        ),
+    )
+    async completarArtefactos(
+        @Param("id", ParseUUIDPipe) id: string,
+        @UploadedFiles() archivos: ArchivosModelo | undefined,
+        @UsuarioActual("id") adminUsuarioId: string,
+    ) {
+        return await this.completarArtefactosService.ejecutar({
+            modeloId: id,
+            adminUsuarioId,
+            etiquetas: archivos?.etiquetas?.[0],
+            calibracion: archivos?.calibracion?.[0],
+        });
+    }
+
+    // RF-09.5: multipart con el modelo (.tflite, .keras o .pt). Basta con el modelo: labels.txt, labels.json
+    // y calibration.json son opcionales y se pueden completar después con PUT :id/artefactos.
     @Post()
     @HttpCode(HttpStatus.CREATED)
     @UseInterceptors(
@@ -127,8 +159,9 @@ export class ModelosController {
                 { name: "modelo", maxCount: 1 },
                 { name: "etiquetas", maxCount: 1 },
                 { name: "calibracion", maxCount: 1 },
+                { name: "etiquetasTxt", maxCount: 1 },
             ],
-            { limits: { fileSize: MAX_BYTES_MODELO, files: 3 } },
+            { limits: { fileSize: MAX_BYTES_MODELO, files: 4 } },
         ),
     )
     async subir(
@@ -147,6 +180,7 @@ export class ModelosController {
             modelo,
             etiquetas: archivos?.etiquetas?.[0],
             calibracion: archivos?.calibracion?.[0],
+            etiquetasTexto: archivos?.etiquetasTxt?.[0],
         });
     }
 }

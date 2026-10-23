@@ -16,6 +16,8 @@ export function aModeloVista(modelo: ModeloIa, adopcion?: Map<string, AdopcionMo
         sha256: modelo.artefactos.sha256,
         firmado: modelo.artefactos.firma !== null,
         numeroClases: modelo.artefactos.numeroClases,
+        clases: modelo.artefactos.clases,
+        artefactosCompletos: modelo.tieneArtefactosCompletos(),
         creadoPor: modelo.creadoPor,
         fechaCreacion: modelo.fechaCreacion,
         fechaPublicacion: modelo.fechaPublicacion,

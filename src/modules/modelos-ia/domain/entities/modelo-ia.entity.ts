@@ -8,7 +8,8 @@ export type Canal = (typeof CANALES)[number];
 
 // RF-09.5: artefactos tensoriales admitidos. Solo .tflite corre en el teléfono;
 // .pt se guarda como referencia (por ejemplo, el Teacher) y nunca sale a la app.
-export const FORMATOS_MODELO = ["tflite", "pt"] as const;
+// .keras/.h5 es lo que sale del entrenamiento: se conserva como referencia igual que el .pt.
+export const FORMATOS_MODELO = ["tflite", "pt", "keras"] as const;
 export type FormatoModelo = (typeof FORMATOS_MODELO)[number];
 
 // Versión semántica sin sufijos: la app la compara número a número
@@ -42,6 +43,8 @@ export interface ArtefactosModelo {
     // Ed25519 sobre el conjunto modelo + etiquetas + calibración; null si no se pudo firmar
     firma: string | null;
     numeroClases: number | null;
+    // Nombres de las clases en el orden de salida del modelo (de labels.txt o labels.json)
+    clases: string[] | null;
 }
 
 export class ModeloIa {
@@ -63,7 +66,41 @@ export class ModeloIa {
         public motivoKillSwitch: string | null = null,
         public fechaKillSwitch: Date | null = null,
         public metricas: MetricaModelo[] = [],
-    ) {}
+    ) {
+        this.cargado = { canal, killSwitch };
+    }
+
+    // Estado con el que se leyó de la base de datos: el guardado solo procede si nadie lo cambió desde
+    public readonly cargado: { canal: Canal; killSwitch: boolean };
+
+    // Regla de Negocio (RF-09.5): las etiquetas y la calibración pueden llegar después del modelo,
+    // pero solo mientras no esté publicado. Al cambiar el conjunto se vuelve a firmar.
+    public completarArtefactos(datos: {
+        rutaEtiquetas: string;
+        rutaCalibracion: string | null;
+        // null mientras falte la calibración: sin ella no hay conjunto que firmar
+        firma: string | null;
+        numeroClases: number;
+        clases: string[];
+    }): void {
+        this.exigirArtefactosEditables();
+        Object.assign(this.artefactos, datos);
+    }
+
+    public exigirArtefactosEditables(): void {
+        if (this.formato !== "tflite") {
+            throw new ReglaNegocioError("Solo un modelo .tflite lleva etiquetas y calibración para la app.");
+        }
+
+        if (this.canal !== "borrador" && this.canal !== "interno") {
+            throw new ReglaNegocioError("Los archivos de un modelo publicado o descontinuado no se pueden cambiar.");
+        }
+    }
+
+    // La app necesita etiquetas y calibración además del modelo
+    public tieneArtefactosCompletos(): boolean {
+        return this.artefactos.rutaEtiquetas !== null && this.artefactos.rutaCalibracion !== null;
+    }
 
     // Regla de Negocio (RF-09.5): todo modelo nuevo entra al pipeline como borrador
     public static registrar(datos: {

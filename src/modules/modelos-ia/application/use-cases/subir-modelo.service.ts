@@ -19,6 +19,7 @@ import { ModeloIa } from "../../domain/entities/modelo-ia.entity";
 import { RegistroAuditoria } from "../../domain/entities/registro-auditoria.entity";
 import {
     detectarFormatoModelo,
+    leerEtiquetasTexto,
     normalizarJson,
     validarCalibracion,
     validarEtiquetas,
@@ -26,6 +27,8 @@ import {
 } from "../../domain/services/artefactos-modelo";
 import { aModeloVista } from "./modelo-vista";
 
+// Un .keras de entrenamiento con el modelo grande (teacher) pesa más: ese no se sube, el que llega
+// a la app es el .tflite
 export const MAX_BYTES_MODELO = 100 * 1024 * 1024;
 export const MAX_BYTES_JSON_MODELO = 5 * 1024 * 1024;
 
@@ -46,21 +49,28 @@ export class SubirModeloService implements ISubirModeloUseCase {
             throw new ReglaNegocioError(`Ya existe un modelo con la versión ${comando.version}.`);
         }
 
-        // 2. RF-09.5: .tflite o .pt, reconocidos por su contenido
+        // 2. RF-09.5: .tflite, .keras o .pt, reconocidos por su contenido
         this.revisarTamano(comando.modelo, MAX_BYTES_MODELO);
-        const formato = detectarFormatoModelo(comando.modelo.buffer);
+        const formato = detectarFormatoModelo(comando.modelo.buffer, comando.modelo.originalname);
         if (!formato) {
-            throw new BadRequestException("El modelo debe ser un archivo .tflite o .pt válido.");
+            throw new BadRequestException("El modelo debe ser un archivo .tflite, .keras o .pt válido.");
         }
 
-        // 3. Un .tflite sin etiquetas ni calibración no se puede activar en el teléfono
-        if (formato === "tflite" && (!comando.etiquetas || !comando.calibracion)) {
-            throw new BadRequestException("Un modelo .tflite debe subirse con sus etiquetas y su calibración.");
-        }
-
+        // 3. Basta con el modelo: las etiquetas (labels.txt o labels.json) y la calibración se pueden
+        //    completar después. Sin ellas el modelo queda en borrador y no puede publicarse.
         const etiquetas = comando.etiquetas ? this.leerJson(comando.etiquetas) : null;
         const calibracion = comando.calibracion ? this.leerJson(comando.calibracion) : null;
+        if (calibracion && !etiquetas) {
+            throw new BadRequestException("La calibración se valida contra las etiquetas: sube también labels.json.");
+        }
         const resumen = etiquetas ? this.validarConjunto(etiquetas, calibracion) : null;
+        const clasesTexto = this.leerClasesTexto(comando.etiquetasTexto);
+        if (resumen && clasesTexto.length > 0 && clasesTexto.length !== resumen.numeroClases) {
+            throw new BadRequestException(
+                `labels.txt tiene ${clasesTexto.length} clases y labels.json declara ${resumen.numeroClases}.`,
+            );
+        }
+        const clases = resumen?.clases ?? clasesTexto;
 
         // 4. Huella del modelo y firma del conjunto que verifica la app
         const sha256 = createHash("sha256").update(comando.modelo.buffer).digest("hex");
@@ -98,7 +108,8 @@ export class SubirModeloService implements ISubirModeloUseCase {
                     tamanoBytes: comando.modelo.size,
                     sha256,
                     firma,
-                    numeroClases: resumen?.numeroClases ?? null,
+                    numeroClases: clases.length > 0 ? clases.length : null,
+                    clases: clases.length > 0 ? clases : null,
                 },
             });
 
@@ -108,7 +119,13 @@ export class SubirModeloService implements ISubirModeloUseCase {
                 modeloId: modelo.id,
                 accion: "subida",
                 actorUsuarioId: comando.adminUsuarioId,
-                detalle: { version: modelo.version, formato, sha256, firmado: firma !== null },
+                detalle: {
+                    version: modelo.version,
+                    formato,
+                    sha256,
+                    firmado: firma !== null,
+                    artefactosCompletos: modelo.tieneArtefactosCompletos(),
+                },
             });
 
             if (!(await this.modeloRepository.crear(modelo, auditoria))) {
@@ -121,6 +138,16 @@ export class SubirModeloService implements ISubirModeloUseCase {
             await Promise.all(guardados.map((ruta) => this.almacenamiento.eliminarPrivado(ruta)));
             throw error;
         }
+    }
+
+    private leerClasesTexto(archivo: ArchivoSubido | undefined): string[] {
+        if (!archivo) return [];
+
+        this.revisarTamano(archivo, MAX_BYTES_JSON_MODELO);
+        const resultado = leerEtiquetasTexto(archivo.buffer);
+        if ("error" in resultado) throw new BadRequestException(resultado.error);
+
+        return resultado.clases;
     }
 
     private validarConjunto(etiquetas: Buffer, calibracion: Buffer | null): ResumenEtiquetas {

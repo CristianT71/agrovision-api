@@ -4,13 +4,24 @@ import type { FormatoModelo } from "../entities/modelo-ia.entity";
 // al instalarlo (ArtifactSchema.kt): un artefacto que la app rechazaría se rechaza aquí, antes de
 // publicarlo a toda la flota. Cada función devuelve el motivo del rechazo o null si es válido.
 
-// Por el contenido, no por la extensión: el nombre del archivo lo elige el cliente
-export function detectarFormatoModelo(contenido: Buffer): FormatoModelo | null {
+const ES_ZIP = (contenido: Buffer) => contenido.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+const ES_HDF5 = (contenido: Buffer) => contenido.subarray(0, 4).equals(Buffer.from([0x89, 0x48, 0x44, 0x46]));
+
+// Por el contenido, no por la extensión: el nombre del archivo lo elige el cliente.
+// Una excepción: un .keras (ZIP) no se distingue de un .pt por sus bytes, y ahí la extensión decide
+// entre ambos; un .keras o .h5 cuyo contenido no corresponde se rechaza.
+export function detectarFormatoModelo(contenido: Buffer, nombre = ""): FormatoModelo | null {
     // FlatBuffer de TFLite: identificador "TFL3" en los bytes 4 a 8
     if (contenido.length >= 8 && contenido.subarray(4, 8).toString("latin1") === "TFL3") return "tflite";
 
+    // Keras: el .keras actual es un ZIP y el formato antiguo .h5 es HDF5
+    const extension = nombre.toLowerCase().slice(nombre.lastIndexOf("."));
+    if (ES_HDF5(contenido) && extension === ".h5") return "keras";
+    if (ES_ZIP(contenido) && extension === ".keras") return "keras";
+    if (extension === ".keras" || extension === ".h5") return null;
+
     // PyTorch: torch.save actual escribe un ZIP; el formato antiguo es un pickle (protocolo 2 a 5)
-    if (contenido.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) return "pt";
+    if (ES_ZIP(contenido)) return "pt";
     if (contenido[0] === 0x80 && contenido[1] >= 2 && contenido[1] <= 5) return "pt";
 
     return null;
@@ -21,6 +32,31 @@ export function detectarFormatoModelo(contenido: Buffer): FormatoModelo | null {
 export function normalizarJson(contenido: Buffer): Buffer {
     const conBom = contenido.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]));
     return conBom ? contenido.subarray(3) : contenido;
+}
+
+export const MAX_CLASES_TXT = 500;
+export const MAX_LONGITUD_CLASE_TXT = 100;
+
+// labels.txt del entrenamiento: una clase por línea, en el orden de las salidas del modelo
+export function leerEtiquetasTexto(contenido: Buffer): { clases: string[] } | { error: string } {
+    const clases = normalizarJson(contenido)
+        .toString("utf8")
+        .split(/\r?\n/)
+        .map((linea) => linea.trim())
+        .filter(Boolean);
+
+    if (clases.length === 0) return { error: "El archivo de etiquetas está vacío." };
+    if (clases.length > MAX_CLASES_TXT) return { error: `Las etiquetas no pueden pasar de ${MAX_CLASES_TXT} clases.` };
+    if (
+        clases.some(
+            (clase) => clase.length > MAX_LONGITUD_CLASE_TXT || [...clase].some((letra) => letra.charCodeAt(0) < 32),
+        )
+    ) {
+        return { error: `Cada clase debe ser texto de hasta ${MAX_LONGITUD_CLASE_TXT} caracteres.` };
+    }
+    if (new Set(clases).size !== clases.length) return { error: "Hay clases repetidas en las etiquetas." };
+
+    return { clases };
 }
 
 export interface ResumenEtiquetas {
