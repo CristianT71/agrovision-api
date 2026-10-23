@@ -13,7 +13,7 @@ import {
     PRODUCTOR_REPOSITORY,
     type IProductorRepository,
 } from "../../../productores/domain/ports/out/productor.repository";
-import type { EstadoSolicitud, Solicitud } from "../../domain/entities/solicitud.entity";
+import type { EstadoSolicitud, Solicitud, TipoResultado } from "../../domain/entities/solicitud.entity";
 
 // Estados del dominio traducidos a los que entiende la app móvil
 const ESTADOS_APP: Record<EstadoSolicitud, EstadoSolicitudApp> = {
@@ -22,6 +22,16 @@ const ESTADOS_APP: Record<EstadoSolicitud, EstadoSolicitudApp> = {
     Asignada: "ASSIGNED",
     Resuelta: "RESOLVED",
     Descartada: "DISCARDED",
+};
+
+// Tipos de resolución con los nombres que lee la app (ResolutionType en Kotlin). Los del panel están
+// escritos para el agrónomo y la app no los reconocería.
+const RESOLUCIONES_APP: Record<TipoResultado, string> = {
+    "Confirma diagnóstico IA": "CONFIRMED",
+    "Corrige diagnóstico IA": "FALSE_NEGATIVE",
+    "Plaga nueva": "NEW_PEST",
+    "Planta sana": "NOT_A_PEST",
+    "Imagen no diagnosticable": "UNUSABLE",
 };
 
 @Injectable()
@@ -51,7 +61,7 @@ export class ListarMisSolicitudesService implements IListarMisSolicitudesUseCase
                 .map((solicitud) => ({
                     id: solicitud.idCliente,
                     status: ESTADOS_APP[solicitud.estado],
-                    resolutionType: solicitud.tipoResultado,
+                    resolutionType: solicitud.tipoResultado ? RESOLUCIONES_APP[solicitud.tipoResultado] : null,
                     // Hoy la resolución guarda el nombre de la plaga, no su id del catálogo
                     resolvedPestId: null,
                     agronomistResponse: solicitud.respuestaProfesional,

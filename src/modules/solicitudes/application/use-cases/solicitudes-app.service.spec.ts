@@ -372,7 +372,7 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             expect(mias[3]).toEqual({
                 id: "c-1",
                 status: "RESOLVED",
-                resolutionType: "Confirma diagnóstico IA",
+                resolutionType: "CONFIRMED",
                 resolvedPestId: null,
                 agronomistResponse: "Roya en estadio inicial.",
                 resolvedAt: 1_750_000_123_456,
