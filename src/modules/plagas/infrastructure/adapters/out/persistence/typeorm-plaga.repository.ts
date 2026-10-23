@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { FindOptionsRelations, FindOptionsWhere, ILike, In, Not, Repository } from "typeorm";
+import { escaparLike } from "../../../../../../common/utils/escapar-like";
 import { v4 as uuidv4 } from "uuid";
 import { IPlagaRepository, FiltrosPlaga } from "../../../../domain/ports/out/plaga.repository";
 import { Plaga, TipoPlaga } from "../../../../domain/entities/plaga.entity";
@@ -96,7 +97,7 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
 
     async existeNombreCientifico(nombre: string, excluirId?: string): Promise<boolean> {
         // ILike sin comodines equivale a una comparación exacta sin distinguir mayúsculas
-        const where: FindOptionsWhere<TypeOrmPlagaEntity> = { nombreCientifico: ILike(nombre) };
+        const where: FindOptionsWhere<TypeOrmPlagaEntity> = { nombreCientifico: ILike(escaparLike(nombre)) };
         if (excluirId) where.id = Not(excluirId);
 
         return (await this.plagaRepository.countBy(where)) > 0;

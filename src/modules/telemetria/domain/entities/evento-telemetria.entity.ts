@@ -132,6 +132,7 @@ function numero(mapa: Record<string, unknown>, clave: string, min: number, max: 
 }
 
 function fecha(mapa: Record<string, unknown>, clave: string): Date | null {
-    const valor = numero(mapa, clave, 0, Number.MAX_SAFE_INTEGER, true);
+    // 8.64e15 ms es el último instante que JavaScript puede representar como fecha
+    const valor = numero(mapa, clave, 0, 8.64e15, true);
     return valor === null ? null : new Date(valor);
 }
