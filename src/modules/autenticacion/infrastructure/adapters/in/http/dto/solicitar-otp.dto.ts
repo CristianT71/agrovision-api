@@ -1,14 +1,9 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, Matches } from "class-validator";
-
-// Formato internacional E.164 (RF-01.3)
-export const FORMATO_TELEFONO = /^\+?[1-9]\d{1,14}$/;
+import { IsIn, IsOptional } from "class-validator";
+import { TelefonoInternacional } from "../../../../../../../common/validators/telefono-internacional";
 
 export class SolicitarOtpDto {
-    @IsString({ message: "El teléfono debe ser un texto." })
-    @IsNotEmpty({ message: "El número de teléfono es obligatorio." })
-    @Matches(FORMATO_TELEFONO, {
-        message: "El teléfono debe incluir un formato internacional válido (+57...).",
-    })
+    // RF-01.3: se normaliza a E.164 y solo se admiten los prefijos +57, +1, +52, +51 y +593
+    @TelefonoInternacional()
     telefono: string;
 
     @IsOptional()

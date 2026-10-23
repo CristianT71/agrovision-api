@@ -1,6 +1,6 @@
-import { IsEmail, IsIn, IsNotEmpty, IsString, Length, Matches } from "class-validator";
+import { IsEmail, IsIn, IsString, Length } from "class-validator";
 import { ESPECIALIDADES } from "../../../../../domain/entities/agronomo.entity";
-import { FORMATO_TELEFONO } from "../../../../../../autenticacion/infrastructure/adapters/in/http/dto/solicitar-otp.dto";
+import { TelefonoInternacional } from "../../../../../../../common/validators/telefono-internacional";
 
 // Llega como multipart/form-data junto a los documentos (RF-01.6, RF-10.4)
 export class RegistrarAgronomoDto {
@@ -8,11 +8,8 @@ export class RegistrarAgronomoDto {
     @Length(3, 150, { message: "El nombre debe tener entre 3 y 150 caracteres." })
     nombre: string;
 
-    @IsString({ message: "El teléfono debe ser un texto." })
-    @IsNotEmpty({ message: "El número de celular es obligatorio." })
-    @Matches(FORMATO_TELEFONO, {
-        message: "El teléfono debe incluir un formato internacional válido (+57...).",
-    })
+    // RF-01.3: se normaliza a E.164: el mismo número no puede tener dos cuentas
+    @TelefonoInternacional()
     telefono: string;
 
     @IsEmail({}, { message: "El correo electrónico no es válido." })
