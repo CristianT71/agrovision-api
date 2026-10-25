@@ -1,10 +1,11 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import type {
     ICrearNotificacionesUseCase,
     NuevaNotificacion,
 } from "../../domain/ports/in/gestionar-notificaciones.port";
 import { NOTIFICACION_REPOSITORY, type INotificacionRepository } from "../../domain/ports/out/notificacion.repository";
+import { ENVIADOR_CORREO, type IEnviadorCorreo } from "../../domain/ports/out/enviador-correo.port";
 import { CONSULTA_USUARIOS, type IConsultaUsuarios } from "../../domain/ports/out/consulta-usuarios.port";
 import { Notificacion, type TipoNotificacion } from "../../domain/entities/notificacion.entity";
 
@@ -16,7 +17,11 @@ export class CrearNotificacionesService implements ICrearNotificacionesUseCase {
         private readonly notificacionRepository: INotificacionRepository,
         @Inject(CONSULTA_USUARIOS)
         private readonly consultaUsuarios: IConsultaUsuarios,
+        @Inject(ENVIADOR_CORREO)
+        private readonly enviadorCorreo: IEnviadorCorreo,
     ) {}
+
+    private readonly logger = new Logger(CrearNotificacionesService.name);
 
     async ejecutar(datos: NuevaNotificacion[], opciones?: { evitarDuplicadasNoLeidas?: boolean }): Promise<number> {
         // Sin destinatarios no se consulta nada
@@ -40,7 +45,37 @@ export class CrearNotificacionesService implements ICrearNotificacionesUseCase {
 
         await this.notificacionRepository.guardarVarias(notificaciones);
 
+        // El correo es un extra: no se espera y un fallo nunca tumba la notificación ya guardada
+        void this.enviarPorCorreo(notificaciones).catch((error: unknown) =>
+            this.logger.warn(
+                `No se pudo enviar el correo de aviso: ${error instanceof Error ? error.message : String(error)}`,
+            ),
+        );
+
         return notificaciones.length;
+    }
+
+    private async enviarPorCorreo(notificaciones: Notificacion[]): Promise<void> {
+        const destinos = await this.consultaUsuarios.obtenerCorreosDeAviso(notificaciones.map((n) => n.usuarioId));
+        const correoDe = new Map(destinos.map((destino) => [destino.usuarioId, destino.correo]));
+
+        for (const notificacion of notificaciones) {
+            const correo = correoDe.get(notificacion.usuarioId);
+            if (!correo) continue;
+
+            try {
+                await this.enviadorCorreo.enviar(
+                    correo,
+                    `AgroVision: ${notificacion.titulo}`,
+                    `${notificacion.descripcion}\n\nEntra al panel de AgroVision para verlo.\nPuedes dejar de recibir estos correos en Ajustes.`,
+                );
+            } catch (error) {
+                // Un destinatario con problemas no impide avisar a los demás
+                this.logger.warn(
+                    `Correo a ${correo} no enviado: ${error instanceof Error ? error.message : String(error)}`,
+                );
+            }
+        }
     }
 
     async notificarRol(

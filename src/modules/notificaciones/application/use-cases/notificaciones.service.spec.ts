@@ -34,6 +34,8 @@ describe("Notificaciones - casos de uso", () => {
     let findById: jest.Mock<Promise<Notificacion | null>, [string]>;
     let marcarTodasLeidas: jest.Mock<Promise<number>, [string]>;
     let listarIdsActivosPorRol: jest.Mock<Promise<string[]>, [string]>;
+    let obtenerCorreosDeAviso: jest.Mock<Promise<{ usuarioId: string; correo: string }[]>, [string[]]>;
+    let enviarCorreo: jest.Mock<Promise<void>, [string, string, string]>;
 
     beforeEach(() => {
         guardarVarias = jest.fn<Promise<void>, [Notificacion[]]>(() => Promise.resolve());
@@ -59,11 +61,15 @@ describe("Notificaciones - casos de uso", () => {
         listarIdsActivosPorRol = jest.fn<Promise<string[]>, [string]>(() =>
             Promise.resolve(["u-admin-1", "u-admin-2", "u-autor"]),
         );
-        consultaUsuarios = { listarIdsActivosPorRol };
+        obtenerCorreosDeAviso = jest.fn<Promise<{ usuarioId: string; correo: string }[]>, [string[]]>(() =>
+            Promise.resolve([]),
+        );
+        enviarCorreo = jest.fn<Promise<void>, [string, string, string]>(() => Promise.resolve());
+        consultaUsuarios = { listarIdsActivosPorRol, obtenerCorreosDeAviso };
     });
 
     describe("CrearNotificacionesService", () => {
-        const servicio = () => new CrearNotificacionesService(repositorio, consultaUsuarios);
+        const servicio = () => new CrearNotificacionesService(repositorio, consultaUsuarios, { enviar: enviarCorreo });
 
         it("con un arreglo vacío devuelve 0 sin tocar el repositorio", async () => {
             const creadas = await servicio().ejecutar([], { evitarDuplicadasNoLeidas: true });
@@ -71,6 +77,24 @@ describe("Notificaciones - casos de uso", () => {
             expect(creadas).toBe(0);
             expect(existeNoLeida).not.toHaveBeenCalled();
             expect(guardarVarias).not.toHaveBeenCalled();
+        });
+
+        it("envía correo solo a quien lo pidió y deja la notificación aunque el correo falle", async () => {
+            obtenerCorreosDeAviso.mockResolvedValue([{ usuarioId: "u-2", correo: "ana@gmail.com" }]);
+
+            const creadas = await servicio().ejecutar([
+                { ...AVISO, usuarioId: "u-1" },
+                { ...AVISO, usuarioId: "u-2" },
+            ]);
+            await new Promise((resolver) => setImmediate(resolver));
+
+            expect(creadas).toBe(2);
+            expect(enviarCorreo).toHaveBeenCalledTimes(1);
+            expect(enviarCorreo.mock.calls[0][0]).toBe("ana@gmail.com");
+            expect(enviarCorreo.mock.calls[0][1]).toContain(AVISO.titulo);
+
+            enviarCorreo.mockRejectedValue(new Error("SMTP caído"));
+            await expect(servicio().ejecutar([{ ...AVISO, usuarioId: "u-2" }])).resolves.toBe(1);
         });
 
         it("guarda todas las notificaciones en un solo lote", async () => {

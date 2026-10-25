@@ -1,4 +1,18 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Query, UseGuards } from "@nestjs/common";
+import {
+    Body,
+    Controller,
+    Get,
+    HttpCode,
+    HttpStatus,
+    Param,
+    ParseUUIDPipe,
+    Patch,
+    Put,
+    Query,
+    UseGuards,
+} from "@nestjs/common";
+import { PreferenciasCorreoService } from "../../../../application/use-cases/preferencias-correo.service";
+import { GuardarPreferenciaCorreoDto } from "./dto/preferencias-correo.dto";
 import { ListarNotificacionesService } from "../../../../application/use-cases/listar-notificaciones.service";
 import { ContarNoLeidasService } from "../../../../application/use-cases/contar-no-leidas.service";
 import { MarcarNotificacionLeidaService } from "../../../../application/use-cases/marcar-notificacion-leida.service";
@@ -20,7 +34,19 @@ export class NotificacionesController {
         private readonly contarNoLeidasService: ContarNoLeidasService,
         private readonly marcarNotificacionLeidaService: MarcarNotificacionLeidaService,
         private readonly marcarTodasLeidasService: MarcarTodasLeidasService,
+        private readonly preferenciasCorreoService: PreferenciasCorreoService,
     ) {}
+
+    // Ajuste "Notificaciones por correo": si quiere recibirlas y a qué dirección
+    @Get("correo")
+    async obtenerCorreo(@UsuarioActual("id") usuarioId: string) {
+        return await this.preferenciasCorreoService.obtener(usuarioId);
+    }
+
+    @Put("correo")
+    async guardarCorreo(@Body() dto: GuardarPreferenciaCorreoDto, @UsuarioActual("id") usuarioId: string) {
+        return await this.preferenciasCorreoService.guardar(usuarioId, dto.activo, dto.correo ?? null);
+    }
 
     @Get()
     async listar(@Query() consulta: ConsultarNotificacionesDto, @UsuarioActual("id") usuarioId: string) {

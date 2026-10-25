@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 import type { IConsultaUsuarios } from "../../../../domain/ports/out/consulta-usuarios.port";
 import { TypeOrmUsuarioEntity } from "../../../../../autenticacion/infrastructure/adapters/out/persistence/typeorm-usuario.entity";
 
@@ -20,5 +20,16 @@ export class TypeOrmConsultaUsuariosAdapter implements IConsultaUsuarios {
         });
 
         return filas.map((fila) => fila.id);
+    }
+
+    async obtenerCorreosDeAviso(usuarioIds: string[]): Promise<{ usuarioId: string; correo: string }[]> {
+        if (usuarioIds.length === 0) return [];
+
+        const filas = await this.usuarioRepository.find({
+            select: { id: true, correo: true },
+            where: { id: In(usuarioIds), correoNotificaciones: true, estado: "activo" },
+        });
+
+        return filas.flatMap((fila) => (fila.correo ? [{ usuarioId: fila.id, correo: fila.correo }] : []));
     }
 }

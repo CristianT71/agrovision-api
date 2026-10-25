@@ -33,6 +33,7 @@ Copia `.env.example` a `.env` y completa los valores:
 | `CORS_ORIGINS` | No | Orígenes del panel permitidos, separados por comas y sin barra final (por defecto `http://localhost:5173`) |
 | `TRUST_PROXY` | No | Saltos de proxy de confianza, de 0 a 5 (`1` detrás de un túnel o proxy; por defecto `0`) |
 | `SMS_PROVIDER` | No | `log` (código por consola, por defecto) o `zavu` (envío real) |
+| `MAIL_PROVIDER`, `MAIL_USER`, `MAIL_PASSWORD` | No | Correo de las notificaciones: `log` (consola, por defecto) o `smtp` (Gmail con contraseña de aplicación). Cada persona lo activa en Ajustes (`PUT /notificaciones/correo`) |
 | `ZAVU_API_URL`, `ZAVU_API_KEY`, `ZAVU_SENDER_ID`, `ZAVU_CHANNEL` | No | Proveedor de SMS real (ver [Códigos OTP](#códigos-otp)) |
 | `MODEL_SIGNING_PRIVATE_KEY` | No | Clave Ed25519 con la que se firman los modelos IA. Sin ella se suben, pero no se pueden publicar (ver [Firma de modelos](#firma-de-modelos)) |
 
