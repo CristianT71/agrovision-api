@@ -212,6 +212,39 @@ describe("Modelos IA - casos de uso", () => {
             expect(JSON.parse(calibracion.toString())).toMatchObject({ class_centroids: [], precision_matrix: [] });
         });
 
+        it("enlaza las 8 clases del entrenamiento 2.0.0 con las fichas del catálogo de la app", async () => {
+            const clases = [
+                "Cerscospora",
+                "Healthy",
+                "Leaf rust",
+                "Miner",
+                "Phoma",
+                "Deficiencia_Azufre",
+                "Deficiencia_Potasio",
+                "Enfermedad_Antracnosis",
+            ];
+            await new SubirModeloService(repositorio, firmador(), almacenamiento).ejecutar({
+                adminUsuarioId: "u-admin",
+                version: "2.0.0",
+                versionMinApp: "2.0.0",
+                modelo: archivo("model_coffee_int8.tflite", TFLITE),
+                etiquetasTexto: archivo("labels.txt", Buffer.from(clases.join("\n"))),
+            });
+
+            const { etiquetas } = firmarConjunto.mock.calls[0][0];
+            const labels = JSON.parse(etiquetas.toString()) as { classes: { pest_id: string | null }[] };
+            expect(labels.classes.map((c) => c.pest_id)).toEqual([
+                "Enfermedad_ManchadeHierro",
+                null,
+                "Enfermedad_Roya",
+                "Plaga_Minador",
+                "Enfermedad_Phoma",
+                "Deficiencia_Azufre",
+                "Deficiencia_Potasio",
+                "Enfermedad_Antracnosis",
+            ]);
+        });
+
         it("rechaza un labels.txt con clases repetidas", async () => {
             await expect(
                 new SubirModeloService(repositorio, firmador(), almacenamiento).ejecutar({
