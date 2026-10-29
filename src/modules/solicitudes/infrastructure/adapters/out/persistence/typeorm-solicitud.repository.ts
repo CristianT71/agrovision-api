@@ -99,4 +99,14 @@ export class TypeOrmSolicitudRepository implements ISolicitudRepository {
 
         return (resultado.affected ?? 0) > 0;
     }
+
+    async guardarAltitudDeServicio(solicitudId: string, metros: number): Promise<boolean> {
+        // UPDATE condicionado a que siga sin altitud: no pisa la del GPS ni la de otra consulta simultánea
+        const resultado = await this.repository.update(
+            { id: solicitudId, altitudMsnm: IsNull() },
+            { altitudMsnm: metros, altitudOrigen: "servicio" },
+        );
+
+        return (resultado.affected ?? 0) > 0;
+    }
 }

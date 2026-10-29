@@ -75,6 +75,7 @@ describe("Solicitudes - casos de uso", () => {
             guardar: jest.fn(),
             guardarResolucion,
             guardarAsignacion: jest.fn(),
+            guardarAltitudDeServicio: jest.fn(),
         };
         agronomos = { findByUsuarioId: () => Promise.resolve(agronomo) } as unknown as IAgronomoRepository;
         plagasNuevas = [];
@@ -94,6 +95,7 @@ describe("Solicitudes - casos de uso", () => {
             return Promise.resolve();
         });
         notificador = {
+            notificarNuevaSolicitud: jest.fn(),
             notificarAsignacion: jest.fn(),
             hayAlertaPlagasDesde: (desde: Date) =>
                 Promise.resolve(alertas.some((fecha) => fecha.getTime() >= desde.getTime())),

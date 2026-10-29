@@ -20,6 +20,9 @@ export interface ISolicitudRepository {
         solicitud: Solicitud,
         anterior: { estado: EstadoSolicitud; agronomoId: string | null },
     ): Promise<boolean>;
+    // Guarda la altitud que dedujo el servicio solo si la solicitud sigue sin ninguna: no pisa la del GPS
+    // ni la de otra petición simultánea. Devuelve false si ya tenía.
+    guardarAltitudDeServicio(solicitudId: string, metros: number): Promise<boolean>;
 }
 
 // Token de inyección PARA dependencias de NestJS

@@ -48,6 +48,9 @@ export class AppSolicitudesController {
                       latitud: dto.location.latitude,
                       longitud: dto.location.longitude,
                       precisionMetros: dto.location.accuracyMeters ?? null,
+                      exacta: dto.location.precision === "exact",
+                      simulada: dto.location.mock === true,
+                      altitudMetros: dto.location.altitudeMeters ?? null,
                   }
                 : null,
             fotos: dto.images.map((imagen) => ({ idCliente: imagen.id, angulo: imagen.angle })),

@@ -119,6 +119,10 @@ export class RecibirLoteSolicitudesService implements IRecibirLoteSolicitudesUse
                   creada.solicitud.longitud,
                   creada.solicitud.precisionMetros,
                   creada.solicitud.actualizadoEn,
+                  creada.solicitud.altitudMsnm,
+                  creada.solicitud.altitudOrigen,
+                  creada.solicitud.ubicacionSimulada,
+                  creada.solicitud.ubicacionExacta,
               )
             : creada.solicitud;
 

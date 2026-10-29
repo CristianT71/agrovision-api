@@ -5,6 +5,12 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { TypeOrmModeloIaEntity } from "../modelos-ia/infrastructure/adapters/out/persistence/typeorm-modelo-ia.entity";
 import { TypeOrmSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.entity";
 import { TypeOrmFotoSolicitudEntity } from "./infrastructure/adapters/out/persistence/typeorm-foto-solicitud.entity";
+import { TypeOrmAuditoriaUbicacionEntity } from "./infrastructure/adapters/out/persistence/typeorm-auditoria-ubicacion.entity";
+import { TypeOrmAuditoriaUbicacionesAdapter } from "./infrastructure/adapters/out/persistence/typeorm-auditoria-ubicaciones.adapter";
+import { elevacionProvider } from "./infrastructure/adapters/out/elevacion/elevacion.provider";
+import { AUDITORIA_UBICACIONES } from "./domain/ports/out/auditoria-ubicaciones.port";
+import { ObtenerUbicacionSolicitudService } from "./application/use-cases/obtener-ubicacion-solicitud.service";
+import { ListarMapaSolicitudesService } from "./application/use-cases/listar-mapa-solicitudes.service";
 import { TypeOrmAnexoResolucionEntity } from "./infrastructure/adapters/out/persistence/typeorm-anexo-resolucion.entity";
 import { TypeOrmDeteccionEntity } from "../detecciones/infrastructure/adapters/out/persistence/typeorm-deteccion.entity";
 import { TypeOrmSolicitudRepository } from "./infrastructure/adapters/out/persistence/typeorm-solicitud.repository";
@@ -56,6 +62,7 @@ import { TypeOrmCapturaModeloRepository } from "./infrastructure/adapters/out/pe
             TypeOrmSolicitudEntity,
             TypeOrmFotoSolicitudEntity,
             TypeOrmAnexoResolucionEntity,
+            TypeOrmAuditoriaUbicacionEntity,
             TypeOrmDeteccionEntity,
         ]),
         AgronomosModule,
@@ -80,6 +87,13 @@ import { TypeOrmCapturaModeloRepository } from "./infrastructure/adapters/out/pe
         VerificarAccesoSolicitudService,
         ContarSolicitudesService,
         ResumirResolucionesService,
+        ObtenerUbicacionSolicitudService,
+        ListarMapaSolicitudesService,
+        elevacionProvider,
+        {
+            provide: AUDITORIA_UBICACIONES,
+            useClass: TypeOrmAuditoriaUbicacionesAdapter,
+        },
         {
             provide: SOLICITUD_REPOSITORY,
             useClass: TypeOrmSolicitudRepository,

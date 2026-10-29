@@ -3,6 +3,7 @@ import {
     type Cultivo,
     type EstadoSolicitud,
     type Organo,
+    type OrigenAltitud,
     type TipoResultado,
 } from "../../../../domain/entities/solicitud.entity";
 import { FotoSolicitud, type AnguloFoto } from "../../../../domain/entities/foto-solicitud.entity";
@@ -36,6 +37,10 @@ export function solicitudADominio(entity: TypeOrmSolicitudEntity): Solicitud {
         entity.longitud,
         entity.precisionMetros,
         entity.actualizadoEn,
+        entity.altitudMsnm,
+        entity.altitudOrigen as OrigenAltitud | null,
+        entity.ubicacionSimulada,
+        entity.ubicacionExacta,
     );
 }
 
@@ -64,6 +69,10 @@ export function solicitudAPersistencia(solicitud: Solicitud): Omit<TypeOrmSolici
         latitud: solicitud.latitud,
         longitud: solicitud.longitud,
         precisionMetros: solicitud.precisionMetros,
+        altitudMsnm: solicitud.altitudMsnm,
+        altitudOrigen: solicitud.altitudOrigen,
+        ubicacionSimulada: solicitud.ubicacionSimulada,
+        ubicacionExacta: solicitud.ubicacionExacta,
     };
 }
 

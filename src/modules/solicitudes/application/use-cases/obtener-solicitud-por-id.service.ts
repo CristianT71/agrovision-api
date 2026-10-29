@@ -15,7 +15,7 @@ export class ObtenerSolicitudPorIdService implements IObtenerSolicitudPorIdUseCa
     async ejecutar(usuario: { id: string; rol: string }, id: string): Promise<SolicitudVista> {
         const { solicitud, productorNombre } = await this.verificarAcceso.ejecutar(usuario, id);
 
-        return Object.assign(solicitud, { productorNombre });
+        return Object.assign(solicitud.sinUbicacion(), { productorNombre, tieneUbicacion: solicitud.tieneUbicacion() });
     }
 
     // Solo para otros módulos (mensajería, permisos de contacto), que aplican su propio control
@@ -27,6 +27,9 @@ export class ObtenerSolicitudPorIdService implements IObtenerSolicitudPorIdUseCa
             throw new NotFoundException(`La solicitud con ID ${id} no fue encontrada.`);
         }
 
-        return Object.assign(resultado.solicitud, { productorNombre: resultado.productorNombre });
+        return Object.assign(resultado.solicitud.sinUbicacion(), {
+            productorNombre: resultado.productorNombre,
+            tieneUbicacion: resultado.solicitud.tieneUbicacion(),
+        });
     }
 }

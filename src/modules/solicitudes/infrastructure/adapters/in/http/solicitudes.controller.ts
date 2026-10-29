@@ -24,6 +24,9 @@ import { AnexosResolucionService } from "../../../../application/use-cases/anexo
 import { CasosSimilaresService } from "../../../../application/use-cases/casos-similares.service";
 import { ContarSolicitudesService } from "../../../../application/use-cases/contar-solicitudes.service";
 import { ResumirResolucionesService } from "../../../../application/use-cases/resumir-resoluciones.service";
+import { ObtenerUbicacionSolicitudService } from "../../../../application/use-cases/obtener-ubicacion-solicitud.service";
+import { ListarMapaSolicitudesService } from "../../../../application/use-cases/listar-mapa-solicitudes.service";
+import { ConsultarMapaDto } from "./dto/consultar-mapa.dto";
 import { CasosSimilaresDto } from "./dto/casos-similares.dto";
 import { ConsultarResolucionesDto } from "./dto/consultar-resoluciones.dto";
 import { MAX_ANEXOS_RESOLUCION } from "../../../../domain/entities/anexo-resolucion.entity";
@@ -41,6 +44,8 @@ import { Roles } from "../../../../../../common/decorators/roles.decorator";
 import { UsuarioActual, type UsuarioAutenticado } from "../../../../../../common/decorators/usuario-actual.decorator";
 
 const MAX_BYTES_ANEXO = 10 * 1024 * 1024;
+
+const TIPO_KML = "application/vnd.google-earth.kml+xml";
 
 const EXTENSIONES_FOTO: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
 
@@ -62,6 +67,8 @@ export class SolicitudesController {
         private readonly casosSimilaresService: CasosSimilaresService,
         private readonly contarSolicitudesService: ContarSolicitudesService,
         private readonly resumirResolucionesService: ResumirResolucionesService,
+        private readonly obtenerUbicacionService: ObtenerUbicacionSolicitudService,
+        private readonly listarMapaService: ListarMapaSolicitudesService,
     ) {}
 
     @Get()
@@ -80,6 +87,32 @@ export class SolicitudesController {
     @Roles("admin")
     async resoluciones(@Query() consulta: ConsultarResolucionesDto, @UsuarioActual() usuario: UsuarioAutenticado) {
         return await this.resumirResolucionesService.ejecutar(usuario, consulta);
+    }
+
+    // Mapa de casos del administrador. Declarado antes de ":id" para que "mapa" no se tome como un id.
+    @Get("mapa")
+    @Roles("admin")
+    async mapa(@Query() filtros: ConsultarMapaDto, @UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.listarMapaService.ejecutar(usuario, filtros);
+    }
+
+    @Get("mapa.kml")
+    @Roles("admin")
+    async mapaKml(@Query() filtros: ConsultarMapaDto, @UsuarioActual() usuario: UsuarioAutenticado) {
+        const { nombreArchivo, kml } = await this.listarMapaService.ejecutarKml(usuario, filtros);
+        return this.archivoKml(nombreArchivo, kml);
+    }
+
+    // Dónde se tomó la foto, con altitud. Admin siempre; el agrónomo solo si la solicitud es suya.
+    @Get(":id/ubicacion")
+    async ubicacion(@Param("id", ParseUUIDPipe) id: string, @UsuarioActual() usuario: UsuarioAutenticado) {
+        return await this.obtenerUbicacionService.ejecutar(usuario, id);
+    }
+
+    @Get(":id/ubicacion.kml")
+    async ubicacionKml(@Param("id", ParseUUIDPipe) id: string, @UsuarioActual() usuario: UsuarioAutenticado) {
+        const { nombreArchivo, kml } = await this.obtenerUbicacionService.ejecutarKml(usuario, id);
+        return this.archivoKml(nombreArchivo, kml);
     }
 
     // Fotos que subió la app móvil. Declaradas antes de ":id" para que ninguna ruta las capture.
@@ -140,6 +173,14 @@ export class SolicitudesController {
     @Get(":id")
     async obtenerPorId(@Param("id", ParseUUIDPipe) id: string, @UsuarioActual() usuario: UsuarioAutenticado) {
         return await this.obtenerSolicitudPorIdService.ejecutar(usuario, id);
+    }
+
+    // El nombre del archivo lo arma el servidor (código de la solicitud), nunca el cliente
+    private archivoKml(nombreArchivo: string, kml: string): StreamableFile {
+        return new StreamableFile(Buffer.from(kml, "utf-8"), {
+            type: TIPO_KML,
+            disposition: `attachment; filename="${nombreArchivo}"`,
+        });
     }
 
     // Resolver es tarea del Profesional; el Administrador coordina y asigna (RF-08)

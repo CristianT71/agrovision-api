@@ -49,7 +49,14 @@ const entrada = (idCliente: string, cantidadFotos = 2): SolicitudAppEntrada => (
     organo: "HOJA",
     nota: "Manchas en el haz",
     creadaEn: 1_750_000_000_000,
-    ubicacion: { latitud: 1.85, longitud: -76.05, precisionMetros: 10 },
+    ubicacion: {
+        latitud: 1.85,
+        longitud: -76.05,
+        precisionMetros: 10,
+        exacta: true,
+        simulada: false,
+        altitudMetros: null,
+    },
     fotos: Array.from({ length: cantidadFotos }, (_, indice) => ({
         idCliente: `${idCliente}-img-${indice + 1}`,
         angulo: "GENERAL" as const,
@@ -154,6 +161,7 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             guardar: jest.fn(),
             guardarResolucion: jest.fn(),
             guardarAsignacion: jest.fn(),
+            guardarAltitudDeServicio: jest.fn(),
         };
         productores = { findByUsuarioId: () => Promise.resolve(productor) } as unknown as IProductorRepository;
         firmador = { firmar: (fotoId: string) => `http://api/v1/uploads/token-${fotoId}`, verificar };

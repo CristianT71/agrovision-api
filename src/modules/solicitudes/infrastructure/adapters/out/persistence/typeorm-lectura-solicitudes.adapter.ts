@@ -7,6 +7,8 @@ import type {
     PaginaLectura,
     SolicitudConProductor,
 } from "../../../../domain/ports/out/lectura-solicitudes.port";
+import type { FiltrosMapa, PuntoMapa } from "../../../../domain/ports/in/ubicacion-solicitudes.port";
+import type { Cultivo, EstadoSolicitud } from "../../../../domain/entities/solicitud.entity";
 import { TypeOrmSolicitudEntity } from "./typeorm-solicitud.entity";
 import { TypeOrmAnexoResolucionEntity } from "./typeorm-anexo-resolucion.entity";
 import { AnexoResolucion } from "../../../../domain/entities/anexo-resolucion.entity";
@@ -121,6 +123,57 @@ export class TypeOrmLecturaSolicitudesAdapter implements ILecturaSolicitudes {
     async obtener(id: string): Promise<SolicitudConProductor | null> {
         const entity = await this.consultaBase().where("s.id = :id", { id }).getOne();
         return entity ? this.aResultado(entity) : null;
+    }
+
+    async listarMapa(filtros: FiltrosMapa, limite: number): Promise<PuntoMapa[]> {
+        // Solo las columnas del punto (sin fotos ni respuestas) y el filtro de ubicación igual al del índice parcial
+        const consulta = this.repository
+            .createQueryBuilder("s")
+            .innerJoin("s.productor", "p")
+            .select([
+                "s.id",
+                "s.estado",
+                "s.fecha",
+                "s.municipio",
+                "s.vereda",
+                "s.finca",
+                "s.cultivo",
+                "s.latitud",
+                "s.longitud",
+                "s.altitudMsnm",
+                "s.ubicacionSimulada",
+                "p.nombre",
+            ])
+            .where("s.latitud IS NOT NULL AND s.longitud IS NOT NULL")
+            // Sin consentimiento vigente no se muestra dónde está el cultivo
+            .andWhere("p.consentimiento = true");
+
+        if (filtros.estado) consulta.andWhere("s.estado = :estado", { estado: filtros.estado });
+        if (filtros.agronomoId) consulta.andWhere("s.agronomoId = :agronomoId", { agronomoId: filtros.agronomoId });
+        if (filtros.cultivo) consulta.andWhere("s.cultivo = :cultivo", { cultivo: filtros.cultivo });
+        if (filtros.municipio) {
+            consulta.andWhere("s.municipio ILIKE :municipio", { municipio: escaparLike(filtros.municipio) });
+        }
+        if (filtros.desde) consulta.andWhere("s.fecha >= :desde", { desde: filtros.desde });
+        if (filtros.hasta) consulta.andWhere("s.fecha <= :hasta", { hasta: filtros.hasta });
+
+        const entities = await consulta.orderBy("s.fecha", "DESC").addOrderBy("s.id", "DESC").limit(limite).getMany();
+
+        return entities.map((s) => ({
+            solicitudId: s.id,
+            estado: s.estado as EstadoSolicitud,
+            fecha: s.fecha,
+            productorNombre: s.productor?.nombre ?? null,
+            municipio: s.municipio,
+            vereda: s.vereda,
+            finca: s.finca,
+            cultivo: s.cultivo as Cultivo | null,
+            // El filtro IS NOT NULL ya garantiza ambas coordenadas
+            latitud: s.latitud as number,
+            longitud: s.longitud as number,
+            altitudMsnm: s.altitudMsnm,
+            simulada: s.ubicacionSimulada,
+        }));
     }
 
     async listarResueltas(excluirId: string, limite: number): Promise<SolicitudConProductor[]> {

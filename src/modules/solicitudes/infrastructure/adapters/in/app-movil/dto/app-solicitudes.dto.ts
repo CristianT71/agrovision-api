@@ -3,6 +3,7 @@ import {
     ArrayMaxSize,
     ArrayMinSize,
     IsArray,
+    IsBoolean,
     IsIn,
     IsInt,
     IsNumber,
@@ -22,6 +23,9 @@ import { MAX_SOLICITUDES_POR_LOTE } from "../../../../../domain/ports/in/solicit
 // Aquí solo se valida la forma; las reglas de cada solicitud (2 a 5 fotos, nota, coordenadas)
 // las aplica el dominio para rechazar esa solicitud sin tumbar el resto del lote.
 
+export const PRECISIONES_UBICACION = ["exact", "coarse"] as const;
+export type PrecisionUbicacion = (typeof PRECISIONES_UBICACION)[number];
+
 export class UbicacionAppDto {
     @IsNumber({}, { message: "latitude debe ser un número." })
     latitude: number;
@@ -32,6 +36,22 @@ export class UbicacionAppDto {
     @IsOptional()
     @IsNumber({}, { message: "accuracyMeters debe ser un número." })
     accuracyMeters?: number | null;
+
+    // exact = ubicación fina; coarse = aproximada. Una solicitud de revisión solo se acepta con exact
+    // (el dominio la rechaza con "ubicacion_exacta_requerida"). Las capturas no usan este DTO.
+    @IsOptional()
+    @IsIn(PRECISIONES_UBICACION, { message: `precision debe ser uno de: ${PRECISIONES_UBICACION.join(", ")}` })
+    precision?: PrecisionUbicacion | null;
+
+    // Metros sobre el nivel del mar que midió el GPS. El rango lo valida el dominio por solicitud.
+    @IsOptional()
+    @IsNumber({}, { message: "altitudeMeters debe ser un número." })
+    altitudeMeters?: number | null;
+
+    // El sistema operativo marcó la ubicación como simulada
+    @IsOptional()
+    @IsBoolean({ message: "mock debe ser true o false." })
+    mock?: boolean | null;
 }
 
 export class ImagenAppDto {
