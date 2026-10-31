@@ -58,3 +58,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Archivos subidos (fotos y acreditaciones)
 /uploads
+
+# Respaldos de variables de entorno (pueden contener secretos)
+.env.bak*
