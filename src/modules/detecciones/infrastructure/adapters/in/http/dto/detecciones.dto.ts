@@ -4,6 +4,7 @@ import {
     IsDateString,
     IsIn,
     IsInt,
+    IsNumber,
     IsOptional,
     IsString,
     Max,
@@ -61,6 +62,14 @@ export class FiltrosDeteccionesDto {
     @MaxLength(100)
     municipio?: string;
 
+    // Descarta las ubicaciones menos fiables; las capturas sin precisión informada también quedan fuera
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber({}, { message: "precisionMaxMetros debe ser un número." })
+    @Min(0, { message: "precisionMaxMetros no puede ser negativo." })
+    @Max(100000, { message: "precisionMaxMetros no puede superar 100000." })
+    precisionMaxMetros?: number;
+
     @IsOptional()
     @IsDateString({}, { message: "desde debe ser una fecha ISO (2026-09-01)." })
     desde?: string;
@@ -83,4 +92,14 @@ export class ConsultarDeteccionesDto extends FiltrosDeteccionesDto {
     @Min(1, { message: "El límite debe ser al menos 1." })
     @Max(100, { message: "El límite no puede superar 100." })
     limite: number = 20;
+}
+
+// Puntos del mapa de casos: mismos filtros que el monitor y un tope propio (no se pagina)
+export class ConsultarMapaDeteccionesDto extends FiltrosDeteccionesDto {
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt({ message: "El límite debe ser un número entero." })
+    @Min(1, { message: "El límite debe ser al menos 1." })
+    @Max(2000, { message: "El límite no puede superar 2000." })
+    limite: number = 500;
 }

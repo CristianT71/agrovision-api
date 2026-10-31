@@ -1,7 +1,9 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { RecibirCapturasService } from "./recibir-capturas.service";
 import { ListarDeteccionesService } from "./listar-detecciones.service";
+import { ListarMapaDeteccionesService } from "./listar-mapa-detecciones.service";
 import { ObtenerDeteccionService } from "./obtener-deteccion.service";
+import { ObtenerKmlDeteccionService } from "./obtener-kml-deteccion.service";
 import { ResumirDeteccionesService } from "./resumir-detecciones.service";
 import { Deteccion } from "../../domain/entities/deteccion.entity";
 import type { CapturaEntrada } from "../../domain/ports/in/recibir-capturas.port";
@@ -226,6 +228,7 @@ describe("Detecciones - casos de uso", () => {
         beforeEach(() => {
             lectura = {
                 listar: jest.fn().mockResolvedValue({ total: 1, filas: [leida()] }),
+                listarMapa: jest.fn().mockResolvedValue([]),
                 obtener: jest.fn().mockResolvedValue(null),
                 resumir: jest.fn().mockResolvedValue([
                     { categoria: "enfermedad", total: 8, divergentes: 2, defectuosas: 1 },
@@ -276,6 +279,69 @@ describe("Detecciones - casos de uso", () => {
 
             expect(resumen).toMatchObject({ total: 12, divergentes: 3, defectuosas: 1 });
             expect(resumen.porCategoria).toHaveLength(2);
+        });
+
+        it("expone la ubicación y la precisión del GPS de la captura", async () => {
+            const conUbicacion = Deteccion.registrar({
+                ...leida().deteccion,
+                id: "d-2",
+                idCliente: "c-2",
+                productor: { id: "p-1", municipio: "Pitalito" },
+                modelo: { id: "m-1", version: "1.2.0" },
+                embedding: null,
+                ubicacion: { latitud: 1.85, longitud: -76.05, precisionMetros: 12 },
+                fecha: new Date(),
+            });
+            lectura.listar.mockResolvedValue({ total: 1, filas: [leida({ deteccion: conUbicacion })] });
+
+            const pagina = await new ListarDeteccionesService(lectura).ejecutar({ filtros: {}, pagina: 1, limite: 20 });
+
+            expect(pagina.datos[0]).toMatchObject({ latitud: 1.85, longitud: -76.05, precisionMetros: 12 });
+        });
+
+        it("el mapa pasa los filtros y el tope al puerto de lectura", async () => {
+            await new ListarMapaDeteccionesService(lectura).ejecutar({
+                filtros: { precisionMaxMetros: 50, municipio: "Pitalito" },
+                limite: 300,
+            });
+
+            expect(lectura.listarMapa).toHaveBeenCalledWith({ precisionMaxMetros: 50, municipio: "Pitalito" }, 300);
+        });
+
+        it("el mapa rechaza un rango de fechas invertido", async () => {
+            await expect(
+                new ListarMapaDeteccionesService(lectura).ejecutar({
+                    filtros: { desde: new Date("2026-09-30"), hasta: new Date("2026-09-01") },
+                    limite: 10,
+                }),
+            ).rejects.toBeInstanceOf(BadRequestException);
+        });
+
+        it("el KML de una detección con ubicación lleva longitud,latitud", async () => {
+            const conUbicacion = Deteccion.registrar({
+                ...leida().deteccion,
+                id: "d-3",
+                idCliente: "c-3",
+                productor: { id: "p-1", municipio: "Pitalito" },
+                modelo: { id: "m-1", version: "1.2.0" },
+                embedding: null,
+                ubicacion: { latitud: 1.85, longitud: -76.05, precisionMetros: 4 },
+                fecha: new Date(),
+            });
+            lectura.obtener.mockResolvedValue(leida({ deteccion: conUbicacion }));
+
+            const { kml, nombreArchivo } = await new ObtenerKmlDeteccionService(lectura).ejecutar("d-3");
+
+            expect(kml).toContain("<coordinates>-76.05,1.85,0</coordinates>");
+            expect(nombreArchivo).toMatch(/^deteccion-.+\.kml$/);
+        });
+
+        it("no genera KML de una detección sin ubicación", async () => {
+            lectura.obtener.mockResolvedValue(leida());
+
+            await expect(new ObtenerKmlDeteccionService(lectura).ejecutar("d-1")).rejects.toBeInstanceOf(
+                NotFoundException,
+            );
         });
 
         it("devuelve 404 si la detección no existe", async () => {

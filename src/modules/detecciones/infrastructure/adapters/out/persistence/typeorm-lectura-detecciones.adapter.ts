@@ -91,6 +91,20 @@ export class TypeOrmLecturaDeteccionesAdapter implements ILecturaDetecciones {
         return { total: conteo[0]?.total ?? 0, filas: filas.map((fila) => this.aLeida(fila)) };
     }
 
+    async listarMapa(filtros: FiltrosDetecciones, limite: number): Promise<DeteccionLeida[]> {
+        const { where, params } = this.construirWhere(filtros);
+        const conCoordenadas = "d.latitud IS NOT NULL AND d.longitud IS NOT NULL";
+
+        const filas = await this.deteccionRepository.query<FilaDeteccion[]>(
+            `${this.seleccion()} ${ORIGEN} ${where ? `${where} AND ${conCoordenadas}` : `WHERE ${conCoordenadas}`}
+             ORDER BY d.fecha DESC, d.id
+             LIMIT $${params.length + 1}`,
+            [...params, limite],
+        );
+
+        return filas.map((fila) => this.aLeida(fila));
+    }
+
     async obtener(id: string): Promise<DeteccionLeida | null> {
         const filas = await this.deteccionRepository.query<FilaDeteccion[]>(
             `${this.seleccion()} ${ORIGEN} WHERE d.id = $1`,
@@ -145,6 +159,8 @@ export class TypeOrmLecturaDeteccionesAdapter implements ILecturaDetecciones {
         if (filtros.defectuosas !== undefined) condiciones.push(`d.defectuosa = ${parametro(filtros.defectuosas)}`);
         if (filtros.modeloVersion) condiciones.push(`d.modelo_version = ${parametro(filtros.modeloVersion)}`);
         if (filtros.municipio) condiciones.push(`LOWER(d.municipio) = LOWER(${parametro(filtros.municipio)})`);
+        if (filtros.precisionMaxMetros !== undefined)
+            condiciones.push(`d.precision_metros <= ${parametro(filtros.precisionMaxMetros)}`);
         if (filtros.desde) condiciones.push(`d.fecha >= ${parametro(filtros.desde)}`);
         if (filtros.hasta) condiciones.push(`d.fecha <= ${parametro(filtros.hasta)}`);
 

@@ -38,6 +38,20 @@ export class UbicacionCapturaDto {
     @IsOptional()
     @IsNumber({}, { message: "accuracyMeters debe ser un número." })
     accuracyMeters?: number | null;
+
+    // La app manda el mismo objeto de ubicación en capturas y solicitudes. Aquí no se guardan:
+    // se aceptan para que un campo desconocido no tumbe el lote entero.
+    @IsOptional()
+    @IsIn(["exact", "coarse"], { message: "precision debe ser exact o coarse." })
+    precision?: "exact" | "coarse" | null;
+
+    @IsOptional()
+    @IsNumber({}, { message: "altitudeMeters debe ser un número." })
+    altitudeMeters?: number | null;
+
+    @IsOptional()
+    @IsBoolean({ message: "mock debe ser true o false." })
+    mock?: boolean | null;
 }
 
 export class CapturaAppDto {

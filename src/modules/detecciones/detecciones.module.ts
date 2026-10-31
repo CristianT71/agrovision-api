@@ -18,6 +18,8 @@ import { ModelosIaModule } from "../modelos-ia/modelos-ia.module";
 // Casos de uso
 import { RecibirCapturasService } from "./application/use-cases/recibir-capturas.service";
 import { ListarDeteccionesService } from "./application/use-cases/listar-detecciones.service";
+import { ListarMapaDeteccionesService } from "./application/use-cases/listar-mapa-detecciones.service";
+import { ObtenerKmlDeteccionService } from "./application/use-cases/obtener-kml-deteccion.service";
 import { ObtenerDeteccionService } from "./application/use-cases/obtener-deteccion.service";
 import { ResumirDeteccionesService } from "./application/use-cases/resumir-detecciones.service";
 
@@ -28,7 +30,9 @@ import { ResumirDeteccionesService } from "./application/use-cases/resumir-detec
     providers: [
         RecibirCapturasService,
         ListarDeteccionesService,
+        ListarMapaDeteccionesService,
         ObtenerDeteccionService,
+        ObtenerKmlDeteccionService,
         ResumirDeteccionesService,
         {
             provide: DETECCION_REPOSITORY,
