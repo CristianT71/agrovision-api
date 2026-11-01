@@ -1,10 +1,9 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
-import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
+import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { RegistrarEventoService } from "../../../../application/use-cases/registrar-evento.service";
 
 // Superficie pública de la app: SIN JWT, igual que el manifiesto de modelos. La app mide aunque
 // el productor no haya iniciado sesión. La protege el límite de peticiones por IP.
-@UseGuards(ThrottlerGuard)
 @Controller("public/v1/telemetry")
 export class AppTelemetriaController {
     constructor(private readonly registrarEventoService: RegistrarEventoService) {}

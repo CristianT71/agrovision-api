@@ -1,5 +1,5 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from "@nestjs/common";
-import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
+import { Throttle } from "@nestjs/throttler";
 import { SesionesService } from "../../../../application/use-cases/sesiones.service";
 import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { UsuarioActual } from "../../../../../../common/decorators/usuario-actual.decorator";
@@ -9,7 +9,6 @@ import { SolicitarOtpDto } from "./dto/solicitar-otp.dto";
 import { ValidarOtpDto } from "./dto/validar-otp.dto";
 
 // Rutas públicas: el límite por IP frena el envío masivo de SMS y el ataque de adivinar códigos
-@UseGuards(ThrottlerGuard)
 @Controller("auth")
 export class AuthController {
     constructor(

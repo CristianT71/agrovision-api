@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import type { Readable } from "node:stream";
 import { dirname, join, resolve, sep } from "node:path";
 import type { ArchivoParaGuardar, IAlmacenamientoArchivos } from "./almacenamiento.port";
 
@@ -42,6 +44,13 @@ export class LocalAlmacenamientoAdapter implements IAlmacenamientoArchivos {
 
     async leerPrivado(ruta: string): Promise<Buffer> {
         return await readFile(this.resolverDentroDe("privado", ruta));
+    }
+
+    async abrirLecturaPrivada(ruta: string): Promise<{ flujo: Readable; tamano: number }> {
+        const destino = this.resolverDentroDe("privado", ruta);
+        const { size } = await stat(destino);
+
+        return { flujo: createReadStream(destino), tamano: size };
     }
 
     async eliminarPrivado(ruta: string): Promise<void> {

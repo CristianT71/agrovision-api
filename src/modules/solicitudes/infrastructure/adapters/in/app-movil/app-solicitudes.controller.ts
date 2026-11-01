@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { RecibirLoteSolicitudesService } from "../../../../application/use-cases/recibir-lote-solicitudes.service";
 import { ListarMisSolicitudesService } from "../../../../application/use-cases/listar-mis-solicitudes.service";
 import type { SolicitudAppEntrada } from "../../../../domain/ports/in/solicitudes-app.port";
@@ -20,6 +21,8 @@ export class AppSolicitudesController {
         private readonly listarMisSolicitudesService: ListarMisSolicitudesService,
     ) {}
 
+    // Cada solicitud nueva avisa por notificación y correo a los admins: se limita el ritmo por cuenta
+    @Throttle({ usuario: { limit: 10, ttl: 60_000 } })
     @Post("batch")
     @HttpCode(HttpStatus.OK)
     async recibirLote(@Body() dto: LoteSolicitudesAppDto, @UsuarioActual("id") usuarioId: string) {

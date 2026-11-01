@@ -1,4 +1,5 @@
 import { ForbiddenException, HttpStatus, NotFoundException, type HttpException } from "@nestjs/common";
+import { PresupuestoRegistrosOtp } from "./presupuesto-registros-otp";
 import { MAX_CODIGOS_POR_VENTANA, SolicitarOtpService } from "./solicitar-otp.service";
 import { Usuario } from "../../domain/entities/usuario.entity";
 import { SesionOtp } from "../../domain/entities/sesion-otp.entity";
@@ -50,6 +51,22 @@ describe("SolicitarOtpService", () => {
 
         const registrado = usuarioGuardado.mock.calls[0][0];
         expect(registrado.rol).toBe("productor");
+    });
+
+    it("no registra ni envía SMS a un número nuevo cuando se agotó el cupo global de registros", async () => {
+        const sinCupo = new PresupuestoRegistrosOtp(0, 0);
+        const limitado = new SolicitarOtpService(
+            { findByTelefono: () => Promise.resolve(null), findById: jest.fn(), guardar: usuarioGuardado },
+            { findUltimaPorUsuarioId: jest.fn(), contarDesde: jest.fn(), guardar: sesionGuardada } as never,
+            { enviarOtp },
+            sinCupo,
+        );
+
+        await expect(limitado.ejecutar({ telefono: TELEFONO, rolSeleccionado: "productor" })).rejects.toMatchObject({
+            status: 429,
+        });
+        expect(usuarioGuardado).not.toHaveBeenCalled();
+        expect(enviarOtp).not.toHaveBeenCalled();
     });
 
     it("rechaza desde el panel un número que no está registrado", async () => {

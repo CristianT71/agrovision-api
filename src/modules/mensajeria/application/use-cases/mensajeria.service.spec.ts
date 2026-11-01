@@ -75,6 +75,7 @@ describe("Mensajería - casos de uso", () => {
             eliminarPublico: jest.fn(),
             guardarPrivado,
             leerPrivado: jest.fn().mockResolvedValue(Buffer.from("%PDF")),
+            abrirLecturaPrivada: jest.fn(),
             eliminarPrivado,
         };
     });

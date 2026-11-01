@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { SubirModeloService } from "./subir-modelo.service";
 import { CompletarArtefactosService } from "./completar-artefactos.service";
@@ -125,6 +126,7 @@ describe("Modelos IA - casos de uso", () => {
             eliminarPublico: jest.fn(),
             guardarPrivado,
             leerPrivado: jest.fn().mockResolvedValue(Buffer.from("contenido")),
+            abrirLecturaPrivada: jest.fn().mockResolvedValue({ flujo: Readable.from(["contenido"]), tamano: 9 }),
             eliminarPrivado,
         };
     });

@@ -1,3 +1,4 @@
+import type { Readable } from "node:stream";
 // Contrato de la app móvil (ModelManifestDto en Kotlin): los nombres en inglés no se cambian.
 
 export const ARTEFACTOS = ["model", "labels", "calibration"] as const;
@@ -30,5 +31,5 @@ export interface IDescargarArtefactoUseCase {
     ejecutar(consulta: {
         version: string;
         artefacto: Artefacto;
-    }): Promise<{ contenido: Buffer; tipoMime: string; nombre: string }>;
+    }): Promise<{ flujo: Readable; tamano: number; tipoMime: string; nombre: string }>;
 }

@@ -69,6 +69,7 @@ describe("Plagas - casos de uso", () => {
             eliminarPublico,
             guardarPrivado: jest.fn(),
             leerPrivado: jest.fn(),
+            abrirLecturaPrivada: jest.fn(),
             eliminarPrivado: jest.fn(),
         };
         obtener = new ObtenerPlagaService(repositorio);

@@ -1,7 +1,14 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerModule } from "@nestjs/throttler";
+import {
+    esRutaPublica,
+    THROTTLER_PUBLICO,
+    THROTTLER_USUARIO,
+    ThrottlerPorUsuarioGuard,
+} from "./common/guards/throttler-por-usuario.guard";
 import { SolicitudesModule } from "./modules/solicitudes/solicitudes.module";
 import { AutenticacionModule } from "./modules/autenticacion/autenticacion.module";
 import { AgronomosModule } from "./modules/agronomos/agronomos.module";
@@ -19,10 +26,15 @@ import { TelemetriaModule } from "./modules/telemetria/telemetria.module";
         ConfigModule.forRoot({
             isGlobal: true,
         }),
-        // Límite de peticiones por IP para las rutas públicas (OTP y registro). Solo se aplica
-        // donde se usa ThrottlerGuard; cada ruta ajusta su límite con @Throttle.
+        // Límites de peticiones, aplicados a TODAS las rutas por un guard global:
+        //  - "publico": rutas sin sesión (OTP, registro, modelos, telemetría), por IP; cada una ajusta su
+        //    límite con @Throttle({ publico: ... }), y esa anotación es la que la marca como pública.
+        //  - "usuario": el resto, por cuenta (o por IP si no hay token válido); se ajusta con @Throttle({ usuario: ... }).
         ThrottlerModule.forRoot({
-            throttlers: [{ name: "publico", ttl: 60_000, limit: 10 }],
+            throttlers: [
+                { name: THROTTLER_PUBLICO, ttl: 60_000, limit: 10, skipIf: (contexto) => !esRutaPublica(contexto) },
+                { name: THROTTLER_USUARIO, ttl: 60_000, limit: 240, skipIf: (contexto) => esRutaPublica(contexto) },
+            ],
             errorMessage: "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
         }),
         TypeOrmModule.forRoot({
@@ -50,6 +62,6 @@ import { TelemetriaModule } from "./modules/telemetria/telemetria.module";
         TelemetriaModule,
     ],
     controllers: [],
-    providers: [],
+    providers: [{ provide: APP_GUARD, useClass: ThrottlerPorUsuarioGuard }],
 })
 export class AppModule {}

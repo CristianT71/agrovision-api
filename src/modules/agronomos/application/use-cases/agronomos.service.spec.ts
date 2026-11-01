@@ -66,6 +66,7 @@ describe("Agrónomos - casos de uso", () => {
             eliminarPublico: jest.fn(),
             guardarPrivado,
             leerPrivado: jest.fn(),
+            abrirLecturaPrivada: jest.fn(),
             eliminarPrivado,
         };
     });

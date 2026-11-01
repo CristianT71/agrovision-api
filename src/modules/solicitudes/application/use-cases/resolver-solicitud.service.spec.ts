@@ -65,6 +65,7 @@ describe("Solicitudes - casos de uso", () => {
             eliminarPublico: jest.fn(),
             guardarPrivado,
             leerPrivado: jest.fn(),
+            abrirLecturaPrivada: jest.fn(),
             eliminarPrivado,
         };
         findAll = jest.fn(() => Promise.resolve([]));

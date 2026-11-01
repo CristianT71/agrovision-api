@@ -7,6 +7,7 @@ import { SMS_SERVICE, type ISmsService } from "../../domain/ports/out/sms.servic
 import { Usuario } from "../../domain/entities/usuario.entity";
 import { SesionOtp } from "../../domain/entities/sesion-otp.entity";
 import { v4 as uuidv4 } from "uuid";
+import { PresupuestoRegistrosOtp } from "./presupuesto-registros-otp";
 
 const SEGUNDOS_ENTRE_SOLICITUDES = 30;
 const MINUTOS_VIGENCIA_OTP = 5;
@@ -22,6 +23,8 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         private readonly sesionOtpRepository: ISesionOtpRepository,
         @Inject(SMS_SERVICE)
         private readonly smsService: ISmsService,
+        // Instancia propia por servicio: el cupo se comparte entre todas las peticiones del proceso
+        private readonly presupuestoRegistros = new PresupuestoRegistrosOtp(),
     ) {}
 
     async ejecutar(comando: SolicitarOtpCommand): Promise<{ mensaje: string; esperaSegundos: number }> {
@@ -36,6 +39,9 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
                     "No hay una cuenta registrada con este número. Si eres agricultor, ingresa desde la app móvil.",
                 );
             }
+
+            // Antes de crear la cuenta (y gastar un SMS en un número desconocido): tope global por hora
+            this.presupuestoRegistros.consumir(telefono);
 
             usuario = Usuario.registrarProductor(uuidv4(), telefono);
             await this.usuarioRepository.guardar(usuario);

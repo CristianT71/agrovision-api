@@ -180,6 +180,7 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             eliminarPublico: jest.fn(),
             guardarPrivado,
             leerPrivado: jest.fn().mockResolvedValue(JPEG),
+            abrirLecturaPrivada: jest.fn(),
             eliminarPrivado,
         };
     });

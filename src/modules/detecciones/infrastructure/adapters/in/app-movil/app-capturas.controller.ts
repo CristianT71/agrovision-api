@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { RecibirCapturasService } from "../../../../application/use-cases/recibir-capturas.service";
 import type { CapturaEntrada } from "../../../../domain/ports/in/recibir-capturas.port";
 import { LoteCapturasAppDto, type CapturaAppDto } from "./dto/app-capturas.dto";
@@ -16,6 +17,8 @@ import { UsuarioActual } from "../../../../../../common/decorators/usuario-actua
 export class AppCapturasController {
     constructor(private readonly recibirCapturasService: RecibirCapturasService) {}
 
+    // Cada lote puede pesar ~1 MB (embeddings): se limita el ritmo por cuenta
+    @Throttle({ usuario: { limit: 20, ttl: 60_000 } })
     @Post("batch")
     @HttpCode(HttpStatus.OK)
     async recibirLote(@Body() dto: LoteCapturasAppDto, @UsuarioActual("id") usuarioId: string) {
