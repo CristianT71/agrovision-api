@@ -19,8 +19,10 @@ export class SesionesService {
         private readonly sesionRepository: ISesionUsuarioRepository,
     ) {}
 
-    // La usa la estrategia JWT en cada petición autenticada (RNF-02.2)
-    async verificar(sesionId: string | undefined): Promise<void> {
+    // La usa la estrategia JWT en cada petición autenticada (RNF-02.2).
+    // Una petición de sondeo (el panel consulta solo, sin que el usuario haga nada) se valida igual,
+    // pero no cuenta como actividad: si no, una pestaña abierta y desatendida nunca caducaría.
+    async verificar(sesionId: string | undefined, { esSondeo = false }: { esSondeo?: boolean } = {}): Promise<void> {
         const sesion = sesionId ? await this.sesionRepository.findById(sesionId) : null;
         if (!sesion) {
             throw new UnauthorizedException(MENSAJES.desconocida);
@@ -32,7 +34,7 @@ export class SesionesService {
             throw new UnauthorizedException(MENSAJES[motivo]);
         }
 
-        if (sesion.necesitaRegistrarActividad(ahora)) {
+        if (!esSondeo && sesion.necesitaRegistrarActividad(ahora)) {
             await this.sesionRepository.registrarActividad(sesion.id, ahora);
         }
     }

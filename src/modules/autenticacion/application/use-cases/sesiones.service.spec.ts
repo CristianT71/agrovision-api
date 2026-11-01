@@ -48,6 +48,18 @@ describe("SesionesService", () => {
         expect(registrarActividad).not.toHaveBeenCalled();
     });
 
+    it("una petición de sondeo no renueva la actividad de la sesión", async () => {
+        await servicio.verificar("s-1", { esSondeo: true });
+
+        expect(registrarActividad).not.toHaveBeenCalled();
+    });
+
+    it("un sondeo con la sesión vencida por inactividad sigue siendo rechazado", async () => {
+        sesion = crearSesion("admin", 60, 31);
+
+        await expect(servicio.verificar("s-1", { esSondeo: true })).rejects.toThrow("inactividad");
+    });
+
     it("cierra la sesión del panel tras 30 minutos sin actividad (RNF-02.2)", async () => {
         sesion = crearSesion("admin", 60, 31);
 
