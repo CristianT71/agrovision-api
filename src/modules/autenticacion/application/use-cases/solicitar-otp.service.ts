@@ -1,4 +1,4 @@
-import { Inject, Injectable, ForbiddenException, HttpException, HttpStatus, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, Optional, ForbiddenException, HttpException, HttpStatus, NotFoundException } from "@nestjs/common";
 import { randomInt } from "node:crypto";
 import { ISolicitarOtpUseCase, SolicitarOtpCommand } from "../../domain/ports/in/solicitar-otp.port";
 import { USUARIO_REPOSITORY, type IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
@@ -24,6 +24,7 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         @Inject(SMS_SERVICE)
         private readonly smsService: ISmsService,
         // Instancia propia por servicio: el cupo se comparte entre todas las peticiones del proceso
+        @Optional()
         private readonly presupuestoRegistros = new PresupuestoRegistrosOtp(),
     ) {}
 
