@@ -20,7 +20,12 @@ export interface ListarSolicitudesQuery {
 
 // Lo que ve el panel: la solicitud con el nombre de su productor
 // tieneUbicacion avisa al panel si puede pedir /solicitudes/:id/ubicacion; las coordenadas no viajan aquí
-export type SolicitudVista = Solicitud & { productorNombre: string | null; tieneUbicacion: boolean };
+export type SolicitudVista = Solicitud & {
+    productorNombre: string | null;
+    tieneUbicacion: boolean;
+    // Solo en el detalle: versión legible del modelo de IA (p. ej. 1.3.2)
+    modeloVersion?: string | null;
+};
 
 // Misma forma que /detecciones
 export interface PaginaSolicitudes {

@@ -167,6 +167,7 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
         firmador = { firmar: (fotoId: string) => `http://api/v1/uploads/token-${fotoId}`, verificar };
         capturaModelo = {
             obtenerModeloIdPorIdCliente: () => Promise.resolve(null),
+            obtenerVersionPorModeloId: () => Promise.resolve(null),
             obtenerModeloIdPorVersion: () => Promise.resolve(null),
         };
         notificador = {

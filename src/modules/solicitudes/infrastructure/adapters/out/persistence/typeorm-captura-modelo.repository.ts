@@ -30,4 +30,11 @@ export class TypeOrmCapturaModeloRepository implements ICapturaModeloRepository 
         const modelo = await this.modelos.findOne({ select: { id: true }, where: { version } });
         return modelo?.id ?? null;
     }
+
+    async obtenerVersionPorModeloId(modeloId: string | null): Promise<string | null> {
+        if (!modeloId) return null;
+
+        const modelo = await this.modelos.findOne({ select: { version: true }, where: { id: modeloId } });
+        return modelo?.version ?? null;
+    }
 }
