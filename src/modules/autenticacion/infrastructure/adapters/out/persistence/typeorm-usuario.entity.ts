@@ -21,6 +21,13 @@ export class TypeOrmUsuarioEntity {
     @Column({ name: "correo_notificaciones", type: "boolean", default: false })
     correoNotificaciones: boolean;
 
+    // Habeas data: política de tratamiento de datos que la persona aceptó (null si no ha aceptado o la revocó)
+    @Column({ name: "politica_datos_version", type: "varchar", length: 20, nullable: true })
+    politicaDatosVersion: string | null;
+
+    @Column({ name: "politica_datos_fecha", type: "timestamp", nullable: true })
+    politicaDatosFecha: Date | null;
+
     @Column({ name: "fecha_registro", type: "timestamp" })
     fechaRegistro: Date;
 }

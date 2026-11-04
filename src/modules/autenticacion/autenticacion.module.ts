@@ -19,10 +19,13 @@ import { USUARIO_REPOSITORY } from "./domain/ports/out/usuario.repository";
 import { SESION_OTP_REPOSITORY } from "./domain/ports/out/sesion-otp.repository";
 import { SESION_USUARIO_REPOSITORY } from "./domain/ports/out/sesion-usuario.repository";
 import { SMS_SERVICE } from "./domain/ports/out/sms.service";
+import { POLITICA_DATOS_REPOSITORY } from "./domain/ports/out/politica-datos.repository";
+import { TypeOrmPoliticaDatosRepository } from "./infrastructure/adapters/out/persistence/typeorm-politica-datos.repository";
 
 import { SolicitarOtpService } from "./application/use-cases/solicitar-otp.service";
 import { ValidarOtpService } from "./application/use-cases/validar-otp.service";
 import { SesionesService } from "./application/use-cases/sesiones.service";
+import { PoliticaDatosService } from "./application/use-cases/politica-datos.service";
 import { AgronomosModule } from "../agronomos/agronomos.module";
 
 @Module({
@@ -47,10 +50,15 @@ import { AgronomosModule } from "../agronomos/agronomos.module";
         SolicitarOtpService,
         ValidarOtpService,
         SesionesService,
+        PoliticaDatosService,
         JwtStrategy,
         {
             provide: USUARIO_REPOSITORY,
             useClass: TypeOrmUsuarioRepository,
+        },
+        {
+            provide: POLITICA_DATOS_REPOSITORY,
+            useClass: TypeOrmPoliticaDatosRepository,
         },
         {
             provide: SESION_OTP_REPOSITORY,
