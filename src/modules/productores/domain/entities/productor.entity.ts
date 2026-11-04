@@ -14,6 +14,10 @@ export class Productor {
         public estado: EstadoProductor,
         public consentimiento: boolean,
         public fechaConsentimiento: Date | null,
+        // Habeas data (Ley 1581): política de tratamiento de datos que aceptó la persona. Viven en la
+        // cuenta (usuarios); aquí solo se exponen al administrador. null = sin aceptar o la revocó.
+        public politicaDatosVersion: string | null = null,
+        public politicaDatosFecha: Date | null = null,
     ) {}
 
     // Regla de Negocio (RF-10.2): Todo productor nuevo queda "registrado" y solo fecha su

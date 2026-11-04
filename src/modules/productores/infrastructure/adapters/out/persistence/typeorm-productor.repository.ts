@@ -26,11 +26,13 @@ export class TypeOrmProductorRepository implements IProductorRepository {
             entity.estado as EstadoProductor,
             entity.consentimiento,
             entity.fechaConsentimiento,
+            entity.usuario?.politicaDatosVersion ?? null,
+            entity.usuario?.politicaDatosFecha ?? null,
         );
     }
 
     async findById(id: string): Promise<Productor | null> {
-        const entity = await this.repository.findOne({ where: { id } });
+        const entity = await this.repository.findOne({ where: { id }, relations: { usuario: true } });
         if (!entity) return null;
 
         return this.toDomain(entity);
@@ -69,6 +71,7 @@ export class TypeOrmProductorRepository implements IProductorRepository {
 
         const entities = await this.repository.find({
             where,
+            relations: { usuario: true },
             order: { nombre: "ASC" },
         });
 
