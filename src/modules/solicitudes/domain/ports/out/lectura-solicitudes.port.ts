@@ -6,9 +6,16 @@ import type { FiltrosMapa, PuntoMapa } from "../in/ubicacion-solicitudes.port";
 import type { VentanaTiempo } from "../../../../../common/utils/ventana-tiempo";
 
 // Solicitud con los datos del productor que muestra el panel (la tabla solicitudes solo guarda su id)
+export interface AutorizacionDatos {
+    version: string;
+    fecha: Date | null;
+}
+
 export interface SolicitudConProductor {
     solicitud: Solicitud;
     productorNombre: string | null;
+    // Solo en obtener(): autorización de datos (habeas data) vigente del productor; null si no la tiene
+    autorizacionDatos?: AutorizacionDatos | null;
 }
 
 export interface FiltrosLecturaSolicitudes extends FiltrosSolicitud {

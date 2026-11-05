@@ -19,6 +19,8 @@ describe("SesionesService", () => {
     let registrarActividad: jest.Mock<Promise<void>, [string, Date]>;
     let revocar: jest.Mock<Promise<void>, [string, Date]>;
     let servicio: SesionesService;
+    let minutosPanel: number;
+    let consultasPolitica: jest.Mock<Promise<number>, []>;
 
     beforeEach(() => {
         sesion = crearSesion("agronomo", 10, 5);
@@ -31,7 +33,9 @@ describe("SesionesService", () => {
             registrarActividad,
             revocar,
         };
-        servicio = new SesionesService(repositorio);
+        minutosPanel = 30;
+        consultasPolitica = jest.fn<Promise<number>, []>(() => Promise.resolve(minutosPanel));
+        servicio = new SesionesService(repositorio, { minutosInactividadPanel: consultasPolitica });
     });
 
     it("acepta una sesión con actividad reciente y renueva su actividad", async () => {
@@ -64,6 +68,28 @@ describe("SesionesService", () => {
         sesion = crearSesion("admin", 60, 31);
 
         await expect(servicio.verificar("s-1")).rejects.toThrow("inactividad");
+    });
+
+    it("usa la inactividad configurada: con 15 minutos cierra una sesión inactiva hace 20", async () => {
+        minutosPanel = 15;
+        sesion = crearSesion("agronomo", 60, 20);
+
+        await expect(servicio.verificar("s-1")).rejects.toThrow("inactividad");
+    });
+
+    it("usa la inactividad configurada: con 4 horas mantiene una sesión inactiva hace 2", async () => {
+        minutosPanel = 240;
+        sesion = crearSesion("admin", 180, 120);
+
+        await expect(servicio.verificar("s-1")).resolves.toBeUndefined();
+    });
+
+    it("el ajuste del panel no cambia la sesión del productor ni la consulta", async () => {
+        minutosPanel = 15;
+        sesion = crearSesion("productor", 60, 20);
+
+        await expect(servicio.verificar("s-1")).resolves.toBeUndefined();
+        expect(consultasPolitica).not.toHaveBeenCalled();
     });
 
     it("la sesión del productor en la app no se cierra por 30 minutos sin actividad", async () => {

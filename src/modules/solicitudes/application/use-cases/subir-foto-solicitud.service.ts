@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type { ISubirFotoSolicitudUseCase, SubirFotoCommand } from "../../domain/ports/in/solicitudes-app.port";
 import {
     SOLICITUD_APP_REPOSITORY,
@@ -10,12 +10,15 @@ import {
     ALMACENAMIENTO_ARCHIVOS,
     type IAlmacenamientoArchivos,
 } from "../../../../common/almacenamiento/almacenamiento.port";
+import { AsignarAutomaticamenteService } from "./asignar-automaticamente.service";
 import { TIPOS_IMAGEN, validarArchivo } from "../../../../common/almacenamiento/validar-archivo";
 
 export const MAX_BYTES_FOTO_SOLICITUD = 10 * 1024 * 1024;
 
 @Injectable()
 export class SubirFotoSolicitudService implements ISubirFotoSolicitudUseCase {
+    private readonly logger = new Logger(SubirFotoSolicitudService.name);
+
     constructor(
         @Inject(SOLICITUD_APP_REPOSITORY)
         private readonly solicitudAppRepository: ISolicitudAppRepository,
@@ -25,6 +28,7 @@ export class SubirFotoSolicitudService implements ISubirFotoSolicitudUseCase {
         private readonly firmador: IFirmadorUrlsSubida,
         @Inject(ALMACENAMIENTO_ARCHIVOS)
         private readonly almacenamiento: IAlmacenamientoArchivos,
+        private readonly asignarAutomaticamenteService: AsignarAutomaticamenteService,
     ) {}
 
     async ejecutar(comando: SubirFotoCommand): Promise<void> {
@@ -75,6 +79,18 @@ export class SubirFotoSolicitudService implements ISubirFotoSolicitudUseCase {
 
         solicitud.marcarEnviada(fotos);
         // UPDATE condicionado a "Pendiente": si dos fotos terminan a la vez, solo una la envía
-        await this.solicitudAppRepository.guardarEnvio(solicitud);
+        const enviada = await this.solicitudAppRepository.guardarEnvio(solicitud);
+        if (enviada) await this.asignarSiCorresponde(solicitudId);
+    }
+
+    // La subida de la foto ya salió bien: si la asignación automática falla, el caso queda para el administrador
+    private async asignarSiCorresponde(solicitudId: string): Promise<void> {
+        try {
+            await this.asignarAutomaticamenteService.ejecutar(solicitudId);
+        } catch (error) {
+            this.logger.warn(
+                `No se pudo asignar automáticamente la solicitud ${solicitudId}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        }
     }
 }

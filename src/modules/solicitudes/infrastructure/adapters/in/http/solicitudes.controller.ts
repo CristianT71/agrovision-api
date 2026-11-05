@@ -226,6 +226,7 @@ export class SolicitudesController {
         const solicitud = await this.asignarSolicitudService.ejecutar({
             solicitudId: id,
             agronomoId: dto.agronomoId,
+            confirmarSobrecarga: dto.confirmarSobrecarga,
         });
 
         return {

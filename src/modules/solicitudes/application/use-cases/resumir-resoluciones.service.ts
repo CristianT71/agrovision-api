@@ -16,8 +16,8 @@ import {
     DIAS_VENTANA_RESOLUCIONES,
     inicioSemanaAlerta,
     MAX_CASOS_PLAGA_NUEVA,
-    UMBRAL_PLAGA_NUEVA_SEMANAL,
 } from "../../domain/services/resoluciones";
+import { UMBRAL_PLAGA_NUEVA, type IUmbralPlagaNueva } from "../../domain/ports/out/umbral-plaga-nueva.port";
 import { resolverVentana } from "../../../../common/utils/ventana-tiempo";
 
 // RF-06.5 a RF-06.7: tablero de resoluciones del administrador. Trae datos del productor de cada
@@ -27,6 +27,8 @@ export class ResumirResolucionesService implements IResumirResolucionesUseCase {
     constructor(
         @Inject(LECTURA_SOLICITUDES)
         private readonly lecturaSolicitudes: ILecturaSolicitudes,
+        @Inject(UMBRAL_PLAGA_NUEVA)
+        private readonly umbralPlagaNueva: IUmbralPlagaNueva,
     ) {}
 
     async ejecutar(
@@ -41,11 +43,12 @@ export class ResumirResolucionesService implements IResumirResolucionesUseCase {
         const ahora = new Date();
         const ventana = resolverVentana(consulta.desde, consulta.hasta, ahora, DIAS_VENTANA_RESOLUCIONES);
 
-        const [porTipoCrudo, fechasPlagaNueva, recientes, casosUltimaSemana] = await Promise.all([
+        const [porTipoCrudo, fechasPlagaNueva, recientes, casosUltimaSemana, umbral] = await Promise.all([
             this.lecturaSolicitudes.contarResueltasPorTipo(ventana),
             this.lecturaSolicitudes.fechasPlagaNueva(ventana),
             this.lecturaSolicitudes.listarPlagaNueva(ventana, MAX_CASOS_PLAGA_NUEVA),
             this.lecturaSolicitudes.contarPlagaNuevaDesde(inicioSemanaAlerta(ahora)),
+            this.umbralPlagaNueva.obtener(),
         ]);
 
         const porTipo = completarPorTipo(porTipoCrudo);
@@ -56,9 +59,9 @@ export class ResumirResolucionesService implements IResumirResolucionesUseCase {
             total: porTipo.reduce((suma, fila) => suma + fila.casos, 0),
             porTipo,
             plagasNuevas: {
-                umbral: UMBRAL_PLAGA_NUEVA_SEMANAL,
+                umbral,
                 casosUltimaSemana,
-                alertaActiva: alcanzaUmbralPlagaNueva(casosUltimaSemana),
+                alertaActiva: alcanzaUmbralPlagaNueva(casosUltimaSemana, umbral),
                 serie: agruparPorDia(fechasPlagaNueva),
                 casos: recientes.map(aCasoPlagaNueva),
             },

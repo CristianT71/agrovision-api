@@ -5,6 +5,7 @@ import type { ISolicitudRepository } from "../../domain/ports/out/solicitud.repo
 import type { INotificadorSolicitudes } from "../../domain/ports/out/notificador-solicitudes.port";
 import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
 import { Agronomo, type EstadoAgronomo } from "../../../agronomos/domain/entities/agronomo.entity";
+import type { IPoliticaAsignacion } from "../../domain/ports/out/politica-asignacion.port";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 
 const crearSolicitud = (estado: EstadoSolicitud, agronomoId: string | null) =>
@@ -33,8 +34,12 @@ describe("AsignarSolicitudService", () => {
     let solicitudes: ISolicitudRepository;
     let agronomos: IAgronomoRepository;
     let notificador: INotificadorSolicitudes;
+    let cargaMaxima: number | null;
+    let casosActivos: number;
 
     beforeEach(() => {
+        cargaMaxima = null;
+        casosActivos = 0;
         solicitud = crearSolicitud("Enviada", null);
         agronomo = crearAgronomo("a-1");
         guardarAsignacion = jest.fn<Promise<boolean>, [Solicitud, Anterior]>(() => Promise.resolve(true));
@@ -50,7 +55,10 @@ describe("AsignarSolicitudService", () => {
             guardarAsignacion,
             guardarAltitudDeServicio: jest.fn(),
         };
-        agronomos = { findById: () => Promise.resolve(agronomo) } as unknown as IAgronomoRepository;
+        agronomos = {
+            findById: () => Promise.resolve(agronomo),
+            contarCasosActivos: () => Promise.resolve(new Map([["a-1", casosActivos]])),
+        } as unknown as IAgronomoRepository;
         notificador = {
             notificarAsignacion,
             notificarNuevaSolicitud: jest.fn(),
@@ -59,8 +67,16 @@ describe("AsignarSolicitudService", () => {
         };
     });
 
-    const asignar = (agronomoId = "a-1") =>
-        new AsignarSolicitudService(solicitudes, agronomos, notificador).ejecutar({ solicitudId: "s-1", agronomoId });
+    const politica = (): IPoliticaAsignacion => ({
+        obtener: () => Promise.resolve({ asignacionAutomatica: false, cargaMaxima }),
+    });
+
+    const asignar = (agronomoId = "a-1", confirmarSobrecarga?: boolean) =>
+        new AsignarSolicitudService(solicitudes, agronomos, notificador, politica()).ejecutar({
+            solicitudId: "s-1",
+            agronomoId,
+            confirmarSobrecarga,
+        });
 
     it("asigna una solicitud enviada y la deja Asignada", async () => {
         const asignada = await asignar();
@@ -131,6 +147,36 @@ describe("AsignarSolicitudService", () => {
 
         await expect(asignar()).rejects.toBeInstanceOf(ConflictException);
         expect(notificarAsignacion).not.toHaveBeenCalled();
+    });
+
+    describe("carga máxima (RF-08.4)", () => {
+        it("asigna si el agrónomo queda dentro del máximo", async () => {
+            cargaMaxima = 3;
+            casosActivos = 2;
+
+            await expect(asignar()).resolves.toMatchObject({ agronomoId: "a-1" });
+        });
+
+        it("pide confirmación si el agrónomo superaría el máximo", async () => {
+            cargaMaxima = 3;
+            casosActivos = 3;
+
+            await expect(asignar()).rejects.toBeInstanceOf(ReglaNegocioError);
+            expect(guardarAsignacion).not.toHaveBeenCalled();
+        });
+
+        it("asigna de todos modos si el administrador lo confirma", async () => {
+            cargaMaxima = 3;
+            casosActivos = 3;
+
+            await expect(asignar("a-1", true)).resolves.toMatchObject({ agronomoId: "a-1" });
+        });
+
+        it("sin límite no consulta la carga", async () => {
+            casosActivos = 99;
+
+            await expect(asignar()).resolves.toMatchObject({ agronomoId: "a-1" });
+        });
     });
 
     it("mantiene la asignación si el aviso falla", async () => {

@@ -20,6 +20,7 @@ import { PermisosContactoModule } from "./modules/permisos-contacto/permisos-con
 import { ModelosIaModule } from "./modules/modelos-ia/modelos-ia.module";
 import { DeteccionesModule } from "./modules/detecciones/detecciones.module";
 import { TelemetriaModule } from "./modules/telemetria/telemetria.module";
+import { AjustesModule } from "./modules/ajustes/ajustes.module";
 
 @Module({
     imports: [
@@ -60,6 +61,7 @@ import { TelemetriaModule } from "./modules/telemetria/telemetria.module";
         ModelosIaModule,
         DeteccionesModule,
         TelemetriaModule,
+        AjustesModule,
     ],
     controllers: [],
     providers: [{ provide: APP_GUARD, useClass: ThrottlerPorUsuarioGuard }],

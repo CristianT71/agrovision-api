@@ -33,7 +33,11 @@ describe("PoliticaDatosService", () => {
     it("sin aceptación previa, la política no está aceptada", async () => {
         const estado = await servicio.consultar("u-1");
 
-        expect(estado).toMatchObject({ versionVigente: VERSION_POLITICA_DATOS, versionAceptada: null, aceptada: false });
+        expect(estado).toMatchObject({
+            versionVigente: VERSION_POLITICA_DATOS,
+            versionAceptada: null,
+            aceptada: false,
+        });
     });
 
     it("registra la versión vigente con su fecha", async () => {

@@ -27,6 +27,9 @@ import { ValidarOtpService } from "./application/use-cases/validar-otp.service";
 import { SesionesService } from "./application/use-cases/sesiones.service";
 import { PoliticaDatosService } from "./application/use-cases/politica-datos.service";
 import { AgronomosModule } from "../agronomos/agronomos.module";
+import { AjustesModule } from "../ajustes/ajustes.module";
+import { POLITICA_SESION } from "./domain/ports/out/politica-sesion.port";
+import { AjustesPoliticaSesionAdapter } from "./infrastructure/adapters/out/ajustes/ajustes-politica-sesion.adapter";
 
 @Module({
     imports: [
@@ -35,6 +38,8 @@ import { AgronomosModule } from "../agronomos/agronomos.module";
         TypeOrmModule.forFeature([TypeOrmUsuarioEntity, TypeOrmSesionOtpEntity, TypeOrmSesionUsuarioEntity]),
         // El login consulta el estado del agrónomo (RF-10.5)
         AgronomosModule,
+        // La inactividad permitida en el panel sale de los ajustes del sistema
+        AjustesModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
@@ -52,6 +57,10 @@ import { AgronomosModule } from "../agronomos/agronomos.module";
         SesionesService,
         PoliticaDatosService,
         JwtStrategy,
+        {
+            provide: POLITICA_SESION,
+            useClass: AjustesPoliticaSesionAdapter,
+        },
         {
             provide: USUARIO_REPOSITORY,
             useClass: TypeOrmUsuarioRepository,

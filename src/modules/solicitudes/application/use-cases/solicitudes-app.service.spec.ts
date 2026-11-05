@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Logger, NotFoundException } from "@nestjs/common";
 import { RecibirLoteSolicitudesService } from "./recibir-lote-solicitudes.service";
 import { VerificarAccesoSolicitudService } from "./verificar-acceso-solicitud.service";
 import type { ILecturaSolicitudes } from "../../domain/ports/out/lectura-solicitudes.port";
 import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
 import { SubirFotoSolicitudService } from "./subir-foto-solicitud.service";
+import type { AsignarAutomaticamenteService } from "./asignar-automaticamente.service";
 import { ListarMisSolicitudesService } from "./listar-mis-solicitudes.service";
 import { ListarFotosSolicitudService } from "./listar-fotos-solicitud.service";
 import { DescargarFotoSolicitudService } from "./descargar-foto-solicitud.service";
@@ -304,13 +305,18 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             buffer: contenido,
         });
 
+        const asignarAutomaticamente = jest.fn<Promise<Solicitud | null>, [string]>(() => Promise.resolve(null));
+
         const subir = (contenido?: Buffer) =>
-            new SubirFotoSolicitudService(appRepository, solicitudRepository, firmador, almacenamiento).ejecutar({
+            new SubirFotoSolicitudService(appRepository, solicitudRepository, firmador, almacenamiento, {
+                ejecutar: asignarAutomaticamente,
+            } as unknown as AsignarAutomaticamenteService).ejecutar({
                 token: "token",
                 archivo: archivo(contenido),
             });
 
         beforeEach(() => {
+            asignarAutomaticamente.mockClear();
             solicitudes.set("c-1", crearSolicitud());
             fotos.push(crearFoto("f-1", 1), crearFoto("f-2", 2));
         });
@@ -349,6 +355,33 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
 
             expect(guardarEnvio).toHaveBeenCalledTimes(1);
             expect(guardarEnvio.mock.calls[0][0].estado).toBe("Enviada");
+        });
+
+        it("con la última foto intenta la asignación automática", async () => {
+            fotos[1].marcarSubida("solicitudes/s-1/2.jpg", "image/jpeg", 100);
+
+            await subir();
+
+            expect(asignarAutomaticamente).toHaveBeenCalledWith("s-1");
+        });
+
+        it("no intenta asignar si otra petición ya había enviado la solicitud", async () => {
+            fotos[1].marcarSubida("solicitudes/s-1/2.jpg", "image/jpeg", 100);
+            guardarEnvio.mockResolvedValue(false);
+
+            await subir();
+
+            expect(asignarAutomaticamente).not.toHaveBeenCalled();
+        });
+
+        it("si la asignación automática falla, la subida igual responde OK", async () => {
+            fotos[1].marcarSubida("solicitudes/s-1/2.jpg", "image/jpeg", 100);
+            asignarAutomaticamente.mockRejectedValueOnce(new Error("sin conexión"));
+            const warn = jest.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
+
+            await expect(subir()).resolves.toBeUndefined();
+
+            warn.mockRestore();
         });
 
         it("si la foto ya estaba subida responde OK sin guardarla de nuevo", async () => {

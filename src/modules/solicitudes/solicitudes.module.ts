@@ -29,6 +29,12 @@ import { LECTURA_SOLICITUDES } from "./domain/ports/out/lectura-solicitudes.port
 import { NOTIFICADOR_SOLICITUDES } from "./domain/ports/out/notificador-solicitudes.port";
 import { CAPTURA_MODELO_REPOSITORY } from "./domain/ports/out/captura-modelo.repository";
 import { FIRMADOR_URLS_SUBIDA, type IFirmadorUrlsSubida } from "./domain/ports/out/firmador-urls-subida.port";
+import { AjustesModule } from "../ajustes/ajustes.module";
+import { AjustesPoliticaAsignacionAdapter } from "./infrastructure/adapters/out/ajustes/ajustes-politica-asignacion.adapter";
+import { AjustesUmbralPlagaNuevaAdapter } from "./infrastructure/adapters/out/ajustes/ajustes-umbral-plaga-nueva.adapter";
+import { UMBRAL_PLAGA_NUEVA } from "./domain/ports/out/umbral-plaga-nueva.port";
+import { POLITICA_ASIGNACION } from "./domain/ports/out/politica-asignacion.port";
+import { AsignarAutomaticamenteService } from "./application/use-cases/asignar-automaticamente.service";
 import { AgronomosModule } from "../agronomos/agronomos.module";
 import { NotificacionesModule } from "../notificaciones/notificaciones.module";
 import { ProductoresModule } from "../productores/productores.module";
@@ -66,6 +72,7 @@ import { TypeOrmCapturaModeloRepository } from "./infrastructure/adapters/out/pe
             TypeOrmDeteccionEntity,
         ]),
         AgronomosModule,
+        AjustesModule,
         NotificacionesModule,
         ProductoresModule,
         AlmacenamientoModule,
@@ -77,6 +84,7 @@ import { TypeOrmCapturaModeloRepository } from "./infrastructure/adapters/out/pe
         ListarSolicitudesService,
         ObtenerSolicitudPorIdService,
         AsignarSolicitudService,
+        AsignarAutomaticamenteService,
         RecibirLoteSolicitudesService,
         SubirFotoSolicitudService,
         ListarMisSolicitudesService,
@@ -109,6 +117,14 @@ import { TypeOrmCapturaModeloRepository } from "./infrastructure/adapters/out/pe
         {
             provide: NOTIFICADOR_SOLICITUDES,
             useClass: NotificacionesSolicitudesAdapter,
+        },
+        {
+            provide: UMBRAL_PLAGA_NUEVA,
+            useClass: AjustesUmbralPlagaNuevaAdapter,
+        },
+        {
+            provide: POLITICA_ASIGNACION,
+            useClass: AjustesPoliticaAsignacionAdapter,
         },
         {
             provide: CAPTURA_MODELO_REPOSITORY,

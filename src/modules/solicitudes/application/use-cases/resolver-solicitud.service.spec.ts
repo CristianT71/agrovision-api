@@ -104,6 +104,10 @@ describe("Solicitudes - casos de uso", () => {
         };
     });
 
+    // Umbral vigente en Ajustes; cada prueba puede cambiarlo
+    let umbralConfigurado = 5;
+    const umbral = { obtener: () => Promise.resolve(umbralConfigurado) };
+
     describe("ResolverSolicitudService", () => {
         const PDF: ArchivoParaGuardar = {
             nombreOriginal: "informe.pdf",
@@ -112,12 +116,14 @@ describe("Solicitudes - casos de uso", () => {
         };
 
         const resolver = (anexos: ArchivoParaGuardar[] = []) =>
-            new ResolverSolicitudService(solicitudes, agronomos, almacenamiento, lectura, notificador).ejecutar({
-                solicitudId: "s-1",
-                usuarioId: "u-a-1",
-                ...RESOLUCION,
-                anexos,
-            });
+            new ResolverSolicitudService(solicitudes, agronomos, almacenamiento, lectura, notificador, umbral).ejecutar(
+                {
+                    solicitudId: "s-1",
+                    usuarioId: "u-a-1",
+                    ...RESOLUCION,
+                    anexos,
+                },
+            );
 
         it("resuelve la solicitud asignada al agrónomo autenticado", async () => {
             await resolver();
@@ -196,7 +202,14 @@ describe("Solicitudes - casos de uso", () => {
         // Cada resolución es un caso distinto, asignado al agrónomo autenticado
         const resolverComo = async (tipoResultado: TipoResultado) => {
             solicitud = crearSolicitud("Asignada", "a-1");
-            await new ResolverSolicitudService(solicitudes, agronomos, almacenamiento, lectura, notificador).ejecutar({
+            await new ResolverSolicitudService(
+                solicitudes,
+                agronomos,
+                almacenamiento,
+                lectura,
+                notificador,
+                umbral,
+            ).ejecutar({
                 solicitudId: "s-1",
                 usuarioId: "u-a-1",
                 ...RESOLUCION,
@@ -209,6 +222,7 @@ describe("Solicitudes - casos de uso", () => {
         };
 
         beforeEach(() => {
+            umbralConfigurado = 5;
             jest.useFakeTimers({ now: INICIO });
         });
 
@@ -227,6 +241,22 @@ describe("Solicitudes - casos de uso", () => {
 
             expect(notificarAlertaPlagas).toHaveBeenCalledTimes(1);
             expect(notificarAlertaPlagas).toHaveBeenCalledWith({ casos: 5, umbral: 5 });
+        });
+
+        it("respeta el umbral configurado: con 3 se crea al 3.er caso", async () => {
+            umbralConfigurado = 3;
+
+            await resolverPlagasNuevas(3);
+
+            expect(notificarAlertaPlagas).toHaveBeenCalledWith({ casos: 3, umbral: 3 });
+        });
+
+        it("respeta el umbral configurado: con 10 no se crea con 5 casos", async () => {
+            umbralConfigurado = 10;
+
+            await resolverPlagasNuevas(5);
+
+            expect(notificarAlertaPlagas).not.toHaveBeenCalled();
         });
 
         it("no se repite con el 6.º dentro de la misma semana", async () => {

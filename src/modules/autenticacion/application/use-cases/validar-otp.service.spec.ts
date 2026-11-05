@@ -87,50 +87,50 @@ describe("ValidarOtpService", () => {
     });
 
     it("no abre sesión si el código es incorrecto", async () => {
-        await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: "000000" }),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
+        await expect(servicio.ejecutar({ telefono: TELEFONO, codigo: "000000" })).rejects.toBeInstanceOf(
+            UnauthorizedException,
+        );
         expect(sesionCreada).not.toHaveBeenCalled();
     });
 
     it("registra el intento fallido cuando el código no coincide", async () => {
-        await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: "000000" }),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
+        await expect(servicio.ejecutar({ telefono: TELEFONO, codigo: "000000" })).rejects.toBeInstanceOf(
+            UnauthorizedException,
+        );
         expect(intentoFallido).toHaveBeenCalledWith("s-1");
     });
 
     it("bloquea el código al agotar los intentos aunque luego llegue el correcto", async () => {
         sesion!.intentos = MAX_INTENTOS_OTP;
 
-        await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO }),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
+        await expect(servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO })).rejects.toBeInstanceOf(
+            UnauthorizedException,
+        );
     });
 
     it("rechaza cuando otra petición ya consumió el código", async () => {
         consumir.mockResolvedValue(false);
 
-        await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO }),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
+        await expect(servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO })).rejects.toBeInstanceOf(
+            UnauthorizedException,
+        );
     });
 
     it("rechaza cuentas inactivas", async () => {
         usuario!.estado = "inactivo";
 
-        await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO }),
-        ).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO })).rejects.toBeInstanceOf(
+            ForbiddenException,
+        );
     });
 
     it("no deja entrar a un agrónomo pendiente de validación", async () => {
         usuario = crearUsuario("agronomo");
         agronomo = crearAgronomo("pendiente");
 
-        await expect(
-            servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO }),
-        ).rejects.toThrow("pendiente de validación");
+        await expect(servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO })).rejects.toThrow(
+            "pendiente de validación",
+        );
     });
 
     it("deja entrar a un agrónomo activo", async () => {

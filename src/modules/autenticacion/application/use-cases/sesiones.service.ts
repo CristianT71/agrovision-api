@@ -3,6 +3,7 @@ import {
     SESION_USUARIO_REPOSITORY,
     type ISesionUsuarioRepository,
 } from "../../domain/ports/out/sesion-usuario.repository";
+import { POLITICA_SESION, type IPoliticaSesion } from "../../domain/ports/out/politica-sesion.port";
 import type { MotivoSesionInvalida } from "../../domain/entities/sesion-usuario.entity";
 
 const MENSAJES: Record<MotivoSesionInvalida | "desconocida", string> = {
@@ -17,6 +18,8 @@ export class SesionesService {
     constructor(
         @Inject(SESION_USUARIO_REPOSITORY)
         private readonly sesionRepository: ISesionUsuarioRepository,
+        @Inject(POLITICA_SESION)
+        private readonly politicaSesion: IPoliticaSesion,
     ) {}
 
     // La usa la estrategia JWT en cada petición autenticada (RNF-02.2).
@@ -29,7 +32,10 @@ export class SesionesService {
         }
 
         const ahora = new Date();
-        const motivo = sesion.motivoInvalida(ahora);
+        // El tiempo de inactividad del panel lo fija el administrador; el productor no lo usa, así que no se consulta
+        const minutosPanel =
+            sesion.rol === "productor" ? undefined : await this.politicaSesion.minutosInactividadPanel();
+        const motivo = sesion.motivoInvalida(ahora, minutosPanel);
         if (motivo) {
             throw new UnauthorizedException(MENSAJES[motivo]);
         }

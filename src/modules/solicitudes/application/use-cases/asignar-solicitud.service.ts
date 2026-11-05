@@ -5,6 +5,7 @@ import { SOLICITUD_REPOSITORY } from "../../domain/ports/out/solicitud.repositor
 import type { INotificadorSolicitudes } from "../../domain/ports/out/notificador-solicitudes.port";
 import { NOTIFICADOR_SOLICITUDES } from "../../domain/ports/out/notificador-solicitudes.port";
 import { AGRONOMO_REPOSITORY, type IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
+import { POLITICA_ASIGNACION, type IPoliticaAsignacion } from "../../domain/ports/out/politica-asignacion.port";
 import { Solicitud } from "../../domain/entities/solicitud.entity";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 
@@ -19,6 +20,8 @@ export class AsignarSolicitudService implements IAsignarSolicitudUseCase {
         private readonly agronomoRepository: IAgronomoRepository,
         @Inject(NOTIFICADOR_SOLICITUDES)
         private readonly notificador: INotificadorSolicitudes,
+        @Inject(POLITICA_ASIGNACION)
+        private readonly politica: IPoliticaAsignacion,
     ) {}
 
     async ejecutar(comando: AsignarSolicitudCommand): Promise<Solicitud> {
@@ -42,19 +45,32 @@ export class AsignarSolicitudService implements IAsignarSolicitudUseCase {
             throw new ReglaNegocioError("Solo se pueden asignar casos a agrónomos activos.");
         }
 
-        // 3. Recordar cómo estaba antes de cambiarla: es la condición del UPDATE
+        // 3. RF-08.4: pasar de la carga máxima se permite, pero solo si el administrador lo confirma
+        if (!comando.confirmarSobrecarga) {
+            const { cargaMaxima } = await this.politica.obtener();
+            if (cargaMaxima !== null) {
+                const casos = (await this.agronomoRepository.contarCasosActivos([agronomo.id])).get(agronomo.id) ?? 0;
+                if (casos + 1 > cargaMaxima) {
+                    throw new ReglaNegocioError(
+                        `${agronomo.nombre} ya tiene ${casos} ${casos === 1 ? "caso" : "casos"} en curso y el máximo es ${cargaMaxima}. Confirma para asignarlo de todos modos.`,
+                    );
+                }
+            }
+        }
+
+        // 4. Recordar cómo estaba antes de cambiarla: es la condición del UPDATE
         const anterior = { estado: solicitud.estado, agronomoId: solicitud.agronomoId };
 
-        // 4. Ejecutar la lógica de negocio pura del dominio (RF-08.3)
+        // 5. Ejecutar la lógica de negocio pura del dominio (RF-08.3)
         solicitud.asignarAgronomo(agronomo.id);
 
-        // 5. Persistir sin pisar un cambio que haya llegado primero
+        // 6. Persistir sin pisar un cambio que haya llegado primero
         const guardada = await this.solicitudRepository.guardarAsignacion(solicitud, anterior);
         if (!guardada) {
             throw new ConflictException("La solicitud cambió mientras se asignaba. Recarga para ver su estado.");
         }
 
-        // 6. Avisar al profesional; si el aviso falla, la asignación no se deshace
+        // 7. Avisar al profesional; si el aviso falla, la asignación no se deshace
         try {
             await this.notificador.notificarAsignacion({
                 solicitudId: solicitud.id,

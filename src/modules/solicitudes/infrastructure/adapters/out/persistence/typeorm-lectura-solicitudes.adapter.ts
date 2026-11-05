@@ -121,8 +121,17 @@ export class TypeOrmLecturaSolicitudesAdapter implements ILecturaSolicitudes {
     }
 
     async obtener(id: string): Promise<SolicitudConProductor | null> {
-        const entity = await this.consultaBase().where("s.id = :id", { id }).getOne();
-        return entity ? this.aResultado(entity) : null;
+        const entity = await this.consultaBase()
+            .leftJoinAndSelect("p.usuario", "u")
+            .where("s.id = :id", { id })
+            .getOne();
+        if (!entity) return null;
+
+        const usuario = entity.productor?.usuario;
+        const autorizacionDatos = usuario?.politicaDatosVersion
+            ? { version: usuario.politicaDatosVersion, fecha: usuario.politicaDatosFecha ?? null }
+            : null;
+        return { ...this.aResultado(entity), autorizacionDatos };
     }
 
     async listarMapa(filtros: FiltrosMapa, limite: number): Promise<PuntoMapa[]> {

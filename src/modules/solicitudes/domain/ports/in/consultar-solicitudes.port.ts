@@ -25,6 +25,8 @@ export type SolicitudVista = Solicitud & {
     tieneUbicacion: boolean;
     // Solo en el detalle: versión legible del modelo de IA (p. ej. 1.3.2)
     modeloVersion?: string | null;
+    // Solo en el detalle: autorización de datos personales (Ley 1581) del productor
+    autorizacionDatos?: { version: string; fecha: Date | null } | null;
 };
 
 // Misma forma que /detecciones
