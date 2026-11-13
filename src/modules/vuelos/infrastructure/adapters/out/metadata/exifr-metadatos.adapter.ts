@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { createReadStream } from "node:fs";
+import { open } from "node:fs/promises";
 import { extname } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import type { IExtractorMetadatos } from "../../../../domain/ports/out/extractor-metadatos.port";
@@ -8,8 +9,23 @@ import { parsearSrt } from "../../../../domain/services/parser-srt";
 
 // Interfaz mínima del lector externo; los datos no confiables se normalizan en el dominio.
 const exifr = require("exifr") as {
-    parse(ruta: string, opciones: Record<string, unknown>): Promise<Record<string, unknown> | undefined>;
+    parse(entrada: string | Buffer, opciones: Record<string, unknown>): Promise<Record<string, unknown> | undefined>;
 };
+
+// exifr falla al leer por ruta en Node 26 (FileHandle.stat exige un objeto). Se entrega solo la
+// cabecera del archivo como Buffer: allí vive el EXIF/XMP y la memoria queda acotada.
+const BYTES_CABECERA = 4 * 1024 * 1024;
+async function leerCabecera(ruta: string): Promise<Buffer> {
+    const archivo = await open(ruta, "r");
+    try {
+        const { size } = await archivo.stat({});
+        const buffer = Buffer.alloc(Math.min(size, BYTES_CABECERA));
+        const { bytesRead } = await archivo.read(buffer, 0, buffer.length, 0);
+        return buffer.subarray(0, bytesRead);
+    } finally {
+        await archivo.close();
+    }
+}
 
 // Lectura acotada incluso cuando un SRT malformado tiene una línea de varios gigabytes.
 export async function* lineasAcotadas(ruta: string): AsyncGenerator<string> {
@@ -46,9 +62,9 @@ export class ExifrMetadatosAdapter implements IExtractorMetadatos {
         }
         if ([".mp4", ".mov"].includes(extension)) return normalizarTags({}, nombre);
         try {
-            // FsReader lee segmentos por posición: nunca se entrega el archivo como Buffer completo.
+            const cabecera = await leerCabecera(ruta);
             // reviveValues=false conserva DateTimeOriginal tal como llegó, antes de aplicar la zona.
-            const tags = await exifr.parse(ruta, {
+            const tags = await exifr.parse(cabecera, {
                 xmp: true,
                 tiff: true,
                 exif: true,
@@ -62,9 +78,7 @@ export class ExifrMetadatosAdapter implements IExtractorMetadatos {
                 reviveValues: false,
                 translateValues: true,
                 mergeOutput: true,
-                chunked: true,
-                chunkSize: 64 * 1024,
-                chunkLimit: 128,
+                chunked: false,
             });
             return normalizarTags(tags ?? {}, nombre);
         } catch {

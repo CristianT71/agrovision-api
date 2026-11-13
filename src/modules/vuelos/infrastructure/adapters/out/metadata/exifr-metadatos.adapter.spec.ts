@@ -6,24 +6,38 @@ import { tmpdir } from "node:os";
 jest.mock("exifr", () => ({ parse: jest.fn() }), { virtual: true });
 const exifr = require("exifr") as { parse: jest.Mock };
 describe("Adaptador de metadata", () => {
-    it("solicita EXIF, GPS y XMP por ruta y conserva drone-dji", async () => {
+    it("solicita EXIF, GPS y XMP sobre la cabecera (Buffer) y conserva drone-dji", async () => {
         exifr.parse.mockResolvedValue({
             "drone-dji:GpsLatitude": "+1.85",
             "drone-dji:GpsLongitude": "-76.05",
             "drone-dji:RtkFlag": 50,
         });
-        const datos = await new ExifrMetadatosAdapter().extraer("ruta-local", "a.jpg");
+        const dir = await mkdtemp(join(tmpdir(), "vuelos-exif-"));
+        try {
+            const ruta = join(dir, "a.jpg");
+            await writeFile(ruta, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+            var datos = await new ExifrMetadatosAdapter().extraer(ruta, "a.jpg");
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
         expect(exifr.parse).toHaveBeenCalledWith(
-            "ruta-local",
-            expect.objectContaining({ xmp: true, gps: true, reviveValues: false, chunked: true }),
+            expect.any(Buffer),
+            expect.objectContaining({ xmp: true, gps: true, reviveValues: false }),
         );
         expect(datos).toMatchObject({ latitud: 1.85, longitud: -76.05, rtkFlag: 50 });
     });
     it("un EXIF roto no rompe la subida", async () => {
         exifr.parse.mockRejectedValue(new Error("imagen rota"));
-        expect((await new ExifrMetadatosAdapter().extraer("ruta", "a.jpg")).metadatos.crudos.extraccionFallida).toBe(
-            true,
-        );
+        const dir = await mkdtemp(join(tmpdir(), "vuelos-exif-"));
+        try {
+            const ruta = join(dir, "a.jpg");
+            await writeFile(ruta, Buffer.from([0xff, 0xd8]));
+            expect((await new ExifrMetadatosAdapter().extraer(ruta, "a.jpg")).metadatos.crudos.extraccionFallida).toBe(
+                true,
+            );
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
     });
     it("lee SRT con líneas acotadas y no llama exifr para videos", async () => {
         const dir = await mkdtemp(join(tmpdir(), "vuelos-srt-"));
