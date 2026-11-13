@@ -22,6 +22,9 @@ export class Agronomo {
         public especialidad: string,
         public estado: EstadoAgronomo,
         public readonly fechaAlta: Date,
+        // Términos y condiciones aceptados al solicitar acceso (NULL en cuentas anteriores a su registro)
+        public readonly terminosVersion: string | null = null,
+        public readonly terminosFecha: Date | null = null,
     ) {}
 
     // Regla de Negocio (RF-10.5): Todo agrónomo nuevo queda "pendiente" hasta la validación humana
@@ -33,6 +36,7 @@ export class Agronomo {
         telefono: string;
         correo: string;
         especialidad: string;
+        terminosVersion?: string;
     }): Agronomo {
         return new Agronomo(
             datos.id,
@@ -44,6 +48,8 @@ export class Agronomo {
             datos.especialidad,
             "pendiente",
             new Date(),
+            datos.terminosVersion ?? null,
+            datos.terminosVersion ? new Date() : null,
         );
     }
 

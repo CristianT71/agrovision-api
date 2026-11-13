@@ -37,4 +37,10 @@ export class TypeOrmAgronomoEntity {
 
     @Column({ name: "fecha_alta", type: "timestamp" })
     fechaAlta: Date;
+
+    @Column({ name: "terminos_version", type: "varchar", length: 20, nullable: true })
+    terminosVersion: string | null;
+
+    @Column({ name: "terminos_fecha", type: "timestamp", nullable: true })
+    terminosFecha: Date | null;
 }

@@ -22,6 +22,7 @@ import { SubirFotoPlagaService } from "./application/use-cases/subir-foto-plaga.
 import { EliminarPlagaService } from "./application/use-cases/eliminar-plaga.service";
 import { SincronizarCatalogoService } from "./application/use-cases/sincronizar-catalogo.service";
 import { CatalogoPublicoController } from "./infrastructure/adapters/in/http/catalogo-publico.controller";
+import { CatalogoPublicoLecturaController } from "./infrastructure/adapters/in/http/catalogo-publico-lectura.controller";
 import { TypeOrmCatalogoRepository } from "./infrastructure/adapters/out/persistence/typeorm-catalogo.repository";
 import { UrlsFotosCatalogoAdapter } from "./infrastructure/adapters/out/urls/urls-fotos-catalogo.adapter";
 import { CATALOGO_REPOSITORY } from "./domain/ports/out/catalogo.repository";
@@ -34,7 +35,7 @@ import { FOTOS_CATALOGO } from "./domain/ports/out/fotos-catalogo.port";
         AgronomosModule,
         AlmacenamientoModule,
     ],
-    controllers: [PlagasController, CatalogoPublicoController],
+    controllers: [PlagasController, CatalogoPublicoController, CatalogoPublicoLecturaController],
     providers: [
         ListarPlagasService,
         ObtenerPlagaService,

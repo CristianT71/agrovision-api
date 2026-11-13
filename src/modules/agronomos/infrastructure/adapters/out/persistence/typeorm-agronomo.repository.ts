@@ -31,6 +31,8 @@ export class TypeOrmAgronomoRepository implements IAgronomoRepository {
             entity.especialidad,
             entity.estado as EstadoAgronomo,
             entity.fechaAlta,
+            entity.terminosVersion,
+            entity.terminosFecha,
         );
     }
 
@@ -58,6 +60,8 @@ export class TypeOrmAgronomoRepository implements IAgronomoRepository {
             especialidad: agronomo.especialidad,
             estado: agronomo.estado,
             fechaAlta: agronomo.fechaAlta,
+            terminosVersion: agronomo.terminosVersion,
+            terminosFecha: agronomo.terminosFecha,
         });
     }
 
