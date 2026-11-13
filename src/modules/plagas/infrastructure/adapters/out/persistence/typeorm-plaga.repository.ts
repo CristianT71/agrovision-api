@@ -22,7 +22,7 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
     // Mapper: Convierte el Esquema de TypeORM a Entidad pura de Dominio
     private toDomain(entity: TypeOrmPlagaEntity): Plaga {
         const avales = (entity.avales ?? []).map(
-            (aval) => new AvalPlaga(aval.id, aval.agronomoId, aval.numeroTarjeta, aval.fechaAval),
+            (aval) => new AvalPlaga(aval.id, aval.agronomoId, aval.numeroTarjeta, aval.fechaAval, aval.nombreAgronomo),
         );
 
         return new Plaga(
@@ -130,6 +130,7 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
                 plagaId: plaga.id,
                 agronomoId: aval.agronomoId,
                 numeroTarjeta: aval.numeroTarjeta,
+                nombreAgronomo: previo?.nombreAgronomo ?? aval.nombreAgronomo,
                 fechaAval: aval.fechaAval,
             };
         });

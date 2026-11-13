@@ -19,6 +19,12 @@ import { ActualizarPlagaService } from "./application/use-cases/actualizar-plaga
 import { AvalarPlagaService } from "./application/use-cases/avalar-plaga.service";
 import { ActualizarProtocoloQuimicoService } from "./application/use-cases/actualizar-protocolo-quimico.service";
 import { SubirFotoPlagaService } from "./application/use-cases/subir-foto-plaga.service";
+import { SincronizarCatalogoService } from "./application/use-cases/sincronizar-catalogo.service";
+import { CatalogoPublicoController } from "./infrastructure/adapters/in/http/catalogo-publico.controller";
+import { TypeOrmCatalogoRepository } from "./infrastructure/adapters/out/persistence/typeorm-catalogo.repository";
+import { UrlsFotosCatalogoAdapter } from "./infrastructure/adapters/out/urls/urls-fotos-catalogo.adapter";
+import { CATALOGO_REPOSITORY } from "./domain/ports/out/catalogo.repository";
+import { FOTOS_CATALOGO } from "./domain/ports/out/fotos-catalogo.port";
 
 @Module({
     imports: [
@@ -27,7 +33,7 @@ import { SubirFotoPlagaService } from "./application/use-cases/subir-foto-plaga.
         AgronomosModule,
         AlmacenamientoModule,
     ],
-    controllers: [PlagasController],
+    controllers: [PlagasController, CatalogoPublicoController],
     providers: [
         ListarPlagasService,
         ObtenerPlagaService,
@@ -36,6 +42,9 @@ import { SubirFotoPlagaService } from "./application/use-cases/subir-foto-plaga.
         AvalarPlagaService,
         ActualizarProtocoloQuimicoService,
         SubirFotoPlagaService,
+        SincronizarCatalogoService,
+        { provide: CATALOGO_REPOSITORY, useClass: TypeOrmCatalogoRepository },
+        { provide: FOTOS_CATALOGO, useClass: UrlsFotosCatalogoAdapter },
         {
             provide: PLAGA_REPOSITORY,
             useClass: TypeOrmPlagaRepository,

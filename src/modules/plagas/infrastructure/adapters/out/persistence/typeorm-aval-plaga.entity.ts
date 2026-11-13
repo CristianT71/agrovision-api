@@ -31,6 +31,10 @@ export class TypeOrmAvalPlagaEntity {
     @Column({ name: "numero_tarjeta", type: "varchar", length: 50 })
     numeroTarjeta: string;
 
+    // Copia pública del nombre al firmar; evita publicar el registro personal del agrónomo.
+    @Column({ name: "nombre_agronomo", type: "varchar", length: 150 })
+    nombreAgronomo: string;
+
     @Column({ name: "fecha_aval", type: "timestamp" })
     fechaAval: Date;
 }

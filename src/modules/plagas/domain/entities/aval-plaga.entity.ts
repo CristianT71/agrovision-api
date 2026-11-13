@@ -6,5 +6,6 @@ export class AvalPlaga {
         // evidencia aunque después cambie el registro en "agronomos"
         public readonly numeroTarjeta: string,
         public readonly fechaAval: Date,
+        public readonly nombreAgronomo: string = "",
     ) {}
 }

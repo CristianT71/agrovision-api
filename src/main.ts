@@ -4,7 +4,8 @@ import { ValidationPipe } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { join } from "node:path";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
-import { directorioArchivos, PREFIJO_URL_PUBLICA } from "./common/almacenamiento/local-almacenamiento.adapter";
+import { directorioArchivos } from "./common/almacenamiento/local-almacenamiento.adapter";
+import { OPCIONES_FOTOS_CATALOGO, soloFotosCatalogo } from "./common/almacenamiento/fotos-catalogo-publicas";
 import { leerOrigenesCors, leerSaltosProxy } from "./config/servidor";
 
 async function bootstrap() {
@@ -12,7 +13,8 @@ async function bootstrap() {
     app.setGlobalPrefix("api");
 
     // Solo la carpeta pública (fotos del catálogo) se sirve directo; las acreditaciones no
-    app.useStaticAssets(join(directorioArchivos(), "publico"), { prefix: PREFIJO_URL_PUBLICA });
+    app.use("/archivos/plagas", soloFotosCatalogo);
+    app.useStaticAssets(join(directorioArchivos(), "publico", "plagas"), OPCIONES_FOTOS_CATALOGO);
 
     // Detrás de un túnel o proxy, la IP real del cliente viene en X-Forwarded-For
     const saltosProxy = leerSaltosProxy(process.env.TRUST_PROXY);
