@@ -22,6 +22,7 @@ import { DeteccionesModule } from "./modules/detecciones/detecciones.module";
 import { TelemetriaModule } from "./modules/telemetria/telemetria.module";
 import { AjustesModule } from "./modules/ajustes/ajustes.module";
 import { VuelosModule } from "./modules/vuelos/vuelos.module";
+import { ReglasZonaModule } from "./modules/reglas-zona/reglas-zona.module";
 
 @Module({
     imports: [
@@ -64,6 +65,7 @@ import { VuelosModule } from "./modules/vuelos/vuelos.module";
         TelemetriaModule,
         AjustesModule,
         VuelosModule,
+        ReglasZonaModule,
     ],
     controllers: [],
     providers: [{ provide: APP_GUARD, useClass: ThrottlerPorUsuarioGuard }],
