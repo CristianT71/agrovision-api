@@ -21,6 +21,7 @@ import { ModelosIaModule } from "./modules/modelos-ia/modelos-ia.module";
 import { DeteccionesModule } from "./modules/detecciones/detecciones.module";
 import { TelemetriaModule } from "./modules/telemetria/telemetria.module";
 import { AjustesModule } from "./modules/ajustes/ajustes.module";
+import { VuelosModule } from "./modules/vuelos/vuelos.module";
 
 @Module({
     imports: [
@@ -62,6 +63,7 @@ import { AjustesModule } from "./modules/ajustes/ajustes.module";
         DeteccionesModule,
         TelemetriaModule,
         AjustesModule,
+        VuelosModule,
     ],
     controllers: [],
     providers: [{ provide: APP_GUARD, useClass: ThrottlerPorUsuarioGuard }],
