@@ -40,6 +40,7 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
             entity.fotoUrl,
             (entity.sinonimos ?? []).map((sinonimo) => sinonimo.sinonimo),
             avales,
+            entity.catalogId,
         );
     }
 
@@ -100,6 +101,16 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
         if (excluirId) where.id = Not(excluirId);
 
         return (await this.plagaRepository.countBy(where)) > 0;
+    }
+
+    async eliminar(id: string): Promise<boolean> {
+        // No insertar bajas aquí: BEFORE DELETE conserva catalog_id en plagas_catalogo_bajas.
+        const resultado = await this.plagaRepository.delete({ id });
+        return (resultado.affected ?? 0) > 0;
+    }
+
+    async fotoEnUso(fotoUrl: string): Promise<boolean> {
+        return (await this.plagaRepository.countBy({ fotoUrl })) > 0;
     }
 
     async guardar(plaga: Plaga): Promise<Plaga> {

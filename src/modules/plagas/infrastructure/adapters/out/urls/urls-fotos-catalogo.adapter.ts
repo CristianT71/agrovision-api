@@ -13,7 +13,12 @@ export class UrlsFotosCatalogoAdapter implements IFotosCatalogo {
         const base = this.config.get<string>("API_PUBLIC_URL");
         if (!base) throw new Error("API_PUBLIC_URL es obligatorio para publicar fotos del catálogo.");
         const url = new URL(fotoUrl, base);
-        if (url.protocol !== "https:" || url.username || url.password) {
+        // http solo en desarrollo local (pruebas con adb reverse o emulador); en producción siempre https.
+        const localDev =
+            url.protocol === "http:" &&
+            ["localhost", "127.0.0.1", "10.0.2.2"].includes(url.hostname) &&
+            this.config.get<string>("NODE_ENV") !== "production";
+        if ((url.protocol !== "https:" && !localDev) || url.username || url.password) {
             throw new Error("API_PUBLIC_URL debe ser una URL HTTPS pública sin credenciales para el catálogo.");
         }
         return url.toString();

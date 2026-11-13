@@ -24,6 +24,10 @@ export interface IObtenerPlagaUseCase {
     ejecutar(id: string): Promise<Plaga>;
 }
 
+export interface IEliminarPlagaUseCase {
+    ejecutar(id: string): Promise<void>;
+}
+
 export interface ICrearPlagaUseCase {
     ejecutar(datos: DatosFichaPlaga): Promise<Plaga>;
 }

@@ -18,7 +18,15 @@ Sin `since` se devuelven todas las fichas vigentes y `deletedIds: []`. Con `sinc
 
 Una transacción corta toma `LOCK TABLE plagas IN SHARE MODE`, espera a los escritores anteriores y captura el reloj de PostgreSQL para `serverTime`. Lee fichas y bajas antes de soltar el bloqueo. Así un escritor pendiente obtiene su fecha después del cursor, sin saltarse cambios todavía sin confirmar. El bloqueo permite lecturas concurrentes y retrasa las escrituras durante esta lectura del catálogo, que es pequeño.
 
-No existía una operación de borrado en el módulo. Se mantiene el borrado físico y se añade **un registro persistente de bajas** en `plagas_catalogo_bajas`: un trigger `BEFORE DELETE` conserva únicamente el id público y la fecha, aunque se elimine la ficha y sus relaciones. No se añade una ruta administrativa de borrado ni se purgan las bajas, para cubrir dispositivos que lleven meses desconectados. Usar `DELETE`, nunca `TRUNCATE`, para retirar fichas conservando el delta. No hay columna de baja lógica en la ficha.
+El borrado es físico y conserva **un registro persistente de bajas** en `plagas_catalogo_bajas`: el trigger existente `BEFORE DELETE` conserva únicamente el id público y la fecha, aunque se elimine la ficha y sus relaciones. No se purgan las bajas, para cubrir dispositivos que lleven meses desconectados. Usar `DELETE`, nunca `TRUNCATE`, para retirar fichas conservando el delta. No hay columna de baja lógica en la ficha.
+
+## Eliminación de fichas (panel)
+
+`DELETE /api/plagas/:id` recibe el UUID interno de la ficha y exige JWT con rol `agronomo`. Responde **204 sin cuerpo**; sin sesión devuelve 401, otro rol 403, UUID inválido 400, ficha inexistente 404 y ficha protegida 409 con un mensaje en español. El puerto de entrada `IEliminarPlagaUseCase`, el caso de uso `EliminarPlagaService` y la regla de dominio impiden borrar fichas cuyo `catalog_id` no comienza por `Pest_` (las ocho originales de las que depende el modelo de IA).
+
+Todas las respuestas de ficha del panel (listado, detalle, creación y modificaciones) incluyen **`protegida: boolean`**, calculado desde `catalog_id`, sin columna nueva ni cambios al DTO público Android. El panel debe ocultar el botón de eliminación cuando sea `true`; el API valida siempre la regla.
+
+El repositorio ejecuta un `DELETE` por UUID: las FK existentes eliminan avales y sinónimos en cascada y el trigger de la migración `1793500000000-SincronizacionPublicaPlagas` registra la baja sin escrituras duplicadas desde el caso de uso. El próximo sync con `since` que incluya la fecha de baja devuelve su **id público** en `deletedIds`. Tras confirmar el borrado, se elimina la foto local si existe y ninguna otra ficha la referencia; solo se admiten rutas UUID de `/archivos/plagas/`, sin tocar archivos ajenos ni URLs externas.
 
 ## Contenido y aval
 
@@ -36,4 +44,4 @@ El sync convierte esas rutas a URLs absolutas usando el origen de **`API_PUBLIC_
 
 ## Verificación
 
-Ejecutar `npx jest src/modules/plagas` y `npx tsc --noEmit`. Las pruebas unitarias cubren el mapeo de las ocho fichas y su migración simulada, avales, privacidad, fotos, filtros SQL del delta, bajas, ETag/304, validación y metadatos de ruta pública/throttler. No requieren puertos ni conexión a PostgreSQL. La migración debe ejecutarla el responsable de despliegue antes de habilitar el endpoint. La descarga HTTP real y la aplicación de triggers en PostgreSQL requieren verificación en el entorno de despliegue.
+Ejecutar `npx jest src/modules/plagas` y `npx tsc --noEmit`. Las pruebas unitarias cubren el mapeo de las ocho fichas y su migración simulada, avales, privacidad, fotos, filtros SQL del delta, bajas, ETag/304, validación y metadatos de ruta pública/throttler. También cubren el borrado normal, protección de las ocho originales, 204/400/403/404/409, guard JWT declarado, fotos compartidas y ajenas, eliminación real de una foto temporal y el delta posterior al DELETE con el trigger simulado. No requieren puertos ni conexión a PostgreSQL. La migración debe ejecutarla el responsable de despliegue antes de habilitar el endpoint. La descarga HTTP real y la aplicación de triggers en PostgreSQL requieren verificación en el entorno de despliegue.
