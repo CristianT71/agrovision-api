@@ -1,3 +1,4 @@
+import { VERSION_TERMINOS_AGRONOMO } from "../../domain/terminos-agronomo";
 import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import type {
@@ -27,6 +28,13 @@ export class RegistrarAgronomoService implements IRegistrarAgronomoUseCase {
         const correo = comando.correo.trim().toLowerCase();
         const tarjetaProfesional = comando.tarjetaProfesional.trim();
 
+        // 0. Solo se acepta la versión vigente: aceptar un texto viejo no vale como aceptación
+        if (comando.terminosVersion !== VERSION_TERMINOS_AGRONOMO) {
+            throw new ConflictException(
+                `La versión ${comando.terminosVersion} de los términos no está vigente (vigente: ${VERSION_TERMINOS_AGRONOMO}). Recarga la página.`,
+            );
+        }
+
         // 1. RF-10.4: el alta debe traer al menos un soporte de acreditación
         if (comando.documentos.length === 0) {
             throw new BadRequestException("Debes adjuntar al menos un documento de acreditación profesional.");
@@ -55,6 +63,7 @@ export class RegistrarAgronomoService implements IRegistrarAgronomoUseCase {
             telefono: comando.telefono,
             correo,
             especialidad: comando.especialidad,
+            terminosVersion: comando.terminosVersion,
         });
 
         // 4. Custodiar los soportes en almacenamiento privado (RF-10.4)

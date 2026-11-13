@@ -6,6 +6,7 @@ import { TypeOrmSinonimoPlagaEntity } from "./infrastructure/adapters/out/persis
 import { TypeOrmAvalPlagaEntity } from "./infrastructure/adapters/out/persistence/typeorm-aval-plaga.entity";
 import { TypeOrmPlagaRepository } from "./infrastructure/adapters/out/persistence/typeorm-plaga.repository";
 import { PlagasController } from "./infrastructure/adapters/in/http/plagas.controller";
+import { CatalogoPublicoController } from "./infrastructure/adapters/in/http/catalogo-publico.controller";
 import { AgronomosModule } from "../agronomos/agronomos.module";
 import { AlmacenamientoModule } from "../../common/almacenamiento/almacenamiento.module";
 
@@ -27,7 +28,7 @@ import { SubirFotoPlagaService } from "./application/use-cases/subir-foto-plaga.
         AgronomosModule,
         AlmacenamientoModule,
     ],
-    controllers: [PlagasController],
+    controllers: [PlagasController, CatalogoPublicoController],
     providers: [
         ListarPlagasService,
         ObtenerPlagaService,

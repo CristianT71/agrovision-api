@@ -5,7 +5,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { join } from "node:path";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { directorioArchivos, PREFIJO_URL_PUBLICA } from "./common/almacenamiento/local-almacenamiento.adapter";
-import { leerOrigenesCors, leerSaltosProxy } from "./config/servidor";
+import { crearOpcionesCors, leerOrigenesCors, leerSaltosProxy } from "./config/servidor";
 
 async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -18,7 +18,7 @@ async function bootstrap() {
     const saltosProxy = leerSaltosProxy(process.env.TRUST_PROXY);
     if (saltosProxy > 0) app.set("trust proxy", saltosProxy);
 
-    app.enableCors({ origin: leerOrigenesCors(process.env.CORS_ORIGINS) });
+    app.enableCors(crearOpcionesCors(leerOrigenesCors(process.env.CORS_ORIGINS)));
 
     // El lote de capturas admite 100 elementos con embedding: el límite por defecto (100 KB) se queda corto
     app.useBodyParser("json", { limit: "1mb" });

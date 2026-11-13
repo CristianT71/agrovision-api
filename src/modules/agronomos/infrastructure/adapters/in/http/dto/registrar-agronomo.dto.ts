@@ -21,4 +21,12 @@ export class RegistrarAgronomoDto {
 
     @IsIn(ESPECIALIDADES, { message: `La especialidad debe ser una de: ${ESPECIALIDADES.join(", ")}` })
     especialidad: string;
+
+    // Multipart: llega como texto. Sin aceptar los términos y condiciones no hay registro
+    @IsIn(["true", true], { message: "Debes aceptar los términos y condiciones." })
+    aceptaTerminos: string | boolean;
+
+    @IsString({ message: "La versión de los términos debe ser un texto." })
+    @Length(1, 20, { message: "La versión de los términos no es válida." })
+    terminosVersion: string;
 }

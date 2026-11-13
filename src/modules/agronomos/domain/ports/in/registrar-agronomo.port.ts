@@ -7,6 +7,8 @@ export interface RegistrarAgronomoCommand {
     correo: string;
     tarjetaProfesional: string;
     especialidad: string;
+    // Versión de los términos y condiciones que aceptó (ver terminos-agronomo.ts)
+    terminosVersion: string;
     // RF-10.4: soportes de acreditación ya validados (tipo y tamaño)
     documentos: ArchivoParaGuardar[];
 }

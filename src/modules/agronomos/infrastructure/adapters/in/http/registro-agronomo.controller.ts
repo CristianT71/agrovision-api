@@ -1,12 +1,4 @@
-import {
-    Body,
-    Controller,
-    HttpCode,
-    HttpStatus,
-    Post,
-    UploadedFiles,
-    UseInterceptors,
-} from "@nestjs/common";
+import { Body, Controller, HttpCode, HttpStatus, Post, UploadedFiles, UseInterceptors } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { Throttle } from "@nestjs/throttler";
 import { RegistrarAgronomoService } from "../../../../application/use-cases/registrar-agronomo.service";
