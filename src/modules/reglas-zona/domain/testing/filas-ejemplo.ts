@@ -1,6 +1,6 @@
 import type { FilaRegla } from "../entities/regla-zona";
 
-// Tabla de EJEMPLO usada por las pruebas (la misma de la semilla "roya" v1); no es un criterio calibrado.
+// Tabla de EJEMPLO usada por las pruebas (la misma de las semillas v1 de la migración CrearReglasZona); no es un criterio calibrado.
 export const FILAS_EJEMPLO: FilaRegla[] = [
     { orden: 1, sevMax: 10, incMax: 20, radioMinM: 0, radioMaxM: 3 },
     { orden: 2, sevMax: 30, incMax: 40, radioMinM: 3, radioMaxM: 8 },
