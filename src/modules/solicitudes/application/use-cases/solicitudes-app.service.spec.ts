@@ -234,6 +234,15 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             expect(crearConFotos.mock.calls[1][0].modeloVersionId).toBeNull();
         });
 
+        it("busca el modelo de la captura solo entre las del mismo productor", async () => {
+            const porCaptura = jest.fn<Promise<string | null>, [string | null, string]>(() => Promise.resolve(null));
+            capturaModelo.obtenerModeloIdPorIdCliente = porCaptura;
+
+            await recibir([{ ...entrada("c-1", 2), capturaId: "22222222-2222-4222-8222-222222222222" }]);
+
+            expect(porCaptura).toHaveBeenCalledWith("22222222-2222-4222-8222-222222222222", "p-1");
+        });
+
         it("una solicitud repetida sale como duplicate con el mismo serverId y URLs solo de las fotos pendientes", async () => {
             const primera = (await recibir([entrada("c-1", 3)])).results[0];
             // La app subió la primera foto y perdió la respuesta del lote

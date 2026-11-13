@@ -130,6 +130,35 @@ describe("SolicitarOtpService", () => {
         expect(enviarOtp).toHaveBeenCalledTimes(1);
     });
 
+    it("peticiones simultáneas de la misma cuenta no se saltan la espera ni el tope", async () => {
+        const cuenta = Usuario.registrarProductor("u-1", TELEFONO);
+        // Repositorio con estado y latencia: sin serializar, todas leerían "4 códigos, ninguno reciente"
+        const guardadas: SesionOtp[] = [];
+        const latencia = () => new Promise((resolver) => setTimeout(resolver, 5));
+        const concurrente = new SolicitarOtpService(
+            { findByTelefono: () => Promise.resolve(cuenta), findById: jest.fn(), guardar: usuarioGuardado },
+            {
+                findUltimaPorUsuarioId: async () => (await latencia(), guardadas.at(-1) ?? null),
+                contarDesde: async () => (await latencia(), MAX_CODIGOS_POR_VENTANA - 1 + guardadas.length),
+                guardar: async (sesion: SesionOtp) => {
+                    await latencia();
+                    guardadas.push(sesion);
+                },
+                registrarIntentoFallido: jest.fn(),
+                consumir: jest.fn(),
+            },
+            { enviarOtp },
+        );
+
+        const resultados = await Promise.allSettled(
+            Array.from({ length: 5 }, () => concurrente.ejecutar({ telefono: TELEFONO })),
+        );
+
+        expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+        expect(guardadas).toHaveLength(1);
+        expect(enviarOtp).toHaveBeenCalledTimes(1);
+    });
+
     it("no envía códigos a cuentas inactivas", async () => {
         usuario = new Usuario("u-1", TELEFONO, "agronomo", "inactivo", new Date());
 

@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Logger, NotFoundException } from "@nestjs/common";
 import { SubirModeloService } from "./subir-modelo.service";
 import { CompletarArtefactosService } from "./completar-artefactos.service";
 import { RegistrarMetricasService } from "./registrar-metricas.service";
@@ -108,7 +108,7 @@ describe("Modelos IA - casos de uso", () => {
             Promise.resolve(`${carpeta}/archivo-${++numero}`),
         );
         eliminarPrivado = jest.fn<Promise<void>, [string]>(() => Promise.resolve());
-        firmarConjunto = jest.fn(() => "firma-ed25519");
+        firmarConjunto = jest.fn<string | null, Parameters<IFirmadorModelos["firmarConjunto"]>>(() => "firma-ed25519");
 
         repositorio = {
             findById: jest.fn().mockResolvedValue(null),
@@ -378,6 +378,33 @@ describe("Modelos IA - casos de uso", () => {
             const vista = await completar({});
 
             expect(vista).toMatchObject({ firmado: true, artefactosCompletos: true });
+        });
+
+        it("si falla el borrado de los archivos reemplazados, conserva los nuevos que ya referencia la BD", async () => {
+            const modelo = soloModelo();
+            modelo.artefactos.rutaEtiquetas = "modelos/1.0.0/etiquetas-viejas";
+            repositorio.findById.mockResolvedValue(modelo);
+            const aviso = jest.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
+            eliminarPrivado.mockRejectedValue(new Error("disco no disponible"));
+
+            const vista = await completar({ etiquetas: ETIQUETAS });
+
+            expect(vista).toMatchObject({ clases: ["Enfermedad_Roya", "Sana"] });
+            expect(guardarCambios).toHaveBeenCalledTimes(1);
+            // Solo se intentó borrar el archivo anterior, nunca el recién guardado
+            expect(eliminarPrivado.mock.calls).toEqual([["modelos/1.0.0/etiquetas-viejas"]]);
+            expect(aviso).toHaveBeenCalled();
+            aviso.mockRestore();
+        });
+
+        it("si el guardado en BD no se confirma, borra los archivos nuevos y conserva los anteriores", async () => {
+            const modelo = soloModelo();
+            modelo.artefactos.rutaEtiquetas = "modelos/1.0.0/etiquetas-viejas";
+            repositorio.findById.mockResolvedValue(modelo);
+            guardarCambios.mockResolvedValue(false);
+
+            await expect(completar({ etiquetas: ETIQUETAS })).rejects.toBeInstanceOf(ReglaNegocioError);
+            expect(eliminarPrivado.mock.calls).toEqual([["modelos/1.0.0/archivo-1"]]);
         });
 
         it("exige algún archivo cuando el modelo no tiene clases, y que el modelo exista", async () => {

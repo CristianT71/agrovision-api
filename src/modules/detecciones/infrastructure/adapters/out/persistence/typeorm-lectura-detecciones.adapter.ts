@@ -23,16 +23,21 @@ const EXPRESION_REVISION = `CASE
     ELSE 'sin_revision'
 END`;
 
-// La solicitud resuelta más reciente abierta desde la captura (solicitudes.captura_id = id de la app)
+// La solicitud resuelta más reciente abierta desde la captura (solicitudes.captura_id = id de la app).
+// Solo del mismo productor: una solicitud que cita una captura ajena no le atribuye su resolución.
 const ORIGEN = `FROM detecciones_app d
     LEFT JOIN productores p ON p.id = d.productor_id
     LEFT JOIN LATERAL (
         SELECT s.id, s.tipo_resultado, s.plaga_identificada
         FROM solicitudes s
-        WHERE s.captura_id = d.id_cliente AND s.estado = 'Resuelta'
+        WHERE s.captura_id = d.id_cliente AND s.productor_id = d.productor_id AND s.estado = 'Resuelta'
         ORDER BY s.fecha_resolucion DESC NULLS LAST
         LIMIT 1
     ) r ON true`;
+
+// Como en el mapa de solicitudes: sin consentimiento vigente del productor no se revela dónde está el
+// cultivo, tampoco el de capturas antiguas. Sin perfil de productor (p.consentimiento NULL) tampoco.
+const CON_CONSENTIMIENTO = "p.consentimiento IS TRUE";
 
 interface FilaDeteccion {
     id: string;
@@ -93,7 +98,7 @@ export class TypeOrmLecturaDeteccionesAdapter implements ILecturaDetecciones {
 
     async listarMapa(filtros: FiltrosDetecciones, limite: number): Promise<DeteccionLeida[]> {
         const { where, params } = this.construirWhere(filtros);
-        const conCoordenadas = "d.latitud IS NOT NULL AND d.longitud IS NOT NULL";
+        const conCoordenadas = `d.latitud IS NOT NULL AND d.longitud IS NOT NULL AND ${CON_CONSENTIMIENTO}`;
 
         const filas = await this.deteccionRepository.query<FilaDeteccion[]>(
             `${this.seleccion()} ${ORIGEN} ${where ? `${where} AND ${conCoordenadas}` : `WHERE ${conCoordenadas}`}
@@ -137,8 +142,11 @@ export class TypeOrmLecturaDeteccionesAdapter implements ILecturaDetecciones {
     private seleccion(): string {
         return `SELECT d.id, d.id_cliente, d.productor_id, d.municipio, d.tipo, d.clase_predicha, d.confianza,
                        d.puntaje_ood, d.resultado_compuerta, d.modelo_id, d.modelo_version,
-                       d.correccion_productor, d.confirmada_productor, d.cultivo, d.organo, d.latitud,
-                       d.longitud, d.precision_metros, d.fecha, d.recibida_en, d.defectuosa,
+                       d.correccion_productor, d.confirmada_productor, d.cultivo, d.organo,
+                       CASE WHEN ${CON_CONSENTIMIENTO} THEN d.latitud END AS latitud,
+                       CASE WHEN ${CON_CONSENTIMIENTO} THEN d.longitud END AS longitud,
+                       CASE WHEN ${CON_CONSENTIMIENTO} THEN d.precision_metros END AS precision_metros,
+                       d.fecha, d.recibida_en, d.defectuosa,
                        p.nombre AS productor_nombre, r.id AS solicitud_id,
                        r.tipo_resultado AS resultado_agronomo, r.plaga_identificada AS plaga_agronomo`;
     }

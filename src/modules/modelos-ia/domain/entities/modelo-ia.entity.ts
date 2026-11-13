@@ -67,11 +67,23 @@ export class ModeloIa {
         public fechaKillSwitch: Date | null = null,
         public metricas: MetricaModelo[] = [],
     ) {
-        this.cargado = { canal, killSwitch };
+        this.cargado = {
+            canal,
+            killSwitch,
+            rutaEtiquetas: artefactos.rutaEtiquetas,
+            rutaCalibracion: artefactos.rutaCalibracion,
+        };
     }
 
-    // Estado con el que se leyó de la base de datos: el guardado solo procede si nadie lo cambió desde
-    public readonly cargado: { canal: Canal; killSwitch: boolean };
+    // Estado con el que se leyó de la base de datos: el guardado solo procede si nadie lo cambió desde.
+    // Las rutas cambian con cada archivo subido, así que también delatan otra edición de los artefactos
+    // (sin ellas, el segundo guardado restauraría una ruta que el primero ya borró del disco).
+    public readonly cargado: {
+        canal: Canal;
+        killSwitch: boolean;
+        rutaEtiquetas: string | null;
+        rutaCalibracion: string | null;
+    };
 
     // Regla de Negocio (RF-09.5): las etiquetas y la calibración pueden llegar después del modelo,
     // pero solo mientras no esté publicado. Al cambiar el conjunto se vuelve a firmar.

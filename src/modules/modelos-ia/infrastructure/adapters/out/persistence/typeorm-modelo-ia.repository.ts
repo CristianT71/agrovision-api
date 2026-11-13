@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { QueryFailedError, Repository, type EntityManager, type FindOptionsWhere } from "typeorm";
+import { IsNull, QueryFailedError, Repository, type EntityManager, type FindOptionsWhere } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { ReglaNegocioError } from "../../../../../../common/errors/regla-negocio.error";
 import type { FiltrosModelo, IModeloIaRepository } from "../../../../domain/ports/out/modelo-ia.repository";
@@ -89,9 +89,16 @@ export class TypeOrmModeloIaRepository implements IModeloIaRepository {
                     const { id, ...columnas } = modeloAPersistencia(modelo);
                     // Solo si nadie lo cambió desde que se leyó: dos administradores editando a la vez
                     // no se pisan en silencio
+                    const { cargado } = modelo;
                     const { affected } = await manager.update(
                         TypeOrmModeloIaEntity,
-                        { id, canal: modelo.cargado.canal, killSwitch: modelo.cargado.killSwitch },
+                        {
+                            id,
+                            canal: cargado.canal,
+                            killSwitch: cargado.killSwitch,
+                            rutaEtiquetas: cargado.rutaEtiquetas ?? IsNull(),
+                            rutaCalibracion: cargado.rutaCalibracion ?? IsNull(),
+                        },
                         columnas,
                     );
                     if (affected === 0) {

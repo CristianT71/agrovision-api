@@ -16,6 +16,7 @@ import { Usuario } from "../../domain/entities/usuario.entity";
 import { SesionOtp } from "../../domain/entities/sesion-otp.entity";
 import { v4 as uuidv4 } from "uuid";
 import { PresupuestoRegistrosOtp } from "./presupuesto-registros-otp";
+import { ColaPorClave } from "../../../../common/utils/cola-por-clave";
 
 const SEGUNDOS_ENTRE_SOLICITUDES = 30;
 const MINUTOS_VIGENCIA_OTP = 5;
@@ -24,6 +25,10 @@ export const MINUTOS_VENTANA_CODIGOS = 60;
 
 @Injectable()
 export class SolicitarOtpService implements ISolicitarOtpUseCase {
+    // Las comprobaciones de espera y tope, y el guardado del código, van en serie por cuenta: en paralelo
+    // todas verían el mismo estado y pasarían (más códigos y SMS de los permitidos)
+    private readonly porCuenta = new ColaPorClave();
+
     constructor(
         @Inject(USUARIO_REPOSITORY)
         private readonly usuarioRepository: IUsuarioRepository,
@@ -62,8 +67,19 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
             throw new ForbiddenException("La cuenta asociada a este número no está activa.");
         }
 
+        const usuarioId = usuario.id;
+        const codigoOtp = await this.porCuenta.ejecutar(usuarioId, () => this.reservarCodigo(usuarioId));
+
+        // 4. Enviar mediante el puerto SMS (Twilio/Zavu/Logger), ya con el código guardado
+        await this.smsService.enviarOtp(telefono, codigoOtp);
+
+        return { mensaje: "Código OTP enviado exitosamente.", esperaSegundos: SEGUNDOS_ENTRE_SOLICITUDES };
+    }
+
+    // Comprueba la espera y el tope de la cuenta y guarda un código nuevo. Devuelve el código.
+    private async reservarCodigo(usuarioId: string): Promise<string> {
         // 2. Verificar la regla de los 30 segundos (RF-01.5)
-        const ultimaSesion = await this.sesionOtpRepository.findUltimaPorUsuarioId(usuario.id);
+        const ultimaSesion = await this.sesionOtpRepository.findUltimaPorUsuarioId(usuarioId);
         if (ultimaSesion && !ultimaSesion.puedeSolicitarNuevoOtp(SEGUNDOS_ENTRE_SOLICITUDES)) {
             const restantes = ultimaSesion.segundosRestantesParaNuevoOtp(SEGUNDOS_ENTRE_SOLICITUDES);
             throw new HttpException(
@@ -75,7 +91,7 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         // 2b. Tope por cuenta: cada código nuevo reinicia sus 5 intentos, así que sin esto se podría
         //     adivinar uno a base de pedir códigos. Con 5 por hora quedan como mucho 25 intentos por hora.
         const hace1Hora = new Date(Date.now() - MINUTOS_VENTANA_CODIGOS * 60 * 1000);
-        if ((await this.sesionOtpRepository.contarDesde(usuario.id, hace1Hora)) >= MAX_CODIGOS_POR_VENTANA) {
+        if ((await this.sesionOtpRepository.contarDesde(usuarioId, hace1Hora)) >= MAX_CODIGOS_POR_VENTANA) {
             throw new HttpException(
                 "Se pidieron demasiados códigos para este número. Intenta de nuevo en una hora.",
                 HttpStatus.TOO_MANY_REQUESTS,
@@ -87,15 +103,12 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
 
         const nuevaSesion = SesionOtp.crear({
             id: uuidv4(),
-            usuarioId: usuario.id,
+            usuarioId,
             codigo: codigoOtp,
             minutosVigencia: MINUTOS_VIGENCIA_OTP,
         });
         await this.sesionOtpRepository.guardar(nuevaSesion);
 
-        // 4. Enviar mediante el puerto SMS (Twilio/Zavu/Logger)
-        await this.smsService.enviarOtp(telefono, codigoOtp);
-
-        return { mensaje: "Código OTP enviado exitosamente.", esperaSegundos: SEGUNDOS_ENTRE_SOLICITUDES };
+        return codigoOtp;
     }
 }

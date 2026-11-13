@@ -33,11 +33,15 @@ export class ThrottlerPorUsuarioGuard extends ThrottlerGuard {
         super(options, storageService, reflector);
     }
 
-    protected async getTracker(req: Record<string, any>): Promise<string> {
+    protected async getTracker(req: Record<string, any>, contexto?: ExecutionContext): Promise<string> {
         const cabeceras = req.headers as Record<string, unknown> | undefined;
         const autorizacion = cabeceras?.authorization;
 
-        if (typeof autorizacion === "string" && autorizacion.startsWith("Bearer ")) {
+        // Las rutas públicas cuentan siempre por IP: si un token abriera un cupo por cuenta, alternar
+        // tokens de varias cuentas (o de sesiones ya cerradas) multiplicaría el límite desde una IP.
+        const publica = contexto !== undefined && esRutaPublica(contexto);
+
+        if (!publica && typeof autorizacion === "string" && autorizacion.startsWith("Bearer ")) {
             try {
                 const payload = await this.jwtService.verifyAsync<{ sub?: string }>(autorizacion.slice(7));
                 if (payload.sub) return `usuario:${payload.sub}`;

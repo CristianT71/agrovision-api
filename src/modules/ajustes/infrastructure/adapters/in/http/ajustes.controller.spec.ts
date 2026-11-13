@@ -96,4 +96,9 @@ describe("AjustesController (HTTP)", () => {
         });
         await http().patch("/ajustes/sistema").set("x-rol", "admin").send({ expiracionSesion: "1 año" }).expect(400);
     });
+
+    it("rechaza null: ningún ajuste admite borrarse (null se leería como carga ilimitada)", async () => {
+        await http().patch("/ajustes/sistema").set("x-rol", "admin").send({ cargaMaximaAgronomo: null }).expect(400);
+        await http().patch("/ajustes/mios").set("x-rol", "admin").send({ pushNavegador: null }).expect(400);
+    });
 });

@@ -94,6 +94,37 @@ describe("AsignarAutomaticamenteService", () => {
         expect(asignar.mock.calls[0][0].agronomoId).toBe("a-3");
     });
 
+    it("solicitudes simultáneas no superan la carga máxima del agrónomo con el último cupo", async () => {
+        politica = { asignacionAutomatica: true, cargaMaxima: 3 };
+        activos = [crearAgronomo("a-1")];
+        const casos = new Map([["a-1", 2]]);
+        const latencia = () => new Promise((resolver) => setTimeout(resolver, 5));
+        const agronomos = {
+            findAll: () => Promise.resolve(activos),
+            contarCasosActivos: async () => (await latencia(), new Map(casos)),
+        } as unknown as IAgronomoRepository;
+        const solicitudes = {
+            findById: (id: string) =>
+                Promise.resolve(new Solicitud(id, "p-1", null, "Enviada", new Date(), "P", "V", "F", 0.9, "m-1")),
+        } as unknown as ISolicitudRepository;
+        const asignarConCarga = jest.fn(async (comando: { solicitudId: string; agronomoId: string }) => {
+            await latencia();
+            casos.set(comando.agronomoId, (casos.get(comando.agronomoId) ?? 0) + 1);
+            return crearSolicitud("Asignada", comando.agronomoId);
+        });
+        const servicio = new AsignarAutomaticamenteService(
+            { obtener: () => Promise.resolve(politica) },
+            solicitudes,
+            agronomos,
+            { ejecutar: asignarConCarga } as unknown as AsignarSolicitudService,
+        );
+
+        const resultados = await Promise.all(["s-1", "s-2", "s-3"].map((id) => servicio.ejecutar(id)));
+
+        expect(resultados.filter((r) => r !== null)).toHaveLength(1);
+        expect(casos.get("a-1")).toBe(3);
+    });
+
     it("no hace nada si no hay agrónomos activos", async () => {
         activos = [];
 

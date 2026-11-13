@@ -14,12 +14,12 @@ export class TypeOrmCapturaModeloRepository implements ICapturaModeloRepository 
         private readonly modelos: Repository<TypeOrmModeloIaEntity>,
     ) {}
 
-    async obtenerModeloIdPorIdCliente(idCliente: string | null): Promise<string | null> {
+    async obtenerModeloIdPorIdCliente(idCliente: string | null, productorId: string): Promise<string | null> {
         if (!idCliente) return null;
 
         const captura = await this.repository.findOne({
             select: { modeloId: true },
-            where: { idCliente },
+            where: { idCliente, productorId },
         });
         return captura?.modeloId ?? null;
     }

@@ -74,6 +74,12 @@ describe("ThrottlerPorUsuarioGuard", () => {
         await request(servidor()).get("/prueba/publica").expect(429);
     });
 
+    it("en rutas públicas un token válido no abre un cupo aparte: sigue contando por IP", async () => {
+        // El cupo de la IP ya se agotó en la prueba anterior
+        await request(servidor()).get("/prueba/publica").set("Authorization", token("usuario-x")).expect(429);
+        await request(servidor()).get("/prueba/publica").set("Authorization", token("usuario-y")).expect(429);
+    });
+
     it("cuenta por cuenta, no por IP, las rutas con sesión", async () => {
         const a = token("usuario-a");
         await request(servidor()).get("/prueba/privada").set("Authorization", a).expect(200);

@@ -10,6 +10,7 @@ const ARTEFACTOS: ArtefactosModelo = {
     sha256: "ab".repeat(32),
     firma: "firma-base64",
     numeroClases: 5,
+    clases: null,
 };
 
 const GLOBAL = MetricaModelo.crear({ precision: 0.98, recall: 0.97, f1: 0.98 });

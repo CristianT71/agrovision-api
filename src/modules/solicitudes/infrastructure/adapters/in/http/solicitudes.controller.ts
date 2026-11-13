@@ -229,9 +229,11 @@ export class SolicitudesController {
             confirmarSobrecarga: dto.confirmarSobrecarga,
         });
 
+        // Como el detalle y la bandeja: las coordenadas solo salen por los endpoints de ubicación,
+        // que comprueban el consentimiento y dejan rastro
         return {
             message: "Solicitud asignada exitosamente.",
-            solicitud,
+            solicitud: solicitud.sinUbicacion(),
         };
     }
 }

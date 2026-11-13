@@ -4,11 +4,16 @@ import { Solicitud } from "../../domain/entities/solicitud.entity";
 import { POLITICA_ASIGNACION, type IPoliticaAsignacion } from "../../domain/ports/out/politica-asignacion.port";
 import { SOLICITUD_REPOSITORY, type ISolicitudRepository } from "../../domain/ports/out/solicitud.repository";
 import { AGRONOMO_REPOSITORY, type IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
+import { ColaPorClave } from "../../../../common/utils/cola-por-clave";
 
 // RF-08: con la asignación automática activa, una solicitud recién enviada va al agrónomo activo
 // con menos casos en curso, siempre que no haya llegado a la carga máxima (RF-08.4).
 @Injectable()
 export class AsignarAutomaticamenteService {
+    // Contar la carga y asignar van en serie: en paralelo, varias solicitudes verían al mismo agrónomo
+    // con un cupo libre y se lo quedarían todas, superando la carga máxima sin que nadie lo confirme
+    private readonly cola = new ColaPorClave();
+
     constructor(
         @Inject(POLITICA_ASIGNACION) private readonly politica: IPoliticaAsignacion,
         @Inject(SOLICITUD_REPOSITORY) private readonly solicitudRepository: ISolicitudRepository,
@@ -18,6 +23,10 @@ export class AsignarAutomaticamenteService {
 
     // Devuelve la solicitud asignada, o null si no correspondía o nadie tenía cupo (queda para el administrador)
     async ejecutar(solicitudId: string): Promise<Solicitud | null> {
+        return await this.cola.ejecutar("asignacion-automatica", () => this.asignar(solicitudId));
+    }
+
+    private async asignar(solicitudId: string): Promise<Solicitud | null> {
         const { asignacionAutomatica, cargaMaxima } = await this.politica.obtener();
         if (!asignacionAutomatica) return null;
 

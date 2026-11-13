@@ -17,6 +17,7 @@ import { ContarSolicitudesService } from "../../../../application/use-cases/cont
 import { ResumirResolucionesService } from "../../../../application/use-cases/resumir-resoluciones.service";
 import { ObtenerUbicacionSolicitudService } from "../../../../application/use-cases/obtener-ubicacion-solicitud.service";
 import { ListarMapaSolicitudesService } from "../../../../application/use-cases/listar-mapa-solicitudes.service";
+import { Solicitud } from "../../../../domain/entities/solicitud.entity";
 
 // El guard real arrastra @nestjs/passport (ESM), que Jest no carga: se reemplaza por una clase vacía y luego por la de prueba
 jest.mock("../../../../../../common/guards/jwt-auth.guard", () => ({ JwtAuthGuard: class {} }));
@@ -39,6 +40,7 @@ describe("Rutas de ubicación y mapa de solicitudes", () => {
         ejecutar: jest.fn(),
         ejecutarKml: jest.fn(() => Promise.resolve({ nombreArchivo: "sol-11111111.kml", kml: "<kml/>" })),
     };
+    const asignar = { ejecutar: jest.fn() };
     const mapa = {
         ejecutar: jest.fn(() => Promise.resolve({ puntos: [], truncado: false, limite: 500 })),
         ejecutarKml: jest.fn(() => Promise.resolve({ nombreArchivo: "mapa-solicitudes.kml", kml: "<kml/>" })),
@@ -48,7 +50,6 @@ describe("Rutas de ubicación y mapa de solicitudes", () => {
         const sinUso = [
             ResolverSolicitudService,
             ListarSolicitudesService,
-            AsignarSolicitudService,
             ListarFotosSolicitudService,
             DescargarFotoSolicitudService,
             AnexosResolucionService,
@@ -64,6 +65,7 @@ describe("Rutas de ubicación y mapa de solicitudes", () => {
                 { provide: ObtenerSolicitudPorIdService, useValue: obtenerPorId },
                 { provide: ObtenerUbicacionSolicitudService, useValue: ubicacion },
                 { provide: ListarMapaSolicitudesService, useValue: mapa },
+                { provide: AsignarSolicitudService, useValue: asignar },
             ],
         })
             .overrideGuard(JwtAuthGuard)
@@ -83,6 +85,36 @@ describe("Rutas de ubicación y mapa de solicitudes", () => {
     beforeEach(() => jest.clearAllMocks());
 
     const http = () => request(app.getHttpServer() as Server);
+
+    it("PATCH /solicitudes/:id/asignar no devuelve coordenadas ni altitud", async () => {
+        asignar.ejecutar.mockResolvedValue(
+            Object.assign(Object.create(Solicitud.prototype) as Solicitud, {
+                id: ID,
+                estado: "Asignada",
+                latitud: 1.85,
+                longitud: -76.05,
+                precisionMetros: 8,
+                altitudMsnm: 1600,
+                altitudOrigen: "gps",
+            }),
+        );
+
+        const respuesta = await http()
+            .patch(`/solicitudes/${ID}/asignar`)
+            .send({ agronomoId: "22222222-2222-4222-8222-222222222222" })
+            .expect(200);
+
+        expect(respuesta.body).toMatchObject({
+            solicitud: {
+                id: ID,
+                latitud: null,
+                longitud: null,
+                precisionMetros: null,
+                altitudMsnm: null,
+                altitudOrigen: null,
+            },
+        });
+    });
 
     it("GET /solicitudes/mapa no se confunde con :id", async () => {
         await http().get("/solicitudes/mapa").expect(200);

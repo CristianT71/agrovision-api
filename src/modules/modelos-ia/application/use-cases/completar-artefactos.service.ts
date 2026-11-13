@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import type {
     CompletarArtefactosCommand,
@@ -28,6 +28,8 @@ import { aModeloVista } from "./modelo-vista";
 // por separado. Cuando ya están los dos se valida el conjunto y se firma, y el modelo puede publicarse.
 @Injectable()
 export class CompletarArtefactosService implements ICompletarArtefactosUseCase {
+    private readonly logger = new Logger(CompletarArtefactosService.name);
+
     constructor(
         @Inject(MODELO_IA_REPOSITORY)
         private readonly modeloRepository: IModeloIaRepository,
@@ -95,6 +97,7 @@ export class CompletarArtefactosService implements ICompletarArtefactosUseCase {
 
         const carpeta = `modelos/${modelo.version}`;
         const guardados: string[] = [];
+        let reemplazadas: string[];
         try {
             const rutaEtiquetas = comando.etiquetas
                 ? await this.guardar(carpeta, "labels.json", etiquetas, guardados)
@@ -108,7 +111,7 @@ export class CompletarArtefactosService implements ICompletarArtefactosUseCase {
                 ? this.firmador.firmarConjunto({ sha256Modelo: artefactos.sha256, etiquetas, calibracion })
                 : null;
 
-            const reemplazadas = [
+            reemplazadas = [
                 comando.etiquetas ? artefactos.rutaEtiquetas : null,
                 comando.calibracion ? artefactos.rutaCalibracion : null,
             ].filter((ruta): ruta is string => ruta !== null);
@@ -135,16 +138,31 @@ export class CompletarArtefactosService implements ICompletarArtefactosUseCase {
                 },
             });
 
-            await this.modeloRepository.guardarCambios([modelo], [auditoria]);
-
-            // Los archivos anteriores ya no los referencia nadie
-            await Promise.all(reemplazadas.map((ruta) => this.almacenamiento.eliminarPrivado(ruta)));
-
-            return aModeloVista(modelo);
+            if (!(await this.modeloRepository.guardarCambios([modelo], [auditoria]))) {
+                throw new ReglaNegocioError(
+                    `El modelo ${modelo.version} cambió mientras lo editabas: recarga e inténtalo de nuevo.`,
+                );
+            }
         } catch (error) {
+            // Nada quedó guardado en BD: los archivos nuevos no los referencia nadie
             await Promise.all(guardados.map((ruta) => this.almacenamiento.eliminarPrivado(ruta)));
             throw error;
         }
+
+        // Ya confirmado: la BD apunta a los archivos nuevos, que no se tocan. Los anteriores ya no los
+        // referencia nadie; si no se pueden borrar quedan huérfanos, pero la operación no falla.
+        await this.eliminarReemplazadas(reemplazadas);
+
+        return aModeloVista(modelo);
+    }
+
+    private async eliminarReemplazadas(rutas: string[]): Promise<void> {
+        const resultados = await Promise.allSettled(rutas.map((ruta) => this.almacenamiento.eliminarPrivado(ruta)));
+        resultados.forEach((resultado, i) => {
+            if (resultado.status === "rejected") {
+                this.logger.warn(`No se pudo borrar el artefacto reemplazado ${rutas[i]}: ${String(resultado.reason)}`);
+            }
+        });
     }
 
     private generarSimples(comando: CompletarArtefactosCommand, clasesGuardadas: string[] | null) {
