@@ -5,13 +5,14 @@ import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
 import { ReglasZonaController } from "./reglas-zona.controller";
 import { ReglasZonaExceptionFilter } from "./reglas-zona-exception.filter";
-import { EditarReglaZonaDto } from "./dto/reglas-zona.dto";
+import { AprobarReglaZonaDto, EditarReglaZonaDto } from "./dto/reglas-zona.dto";
 import { FILAS_EJEMPLO } from "../../../../domain/testing/filas-ejemplo";
 import {
     ReglaInmutableError,
     ReglaInvalidaError,
     ReglaNoAprobadaError,
     ReglaNoEncontradaError,
+    RevisionEnConflictoError,
     SinPermisoAprobarError,
 } from "../../../../domain/errors/reglas-zona.error";
 
@@ -49,6 +50,7 @@ describe("ReglasZonaExceptionFilter", () => {
         [new ReglaInmutableError(), 409, "REGLA_INMUTABLE"],
         [new SinPermisoAprobarError(), 403, "SIN_PERMISO_APROBAR"],
         [new ReglaNoAprobadaError(), 409, "REGLA_NO_APROBADA"],
+        [new RevisionEnConflictoError(), 409, "VERSION_EN_CONFLICTO"],
     ])("traduce %s a %i con su código", (error, esperado, codigo) => {
         json.mockClear();
         new ReglasZonaExceptionFilter().catch(error, host);
@@ -68,12 +70,25 @@ describe("EditarReglaZonaDto (ValidationPipe global)", () => {
     const meta = { type: "body" as const, metatype: EditarReglaZonaDto };
 
     it("rechaza filas: null con 400 en vez de llegar al dominio", async () => {
-        await expect(pipe.transform({ filas: null }, meta)).rejects.toBeInstanceOf(BadRequestException);
-        await expect(pipe.transform({ filas: "x" }, meta)).rejects.toBeInstanceOf(BadRequestException);
+        await expect(pipe.transform({ revision: 1, filas: null }, meta)).rejects.toBeInstanceOf(BadRequestException);
+        await expect(pipe.transform({ revision: 1, filas: "x" }, meta)).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it("permite omitir filas o enviar un arreglo", async () => {
-        await expect(pipe.transform({ notas: "n" }, meta)).resolves.toEqual({ notas: "n" });
-        await expect(pipe.transform({ filas: FILAS_EJEMPLO }, meta)).resolves.toMatchObject({ filas: FILAS_EJEMPLO });
+        await expect(pipe.transform({ revision: 1, notas: "n" }, meta)).resolves.toEqual({ revision: 1, notas: "n" });
+        await expect(pipe.transform({ revision: 2, filas: FILAS_EJEMPLO }, meta)).resolves.toMatchObject({
+            filas: FILAS_EJEMPLO,
+        });
+    });
+
+    it("exige la revisión que el cliente vio (entero ≥ 1) al editar y al aprobar", async () => {
+        await expect(pipe.transform({ notas: "n" }, meta)).rejects.toBeInstanceOf(BadRequestException);
+        await expect(pipe.transform({ revision: 0, notas: "n" }, meta)).rejects.toBeInstanceOf(BadRequestException);
+        const aprobar = { type: "body" as const, metatype: AprobarReglaZonaDto };
+        await expect(pipe.transform({ calibrada: false }, aprobar)).rejects.toBeInstanceOf(BadRequestException);
+        await expect(pipe.transform({ revision: 3, calibrada: false }, aprobar)).resolves.toEqual({
+            revision: 3,
+            calibrada: false,
+        });
     });
 });

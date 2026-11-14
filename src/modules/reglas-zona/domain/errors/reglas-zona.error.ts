@@ -59,3 +59,12 @@ export class VersionEnConflictoError extends ReglaZonaError {
         super("VERSION_EN_CONFLICTO", "Otra operación creó la misma versión al mismo tiempo. Inténtalo de nuevo.");
     }
 }
+// Mismo código estable que el choque de numeración: en ambos casos el cliente debe recargar y reintentar.
+export class RevisionEnConflictoError extends ReglaZonaError {
+    constructor() {
+        super(
+            "VERSION_EN_CONFLICTO",
+            "El borrador cambió desde que lo abriste. Recarga la versión guardada antes de continuar.",
+        );
+    }
+}

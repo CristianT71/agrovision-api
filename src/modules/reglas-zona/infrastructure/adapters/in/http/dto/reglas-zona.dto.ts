@@ -38,6 +38,8 @@ export class CrearReglaZonaDto {
 }
 
 export class EditarReglaZonaDto {
+    // Revisión del borrador que el cliente tiene a la vista: si ya cambió, 409 VERSION_EN_CONFLICTO.
+    @IsInt() @Min(1) revision: number;
     @IsOptional() @IsString() @MaxLength(5000) notas?: string | null;
     // Omitir filas deja la tabla igual; null no es "omitir": IsOptional lo dejaría pasar y llegaría al dominio.
     @ValidateIf((_, valor) => valor !== undefined)
@@ -54,6 +56,8 @@ export class ConsultarReglasZonaDto {
 }
 
 export class AprobarReglaZonaDto {
+    // Revisión que el agrónomo revisó: se aprueba esa o ninguna.
+    @IsInt() @Min(1) revision: number;
     @IsBoolean() calibrada: boolean;
     @IsOptional() @IsString() @MaxLength(2000) nota?: string | null;
 }

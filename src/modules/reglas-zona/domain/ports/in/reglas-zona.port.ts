@@ -26,10 +26,19 @@ export interface IGestionReglasZona {
     ): Promise<VistaReglaZona>;
     listar(filtros: FiltrosReglasZona): Promise<VistaReglaZona[]>;
     obtener(id: string): Promise<VistaReglaZona>;
-    editar(actor: Actor, id: string, cambios: { notas?: string | null; filas?: FilaRegla[] }): Promise<VistaReglaZona>;
+    // `revision` es la que el cliente vio: si el borrador cambió después, VERSION_EN_CONFLICTO.
+    editar(
+        actor: Actor,
+        id: string,
+        cambios: { revision: number; notas?: string | null; filas?: FilaRegla[] },
+    ): Promise<VistaReglaZona>;
     eliminar(actor: Actor, id: string): Promise<void>;
     duplicar(actor: Actor, id: string): Promise<VistaReglaZona>;
-    aprobar(actor: Actor, id: string, datos: { calibrada: boolean; nota?: string | null }): Promise<VistaReglaZona>;
+    aprobar(
+        actor: Actor,
+        id: string,
+        datos: { revision: number; calibrada: boolean; nota?: string | null },
+    ): Promise<VistaReglaZona>;
     activar(actor: Actor, id: string): Promise<VistaReglaZona>;
     archivar(actor: Actor, id: string): Promise<VistaReglaZona>;
     simular(

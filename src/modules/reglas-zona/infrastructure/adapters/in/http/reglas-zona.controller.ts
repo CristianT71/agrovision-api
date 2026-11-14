@@ -57,7 +57,7 @@ export class ReglasZonaController {
         @Body() dto: EditarReglaZonaDto,
         @UsuarioActual() usuario: UsuarioAutenticado,
     ) {
-        return this.gestion.editar(actor(usuario), id, { notas: dto.notas, filas: dto.filas });
+        return this.gestion.editar(actor(usuario), id, { revision: dto.revision, notas: dto.notas, filas: dto.filas });
     }
 
     @Delete(":id") @HttpCode(204) eliminar(
@@ -83,7 +83,11 @@ export class ReglasZonaController {
         @Body() dto: AprobarReglaZonaDto,
         @UsuarioActual() usuario: UsuarioAutenticado,
     ) {
-        return this.gestion.aprobar(actor(usuario), id, { calibrada: dto.calibrada, nota: dto.nota ?? null });
+        return this.gestion.aprobar(actor(usuario), id, {
+            revision: dto.revision,
+            calibrada: dto.calibrada,
+            nota: dto.nota ?? null,
+        });
     }
 
     @Post(":id/activar") @HttpCode(200) activar(

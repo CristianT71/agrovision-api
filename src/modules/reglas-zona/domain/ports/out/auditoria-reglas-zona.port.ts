@@ -1,5 +1,3 @@
-export const AUDITORIA_REGLAS_ZONA = "AUDITORIA_REGLAS_ZONA";
-
 export type AccionAuditoriaReglaZona = "crear" | "editar" | "borrar" | "duplicar" | "aprobar" | "activar" | "archivar";
 
 // Solo identificadores y metadatos de la versión: nunca nombre, tarjeta profesional ni notas.

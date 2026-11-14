@@ -2,6 +2,7 @@ import {
     ReglaInmutableError,
     ReglaInvalidaError,
     ReglaNoAprobadaError,
+    RevisionEnConflictoError,
     TransicionInvalidaError,
 } from "../errors/reglas-zona.error";
 import { validarFilas } from "../services/validar-filas";
@@ -26,6 +27,8 @@ export interface DatosReglaZona {
     id: string;
     tipoEnfermedad: string;
     version: number;
+    // Contador de cambios del borrador (control de concurrencia optimista); no es la versión de publicación.
+    revision: number;
     estado: EstadoRegla;
     calibrada: boolean;
     notas: string | null;
@@ -44,6 +47,7 @@ export interface VistaReglaZona {
     id: string;
     tipoEnfermedad: string;
     version: number;
+    revision: number;
     estado: EstadoRegla;
     calibrada: boolean;
     notas: string | null;
@@ -83,6 +87,7 @@ export class ReglaZona {
             id: p.id,
             tipoEnfermedad: p.tipoEnfermedad,
             version: p.version,
+            revision: 1,
             estado: "borrador",
             calibrada: false,
             notas: p.notas,
@@ -105,6 +110,9 @@ export class ReglaZona {
     get version() {
         return this.datos.version;
     }
+    get revision() {
+        return this.datos.revision;
+    }
     get estado() {
         return this.datos.estado;
     }
@@ -126,10 +134,17 @@ export class ReglaZona {
         if (this.datos.estado !== "borrador") throw new ReglaInmutableError();
     }
 
+    // El cliente envía la revisión que vio: si el borrador cambió después, su operación ya no aplica.
+    exigirRevision(revisionVista: number): void {
+        if (this.datos.revision !== revisionVista) throw new RevisionEnConflictoError();
+    }
+
     editar(cambios: { notas?: string | null; filas?: FilaRegla[] }): void {
         this.exigirBorrador();
+        if (cambios.filas === undefined && cambios.notas === undefined) return;
         if (cambios.filas !== undefined) this.datos.filas = exigirFilasValidas(cambios.filas);
         if (cambios.notas !== undefined) this.datos.notas = cambios.notas;
+        this.datos.revision += 1;
     }
 
     // calibrada solo puede ser true si el agrónomo deja una nota que lo justifique.
@@ -144,6 +159,7 @@ export class ReglaZona {
         if (p.calibrada && nota === "")
             throw new ReglaInvalidaError(["Para marcar la regla como calibrada se requiere una nota."]);
         this.datos.estado = "aprobada";
+        this.datos.revision += 1;
         this.datos.calibrada = p.calibrada;
         this.datos.aprobadaPor = { nombre: aprobador.nombre, tarjetaProfesional: aprobador.tarjetaProfesional };
         this.datos.aprobadaPorUsuarioId = aprobadorUsuarioId;
@@ -186,6 +202,7 @@ export class ReglaZona {
             id: d.id,
             tipoEnfermedad: d.tipoEnfermedad,
             version: d.version,
+            revision: d.revision,
             estado: d.estado,
             calibrada: d.calibrada,
             notas: d.notas,

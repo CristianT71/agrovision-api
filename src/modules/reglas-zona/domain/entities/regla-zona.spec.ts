@@ -99,4 +99,24 @@ describe("ReglaZona", () => {
         expect(copia.filas).toEqual(origen.filas);
         expect(origen.estado).toBe("aprobada");
     });
+
+    it("la revisión nace en 1, sube con cada modificación del borrador y no se hereda al duplicar", () => {
+        const r = borrador();
+        expect(r.revision).toBe(1);
+        r.editar({ notas: "a" });
+        r.editar({ filas: FILAS_EJEMPLO });
+        expect(r.revision).toBe(3);
+        r.editar({});
+        expect(r.revision).toBe(3);
+        expect(r.duplicar({ id: "r2", version: 2, creadaPor: "u2", ahora }).revision).toBe(1);
+        r.aprobar(aprobador, "agro", { calibrada: false }, ahora);
+        expect(r.vista()).toMatchObject({ estado: "aprobada", revision: 4 });
+    });
+
+    it("exigirRevision rechaza una revisión distinta de la guardada (VERSION_EN_CONFLICTO)", () => {
+        const r = borrador();
+        r.editar({ notas: "a" });
+        expect(() => r.exigirRevision(2)).not.toThrow();
+        expect(() => r.exigirRevision(1)).toThrow(expect.objectContaining({ codigo: "VERSION_EN_CONFLICTO" }));
+    });
 });
