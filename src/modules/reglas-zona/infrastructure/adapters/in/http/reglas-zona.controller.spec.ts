@@ -1,10 +1,12 @@
-import type { ArgumentsHost } from "@nestjs/common";
+import { BadRequestException, ValidationPipe, type ArgumentsHost } from "@nestjs/common";
 import { GUARDS_METADATA, PATH_METADATA } from "@nestjs/common/constants";
 import { ROLES_KEY } from "../../../../../../common/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
 import { ReglasZonaController } from "./reglas-zona.controller";
 import { ReglasZonaExceptionFilter } from "./reglas-zona-exception.filter";
+import { EditarReglaZonaDto } from "./dto/reglas-zona.dto";
+import { FILAS_EJEMPLO } from "../../../../domain/testing/filas-ejemplo";
 import {
     ReglaInmutableError,
     ReglaInvalidaError,
@@ -58,5 +60,20 @@ describe("ReglasZonaExceptionFilter", () => {
         json.mockClear();
         new ReglasZonaExceptionFilter().catch(new ReglaInvalidaError(["Fila 2: a", "Fila 3: b"]), host);
         expect(json).toHaveBeenCalledWith(expect.objectContaining({ detalles: ["Fila 2: a", "Fila 3: b"] }));
+    });
+});
+
+describe("EditarReglaZonaDto (ValidationPipe global)", () => {
+    const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+    const meta = { type: "body" as const, metatype: EditarReglaZonaDto };
+
+    it("rechaza filas: null con 400 en vez de llegar al dominio", async () => {
+        await expect(pipe.transform({ filas: null }, meta)).rejects.toBeInstanceOf(BadRequestException);
+        await expect(pipe.transform({ filas: "x" }, meta)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("permite omitir filas o enviar un arreglo", async () => {
+        await expect(pipe.transform({ notas: "n" }, meta)).resolves.toEqual({ notas: "n" });
+        await expect(pipe.transform({ filas: FILAS_EJEMPLO }, meta)).resolves.toMatchObject({ filas: FILAS_EJEMPLO });
     });
 });

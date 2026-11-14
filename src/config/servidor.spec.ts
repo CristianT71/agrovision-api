@@ -77,8 +77,16 @@ describe("Configuración del servidor", () => {
         });
 
         it("el resto de la API conserva la lista de orígenes", () => {
-            expect(opcionesPara("/api/solicitudes")).toEqual({ origin: ["https://panel.ejemplo.com"] });
-            expect(opcionesPara("/api/public/v1/models/current")).toEqual({ origin: ["https://panel.ejemplo.com"] });
+            const restringido = { origin: ["https://panel.ejemplo.com"], exposedHeaders: ["ETag"] };
+            expect(opcionesPara("/api/solicitudes")).toEqual(restringido);
+            expect(opcionesPara("/api/public/v1/models/current")).toEqual(restringido);
+        });
+
+        it("expone ETag a los orígenes permitidos para If-None-Match de las reglas de zona públicas", () => {
+            expect(opcionesPara("/api/public/v1/zone-rules?tipo=roya")).toEqual({
+                origin: ["https://panel.ejemplo.com"],
+                exposedHeaders: ["ETag"],
+            });
         });
     });
 });

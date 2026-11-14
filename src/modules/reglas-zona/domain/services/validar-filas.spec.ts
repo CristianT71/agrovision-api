@@ -68,4 +68,9 @@ describe("validarFilas", () => {
             /Fila 3: radioMaxM no puede ser menor/,
         );
     });
+
+    it("rechaza una entrada que no es arreglo sin lanzar (null llegaría como 500)", () => {
+        expect(validarFilas(null as unknown as FilaRegla[])).toEqual(["La tabla debe ser una lista de filas."]);
+        expect(validarFilas({} as unknown as FilaRegla[])).toEqual(["La tabla debe ser una lista de filas."]);
+    });
 });

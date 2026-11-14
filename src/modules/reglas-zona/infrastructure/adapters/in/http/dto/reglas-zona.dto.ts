@@ -12,6 +12,7 @@ import {
     Max,
     MaxLength,
     Min,
+    ValidateIf,
     ValidateNested,
 } from "class-validator";
 import { ESTADOS_REGLA, type EstadoRegla } from "../../../../../domain/entities/regla-zona";
@@ -38,7 +39,8 @@ export class CrearReglaZonaDto {
 
 export class EditarReglaZonaDto {
     @IsOptional() @IsString() @MaxLength(5000) notas?: string | null;
-    @IsOptional()
+    // Omitir filas deja la tabla igual; null no es "omitir": IsOptional lo dejaría pasar y llegaría al dominio.
+    @ValidateIf((_, valor) => valor !== undefined)
     @IsArray()
     @ArrayMaxSize(50)
     @ValidateNested({ each: true })

@@ -140,4 +140,42 @@ describe("Persistencia de reglas de zona", () => {
         expect(r?.filas).toEqual(FILAS_EJEMPLO);
         expect(r?.vista().aprobadaPor).toEqual({ nombre: "Ana", tarjetaProfesional: "TP" });
     });
+
+    it("listar reparte las filas a su regla sin mezclarlas (agrupadas en una sola pasada)", async () => {
+        const cabecera = (id: string, version: number) => ({
+            id,
+            tipo_enfermedad: "roya",
+            version,
+            estado: "borrador",
+            calibrada: false,
+            notas: null,
+            creada_por: null,
+            creada_en: new Date(),
+            aprobada_por_usuario_id: null,
+            aprobada_por_nombre: null,
+            aprobada_por_tarjeta: null,
+            aprobada_en: null,
+            activada_en: null,
+        });
+        const aFila = (reglaId: string, f: (typeof FILAS_EJEMPLO)[number]) => ({
+            regla_id: reglaId,
+            orden: f.orden,
+            sev_max: f.sevMax,
+            inc_max: f.incMax,
+            radio_min_m: f.radioMinM,
+            radio_max_m: f.radioMaxM,
+        });
+        const unaFila = { orden: 1, sevMax: 100, incMax: 100, radioMinM: 0, radioMaxM: 5 };
+        query
+            .mockResolvedValueOnce([cabecera(nueva, 2), cabecera(previa, 1)])
+            .mockResolvedValueOnce([
+                aFila(previa, unaFila),
+                ...[...FILAS_EJEMPLO].reverse().map((f) => aFila(nueva, f)),
+            ]);
+        const reglas = await repo.listar({ tipo: "roya" });
+        expect(reglas.map((r) => r.id)).toEqual([nueva, previa]);
+        expect(reglas[0].filas).toEqual(FILAS_EJEMPLO);
+        expect(reglas[1].filas).toEqual([unaFila]);
+        expect(query).toHaveBeenCalledTimes(2);
+    });
 });

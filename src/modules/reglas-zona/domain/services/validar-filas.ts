@@ -9,6 +9,9 @@ const esNumero = (v: number) => typeof v === "number" && Number.isFinite(v);
 // Las filas se evalúan en el orden en que llegan: el orden declarado debe ser 1..n consecutivo.
 export function validarFilas(filas: readonly FilaRegla[]): string[] {
     const errores: string[] = [];
+    // Defensa ante entradas que no pasaron por el DTO (p. ej. null): sin esto filas.length lanzaría un 500.
+    const entrada: unknown = filas;
+    if (!Array.isArray(entrada)) return ["La tabla debe ser una lista de filas."];
     if (filas.length < 1 || filas.length > MAX_FILAS) {
         errores.push(`La tabla debe tener entre 1 y ${MAX_FILAS} filas.`);
         return errores;

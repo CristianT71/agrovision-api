@@ -200,7 +200,14 @@ export class TypeOrmReglasZonaRepository implements IReglasZonaRepository {
             `SELECT ${COLUMNAS_FILA} FROM reglas_zona_filas WHERE regla_id = ANY($1::uuid[]) ORDER BY regla_id, orden`,
             [reglas.map((r) => r.id)],
         );
-        return reglas.map((r) => aDominio(r, filas));
+        // Una sola pasada: agrupar por regla evita recorrer todas las filas por cada regla (O(reglas × filas)).
+        const porRegla = new Map<string, FilaBdTabla[]>();
+        for (const f of filas) {
+            const grupo = porRegla.get(f.regla_id);
+            if (grupo) grupo.push(f);
+            else porRegla.set(f.regla_id, [f]);
+        }
+        return reglas.map((r) => aDominio(r, porRegla.get(r.id) ?? []));
     }
 
     private async insertarFilas(tx: EntityManager, reglaId: string, filas: FilaRegla[]) {

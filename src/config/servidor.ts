@@ -41,7 +41,9 @@ export function crearOpcionesCors(origenes: string[]): CorsOptionsDelegate<Petic
             return;
         }
 
-        callback(null, { origin: origenes });
+        // ETag expuesto para que el cliente de otro origen permitido lo lea y lo reenvíe en If-None-Match
+        // (reglas de zona públicas). No abre más orígenes.
+        callback(null, { origin: origenes, exposedHeaders: ["ETag"] });
     };
 }
 

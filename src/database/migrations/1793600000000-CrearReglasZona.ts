@@ -1,62 +1,12 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
+import { sembrarReglasZona } from "../../modules/reglas-zona/infrastructure/adapters/out/persistence/semillas-reglas-zona";
 
 // Reglas de zona de vigilancia: tabla versionada de criterio experto (severidad %, incidencia %) → radio en metros
 // alrededor de un foco. No existe una fórmula científica %hoja→metros: la define un agrónomo y se muestra como
 // "estimación sin calibrar" mientras no la marque calibrada con una nota.
 
 // Semilla: una regla v1 en BORRADOR por cada tipo (4 enfermedades y 2 plagas) con valores de EJEMPLO.
-// Un agrónomo debe definir la tabla real, editarla y aprobarla; ninguna nace calibrada ni activa.
-export interface SemillaReglaZona {
-    id: string;
-    tipoEnfermedad: string;
-    nombreComun: string;
-}
-
-export const SEMILLAS_REGLAS_ZONA: readonly SemillaReglaZona[] = [
-    { id: "6f1c2a52-8d0e-4c1b-9a7e-3b5d0c9e7a01", tipoEnfermedad: "roya", nombreComun: "Roya del cafeto (Hemileia vastatrix)" },
-    { id: "6f1c2a52-8d0e-4c1b-9a7e-3b5d0c9e7a02", tipoEnfermedad: "cercospora", nombreComun: "Mancha de hierro (Cercospora coffeicola)" },
-    { id: "6f1c2a52-8d0e-4c1b-9a7e-3b5d0c9e7a03", tipoEnfermedad: "phoma", nombreComun: "Muerte descendente (Phoma spp.)" },
-    { id: "6f1c2a52-8d0e-4c1b-9a7e-3b5d0c9e7a04", tipoEnfermedad: "antracnosis", nombreComun: "Antracnosis (Colletotrichum spp.)" },
-    { id: "6f1c2a52-8d0e-4c1b-9a7e-3b5d0c9e7a05", tipoEnfermedad: "minador", nombreComun: "Minador de la hoja (Leucoptera coffeella)" },
-    { id: "6f1c2a52-8d0e-4c1b-9a7e-3b5d0c9e7a06", tipoEnfermedad: "hormigas", nombreComun: "Hormigas" },
-];
-
-// Filas de EJEMPLO (sev_max %, inc_max %) → radio en metros; iguales para todos los tipos sembrados.
-export const FILAS_SEMILLA_REGLAS_ZONA = [
-    { orden: 1, sevMax: 10, incMax: 20, radioMinM: 0, radioMaxM: 3 },
-    { orden: 2, sevMax: 30, incMax: 40, radioMinM: 3, radioMaxM: 8 },
-    { orden: 3, sevMax: 60, incMax: 70, radioMinM: 8, radioMaxM: 15 },
-    { orden: 4, sevMax: 100, incMax: 100, radioMinM: 15, radioMaxM: 30 },
-] as const;
-
-export const notasSemillaReglaZona = (nombreComun: string): string =>
-    `VALORES DE EJEMPLO sin criterio agronómico; un agrónomo debe definirlos antes de aprobar. Afección: ${nombreComun}. ` +
-    "Tabla de muestra creada por la migración inicial: no proviene de ningún estudio ni fórmula y la zona resultante " +
-    "es una estimación sin calibrar.";
-
-type EjecutarConsulta = (sql: string, parametros?: unknown[]) => Promise<unknown>;
-
-// Idempotente respecto a (tipo_enfermedad, version): si ya existe la v1 de un tipo no se toca ni se le añaden filas.
-export async function sembrarReglasZona(consultar: EjecutarConsulta): Promise<void> {
-    for (const semilla of SEMILLAS_REGLAS_ZONA) {
-        await consultar(
-            `INSERT INTO "reglas_zona" ("id","tipo_enfermedad","version","estado","calibrada","notas","creada_por","creada_en")
-             VALUES ($1,$2,1,'borrador',false,$3,NULL,now())
-             ON CONFLICT ("tipo_enfermedad","version") DO NOTHING`,
-            [semilla.id, semilla.tipoEnfermedad, notasSemillaReglaZona(semilla.nombreComun)],
-        );
-        for (const f of FILAS_SEMILLA_REGLAS_ZONA) {
-            // Solo si la regla con ESTE id es la v1 de la semilla (no una v1 previa con otro id).
-            await consultar(
-                `INSERT INTO "reglas_zona_filas" ("regla_id","orden","sev_max","inc_max","radio_min_m","radio_max_m")
-                 SELECT $1::uuid,$2::smallint,$3::double precision,$4::double precision,$5::double precision,$6::double precision
-                 WHERE EXISTS (SELECT 1 FROM "reglas_zona" WHERE "id" = $1::uuid)
-                 ON CONFLICT ("regla_id","orden") DO NOTHING`,
-                [semilla.id, f.orden, f.sevMax, f.incMax, f.radioMinM, f.radioMaxM],
-            );
-        }
-    }
-}
+// Las funciones viven fuera de este directorio: TypeORM trataría cualquier función exportada aquí como migración.
 
 export class CrearReglasZona1793600000000 implements MigrationInterface {
     name = "CrearReglasZona1793600000000";
@@ -138,8 +88,18 @@ export class CrearReglasZona1793600000000 implements MigrationInterface {
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
-        // Las reglas sembradas (y sus filas) desaparecen con sus tablas. OJO: esto también elimina la auditoría;
-        // no revertir en una BD con historial que deba conservarse.
+        // La auditoría es un historial inmutable: los triggers frenan UPDATE/DELETE/TRUNCATE pero no DROP TABLE.
+        // Por eso el revert se niega si hay historial; para revertir hay que respaldarlo y vaciarlo a mano antes.
+        const [{ total }] = (await queryRunner.query(`SELECT COUNT(*)::int AS total FROM "auditoria_reglas_zona"`)) as {
+            total: number;
+        }[];
+        if (Number(total) > 0) {
+            throw new Error(
+                `No se revierte CrearReglasZona: auditoria_reglas_zona tiene ${total} registro(s) de historial que se perderían. ` +
+                    "Respáldalos y retíralos manualmente antes de revertir.",
+            );
+        }
+        // Las reglas sembradas (y sus filas) desaparecen con sus tablas.
         // Al borrar la tabla se van sus triggers e índices; la función se quita aparte
         await queryRunner.query(`DROP TABLE "auditoria_reglas_zona"`);
         await queryRunner.query(`DROP FUNCTION "impedir_cambios_auditoria_reglas_zona"()`);
