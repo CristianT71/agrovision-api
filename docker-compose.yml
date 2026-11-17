@@ -12,4 +12,68 @@ services:
     container_name: Agrovision_DB
     volumes:
       - ./postgres:/var/lib/postgresql/data
-      
+
+  # ---------------------------------------------------------------------------------------------
+  # n8n: asistente de IA y análisis multiespectral. Es opcional: no arranca con un simple
+  # `docker compose up -d`. Para levantarlo:  docker compose --profile n8n up -d
+  # Requiere N8N_ENCRYPTION_KEY en el .env (ver .env.example y n8n/README.md).
+  # ---------------------------------------------------------------------------------------------
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.35.7
+    container_name: agrovision-n8n
+    profiles: ["n8n"]
+    restart: unless-stopped
+    depends_on:
+      - gotenberg
+    ports:
+      # Solo desde este equipo. Al exterior salen únicamente los webhooks, por el túnel de Cloudflare.
+      - "127.0.0.1:5679:5678"
+    environment:
+      # Cifra las credenciales guardadas. Si se pierde o se cambia, hay que volver a crearlas todas.
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
+      # URL con la que n8n arma las direcciones de los webhooks (la que verá el panel)
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5679/}
+      GENERIC_TIMEZONE: America/Bogota
+      TZ: America/Bogota
+      # El editor se usa por http en local: sin esto la cookie de sesión se rechaza
+      N8N_SECURE_COOKIE: "false"
+      # Los nodos de código no pueden leer las variables de entorno
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "true"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      # Imágenes y TIFF pesan: se guardan en disco y no en memoria ni en la base
+      N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+      # Los nodos de archivos de n8n solo pueden leer y escribir en esta carpeta (los informes PDF y errores.log)
+      N8N_RESTRICT_FILE_ACCESS_TO: /informes
+      # Permite `require('crypto')` en los nodos de código (el flujo 03 lo usa para generar el código del enlace)
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      N8N_PAYLOAD_SIZE_MAX: "64"
+      # Las ejecuciones guardan imágenes y respuestas del modelo: se borran a los 7 días (168 h)
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+    extra_hosts:
+      # Para llegar desde el contenedor a la API (3000), que corre en este equipo y no en Docker
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      # Archivos de los vuelos, en solo lectura: n8n los lee pero no puede alterarlos
+      - ./uploads/vuelos:/datos/vuelos:ro
+      # Aquí se guardan los informes PDF generados
+      - ./n8n/data/informes:/informes
+
+  # HTML a PDF. Sin puertos publicados: solo n8n puede llamarlo, en http://gotenberg:3000
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: agrovision-gotenberg
+    profiles: ["n8n"]
+    restart: unless-stopped
+    # El HTML del informe lo redacta un modelo de IA: sin JavaScript en el navegador que lo convierte
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--api-timeout=60s"
+
+volumes:
+  n8n_data:
+    # Conserva el volumen de la cuenta de n8n que ya estaba creada (venía de un compose anterior)
+    name: agrovision-n8n_n8n_data
