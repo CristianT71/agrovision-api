@@ -1,0 +1,330 @@
+{
+  "id": "JxPG09UXVPw4rzZU",
+  "name": "01-chat-asistente",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "asistente",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": {
+          "allowedOrigins": "https://agrovision.sbs"
+        }
+      },
+      "id": "e38dab81-2a40-5eff-9de4-239d04de0d25",
+      "name": "Webhook asistente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        100
+      ],
+      "webhookId": "8e6dd5ef-c40f-500a-a07e-9fc45fb45a87"
+    },
+    {
+      "parameters": {
+        "jsCode": "// El panel manda { action, sessionId, chatInput } dentro de \"body\". Se comprueba antes de gastar saldo del modelo.\nconst body = ($input.first().json.body) || {};\nconst chatInput = typeof body.chatInput === 'string' ? body.chatInput.trim() : '';\nconst sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';\nif (!chatInput) throw new Error('Falta el mensaje (chatInput).');\nif (chatInput.length > 4000) throw new Error('El mensaje supera los 4000 caracteres.');\nif (!/^[A-Za-z0-9-]{8,64}$/.test(sessionId)) throw new Error('El sessionId no es válido.');\nreturn [{ json: { chatInput, sessionId } }];"
+      },
+      "id": "e0fa8503-4b36-5751-9b5f-2a75640f51d0",
+      "name": "Validar mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "Eres el asistente de análisis multiespectral de AgroVisión. Ayudas a los administradores a consultar vuelos de dron sobre cafetales, a obtener su análisis y a generar informes en PDF.\n\nCómo trabajas:\n- Usa SIEMPRE las herramientas para obtener datos. Nunca inventes vuelos, cifras ni resultados.\n- Si el usuario no dice qué vuelo, usa 'listar_vuelos' y pídele que elija uno (nombre y lote). No adivines.\n- 'analizar_vuelo' calcula los índices y tarda; úsala solo cuando el usuario quiera el análisis. 'generar_informe' ya incluye el análisis: no llames a las dos para lo mismo.\n- Resume los resultados en español claro y breve. Los índices bajos indican vigor reducido, no la causa: nunca diagnostiques enfermedades, plagas ni deficiencias, y nunca recomiendes productos ni dosis. Sugiere verificar en campo con un agrónomo.\n- Cuando 'generar_informe' devuelva un enlace, escríbelo completo y solo, en una línea aparte (el chat no convierte enlaces en botones), e indica que vence en 24 horas.\n- Si una herramienta falla, dilo con sencillez y sugiere reintentar; no repitas la misma llamada más de una vez.\n- Si te piden algo que no tiene que ver con los vuelos o su análisis, di amablemente que no puedes ayudar con eso.",
+          "maxIterations": 6
+        }
+      },
+      "id": "02933296-b8f6-5e37-b45d-4a92d97eb713",
+      "name": "Asistente (agente)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "accounts/fireworks/models/kimi-k3p1-pro",
+          "mode": "id"
+        },
+        "options": {
+          "temperature": 0.2,
+          "maxTokens": 2000,
+          "extraBody": "{\"reasoning_effort\": \"low\"}"
+        }
+      },
+      "id": "909efb35-ebeb-527a-bf55-fd63cfb480ae",
+      "name": "Modelo del chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        300,
+        380
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "Cryg3T7vb1XycwP3",
+          "name": "Fireworks AI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Validar mensaje').item.json.sessionId }}",
+        "contextWindowLength": 8
+      },
+      "id": "47e3248f-9b1b-56aa-ba04-6150dd0867c0",
+      "name": "Memoria de la conversación",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        500,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Lista los vuelos de dron registrados, del más reciente al más antiguo. Devuelve id, nombre, lote y fecha de cada uno. Úsala para saber qué vuelos existen o para encontrar el id de un vuelo.",
+        "method": "GET",
+        "url": "http://host.docker.internal:3000/api/servicio/vuelos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "limite",
+              "valueProvider": "fieldValue",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "36db6c0a-17d9-5166-9215-85889b3e05fd",
+      "name": "listar_vuelos",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        380
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apiAgroVision01",
+          "name": "API AgroVisión (llave de servicio)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "analizar_vuelo",
+        "description": "Calcula los índices de vegetación (NDVI, NDRE, GNDVI) de un vuelo y devuelve las zonas con vigor reducido, observaciones y limitaciones. Tarda hasta un minuto. Necesita el vueloId.",
+        "workflowId": {
+          "__rl": true,
+          "value": "pqkNX56H4EB71jJA",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "vueloId": "={{ $fromAI('vueloId', 'El id (UUID) del vuelo. Sácalo de listar_vuelos.', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "vueloId",
+              "displayName": "vueloId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "6d49f81c-c53b-597b-91e5-d40c52e8a1e4",
+      "name": "analizar_vuelo",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "name": "generar_informe",
+        "description": "Analiza un vuelo y genera un informe en PDF. Devuelve un enlace de descarga (vence en 24 horas) y advertencias si las hay. Necesita el vueloId. Ya incluye el análisis.",
+        "workflowId": {
+          "__rl": true,
+          "value": "7hZXnFBsJ5d7LPwF",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "vueloId": "={{ $fromAI('vueloId', 'El id (UUID) del vuelo. Sácalo de listar_vuelos.', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "vueloId",
+              "displayName": "vueloId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "046f1ef2-7468-5146-a7ea-40825da2c93c",
+      "name": "generar_informe",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Flujo 01 · Chat del asistente (modelo 1: conversación)\n\nEs el que llama el panel: hace un `POST` a la URL de producción de este webhook con `{ action, sessionId, chatInput }` y espera `{ output }`.\n\n1. **Webhook**: solo acepta peticiones desde `https://agrovision.sbs` (CORS) y responde con lo que salga del último nodo.\n2. **Validar mensaje**: comprueba el texto y el `sessionId` antes de gastar saldo.\n3. **Agente**: el modelo decide qué herramienta usar. Abajo están sus piezas: el modelo, la memoria y 3 herramientas.",
+        "height": 230,
+        "width": 760,
+        "color": 4
+      },
+      "id": "00a1faa6-381c-5f04-b5f0-e6dc5e3a7a3e",
+      "name": "Nota 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -250
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Modelo del chat**: Kimi K3.1 Pro por Fireworks, con la misma credencial.\n\n**Memoria**: recuerda los últimos 8 mensajes de cada conversación (por `sessionId`).\n\n**Herramientas**: *listar_vuelos* lee la API (necesita la credencial Header Auth); *analizar_vuelo* llama al flujo 02; *generar_informe* llama al flujo 03.",
+        "height": 190,
+        "width": 700,
+        "color": 4
+      },
+      "id": "9d273773-e18f-56aa-8634-9dd707bd1b42",
+      "name": "Nota 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        300,
+        520
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook asistente": {
+      "main": [
+        [
+          {
+            "node": "Validar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar mensaje": {
+      "main": [
+        [
+          {
+            "node": "Asistente (agente)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modelo del chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Asistente (agente)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria de la conversación": {
+      "ai_memory": [
+        [
+          {
+            "node": "Asistente (agente)",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "listar_vuelos": {
+      "ai_tool": [
+        [
+          {
+            "node": "Asistente (agente)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "analizar_vuelo": {
+      "ai_tool": [
+        [
+          {
+            "node": "Asistente (agente)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generar_informe": {
+      "ai_tool": [
+        [
+          {
+            "node": "Asistente (agente)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "errorWorkflow": "VkqK2eaZLtDW7QYz"
+  }
+}

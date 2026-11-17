@@ -1,0 +1,122 @@
+{
+  "id": "VkqK2eaZLtDW7QYz",
+  "name": "05-manejo-errores",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e2e40447-231b-5579-83b2-0f2f99e97b4a",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convierte el aviso de error de n8n en una línea de registro. No guarda datos de la ejecución\n// (pueden traer imágenes o información del lote), solo qué falló y dónde.\nconst e = $input.first().json;\nconst linea = {\n  fecha: new Date().toISOString(),\n  flujo: e.workflow && e.workflow.name,\n  flujoId: e.workflow && e.workflow.id,\n  ejecucion: e.execution && e.execution.id,\n  nodo: e.execution && e.execution.lastNodeExecuted,\n  mensaje: String((e.execution && e.execution.error && e.execution.error.message) || '').slice(0, 500),\n};\nconst texto = `[${linea.fecha}] ${linea.flujo} falló en \"${linea.nodo}\": ${linea.mensaje} (ejecución ${linea.ejecucion})`;\nconst binario = await this.helpers.prepareBinaryData(Buffer.from(JSON.stringify(linea) + '\\n', 'utf8'), 'errores.log', 'text/plain');\nreturn [{ json: { ...linea, texto }, binary: { data: binario } }];"
+      },
+      "id": "b67ca8c9-282f-56dc-b3f0-e959ea47b9f1",
+      "name": "Armar registro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/informes/errores.log",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "563e246d-9da7-5712-80d4-a29340c108b7",
+      "name": "Anotar en errores.log",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "CAMBIAR@correo.com",
+        "toEmail": "CAMBIAR@correo.com",
+        "subject": "=AgroVisión · falló el flujo {{ $json.flujo }}",
+        "emailFormat": "text",
+        "text": "={{ $json.texto }}",
+        "options": {}
+      },
+      "id": "941a5e37-8ed4-5163-a1dc-48e894fa9a41",
+      "name": "Enviar correo (desactivado)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        100
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "## Flujo 05 · Manejo de errores\n\nn8n llama a este flujo **cuando otro flujo falla**, porque cada flujo lo tiene marcado como su «Error workflow» (Ajustes del flujo).\n\n1. **Error Trigger**: recibe el nombre del flujo, el nodo que falló y el mensaje.\n2. **Armar registro**: crea una línea de texto. No guarda datos de la ejecución.\n3. **Anotar en errores.log**: la agrega al final del archivo `n8n/data/informes/errores.log` de tu equipo.\n4. **Correo (desactivado)**: si quieres que te avise, créale una credencial SMTP, pon tus correos y actívalo.",
+        "height": 230,
+        "width": 720,
+        "color": 4
+      },
+      "id": "70c7f3b8-c6ec-51df-aaeb-777400878d21",
+      "name": "Nota 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -150
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Armar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar registro": {
+      "main": [
+        [
+          {
+            "node": "Anotar en errores.log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anotar en errores.log": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo (desactivado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  }
+}

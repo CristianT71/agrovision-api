@@ -1,0 +1,439 @@
+{
+  "id": "pqkNX56H4EB71jJA",
+  "name": "02-analisis-vuelo",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "vueloId",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "615eea0e-c159-5738-89fa-3563431cd2a1",
+      "name": "Entrada (otro flujo)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "69050807-5f27-5d98-829c-45945e248289",
+      "name": "Entrada manual (pruebas)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ab781053",
+              "name": "vueloId",
+              "value": "PEGA-AQUI-EL-ID-DEL-VUELO",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "f3293c96-ddcf-5e34-825c-31ae6d145e90",
+      "name": "Vuelo de prueba",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        230,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2fd93711",
+              "name": "config.urlApi",
+              "value": "http://host.docker.internal:3000/api",
+              "type": "string"
+            },
+            {
+              "id": "1ca20c42",
+              "name": "config.urlIndices",
+              "value": "http://indices:8000",
+              "type": "string"
+            },
+            {
+              "id": "15d16aaf",
+              "name": "config.modelo",
+              "value": "accounts/fireworks/models/qwen3p8-max",
+              "type": "string"
+            },
+            {
+              "id": "64c953b8",
+              "name": "config.esfuerzoRazonamiento",
+              "value": "low",
+              "type": "string"
+            },
+            {
+              "id": "c2f7744f",
+              "name": "config.maxTokens",
+              "value": 4000,
+              "type": "number"
+            },
+            {
+              "id": "f384475e",
+              "name": "config.maxCapturas",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "id": "87656015",
+              "name": "config.umbrales",
+              "value": "={{ { NDVI: 0.5, NDRE: 0.3, GNDVI: 0.45 } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d018b1b6-31c3-592c-8f56-4f6ad9bd1ed7",
+      "name": "Configuración",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.config.urlApi }}/servicio/vuelos/{{ $json.vueloId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "85e8448d-403e-58e8-bb24-26ffdbfb2ea4",
+      "name": "Datos del vuelo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        690,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apiAgroVision01",
+          "name": "API AgroVisión (llave de servicio)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Configuración').first().json.config.urlApi }}/servicio/vuelos/{{ $('Configuración').first().json.vueloId }}/archivos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limite",
+              "value": "200"
+            }
+          ]
+        }
+      },
+      "id": "c374d3a1-8b1a-52b8-9190-7f27fcc8d28e",
+      "name": "Archivos del vuelo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apiAgroVision01",
+          "name": "API AgroVisión (llave de servicio)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Agrupa los archivos del vuelo por captura (las 4 bandas + la foto RGB) y elige unas pocas repartidas\n// a lo largo del vuelo. Los nombres de dron DJI terminan en _MS_G, _MS_R, _MS_RE, _MS_NIR (bandas) y _D (RGB).\n// OJO: ese sufijo no se ha comprobado con archivos reales: si no coincide, aquí es donde hay que ajustarlo.\nconst cfg = $('Configuración').first().json.config;\nconst vuelo = $('Datos del vuelo').first().json;\nconst lista = $input.first().json;\nconst archivos = Array.isArray(lista.datos) ? lista.datos : [];\n\nconst sinExtension = (n) => String(n || '').replace(/\\.[^.]+$/, '');\nconst grupos = new Map();\nconst grupo = (clave) => {\n  if (!grupos.has(clave)) grupos.set(clave, { id: clave, bandas: {}, rgb: null, capturadoEn: null, ubicacion: null, alturaRelativaM: null });\n  return grupos.get(clave);\n};\n\nfor (const a of archivos) {\n  const nombre = sinExtension(a.nombreOriginal);\n  let g = null;\n  if (a.tipo === 'banda_multiespectral' && a.banda) {\n    g = grupo(nombre.replace(/_MS_(G|R|RE|NIR)$/i, ''));\n    g.bandas[a.banda] = a.id;\n  } else if (a.tipo === 'foto_rgb') {\n    g = grupo(nombre.replace(/_D$/i, ''));\n    g.rgb = a.id;\n  }\n  if (!g) continue;\n  if (!g.capturadoEn && a.capturadoEn) g.capturadoEn = a.capturadoEn;\n  if (!g.ubicacion && a.ubicacion && typeof a.ubicacion.latitud === 'number' && typeof a.ubicacion.longitud === 'number') {\n    g.ubicacion = { lat: a.ubicacion.latitud, lon: a.ubicacion.longitud };\n  }\n  if (g.alturaRelativaM === null && a.ubicacion && typeof a.ubicacion.alturaRelativaM === 'number') g.alturaRelativaM = a.ubicacion.alturaRelativaM;\n}\n\nconst todas = [...grupos.values()];\nconst completas = todas\n  .filter((g) => g.bandas.green && g.bandas.red && g.bandas.rededge && g.bandas.nir)\n  .sort((a, b) => String(a.capturadoEn || a.id).localeCompare(String(b.capturadoEn || b.id)));\nif (completas.length === 0) {\n  throw new Error('El vuelo no tiene ninguna captura con las 4 bandas (green, red, rededge y nir). Revisa que se hayan subido todos los archivos _MS_ y su nombre.');\n}\n\n// Elige hasta maxCapturas repartidas de forma pareja\nconst k = Math.min(cfg.maxCapturas, completas.length);\nconst elegidas = [];\nfor (let i = 0; i < k; i++) elegidas.push(completas[k === 1 ? 0 : Math.round((i * (completas.length - 1)) / (k - 1))]);\n\nconst alturas = todas.map((g) => g.alturaRelativaM).filter((v) => typeof v === 'number');\nconst fechas = todas.map((g) => g.capturadoEn).filter(Boolean).sort();\nconst meta = {\n  cantidadCapturas: completas.length,\n  incompletas: todas.length - completas.length,\n  alturaRelativaM: alturas.length ? Number((alturas.reduce((s, v) => s + v, 0) / alturas.length).toFixed(1)) : null,\n  fecha: String(fechas[0] || vuelo.creadoEn || '').slice(0, 10) || null,\n  rtkFijoPct: null, // la lista de archivos no trae la bandera RTK: se deja sin dato\n};\n\nreturn [{ json: {\n  cfg,\n  vuelo,\n  meta,\n  peticion: {\n    vueloId: vuelo.id,\n    umbrales: cfg.umbrales,\n    maxImagenes: cfg.maxCapturas,\n    capturas: elegidas.map((g) => ({ id: g.id, bandas: g.bandas, rgb: g.rgb, ubicacion: g.ubicacion, capturadoEn: g.capturadoEn })),\n  },\n} }];"
+      },
+      "id": "6ebcbf19-1a20-5729-917d-d3fc11f853f8",
+      "name": "Agrupar capturas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1150,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.cfg.urlIndices }}/analizar",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.peticion) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "78ed378d-22df-50fe-8599-8c5295bcf65b",
+      "name": "Calcular índices (servicio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma lo que se le envía al modelo de visión: las cifras ya calculadas y las imágenes (mapas de calor y foto RGB).\nconst previo = $('Agrupar capturas').first().json;\nconst r = $input.first().json; // respuesta del servicio de índices\nif (!Array.isArray(r.indices) || r.indices.length === 0) throw new Error('El servicio de índices no devolvió ningún índice.');\nconst mapas = Array.isArray(r.mapas) ? r.mapas : [];\nconst candidatas = Array.isArray(r.zonasCandidatas) ? r.zonasCandidatas : [];\n\nconst sistema = [\n  'Eres un analista de imágenes multiespectrales de cultivos de café. Recibes cifras ya calculadas y mapas de calor de índices de vegetación (NDVI, NDRE, GNDVI), más una foto RGB.',\n  '',\n  'Reglas obligatorias:',\n  '1. Describe SOLO lo que se ve en las imágenes y lo que dicen las cifras. No inventes cifras ni zonas: solo puedes hablar de las zonas candidatas que vienen en los datos (por su id).',\n  '2. Un índice bajo indica vigor reducido, no la causa. No diagnostiques enfermedades, plagas ni deficiencias. Di que la causa debe confirmarse en campo.',\n  '3. Califica la severidad de cada zona candidata como alta, media, baja o informativa, según su valor frente al umbral y su extensión.',\n  '4. Si una imagen no permite concluir algo (sombras, bordes, poca resolución), dilo en \"limitaciones\".',\n  '5. Responde ÚNICAMENTE con un objeto JSON, sin texto adicional ni bloques de código, con esta forma:',\n  '{\"observaciones\":[\"...\"],\"zonas\":[{\"id\":\"id de la zona candidata\",\"descripcion\":\"qué se ve en esa zona\",\"severidad\":\"alta|media|baja|informativa\"}],\"confianza\":\"alta|media|baja\",\"limitaciones\":[\"...\"]}',\n].join('\\n');\n\nconst resumen = { indices: r.indices, zonasCandidatas: candidatas.map((z) => ({ id: z.id, indice: z.indice, valor: z.valor, areaPct: z.areaPct, capturaId: z.capturaId })) };\nconst partes = [{ type: 'text', text: 'Datos calculados (JSON):\\n' + JSON.stringify(resumen) + '\\n\\nA continuación van las imágenes, cada una con su título.' }];\nfor (const m of mapas.slice(0, 8)) {\n  partes.push({ type: 'text', text: 'Imagen: ' + (m.titulo || m.indice || 'sin título') + ' (captura ' + (m.capturaId || '?') + ')' });\n  partes.push({ type: 'image_url', image_url: { url: 'data:' + (m.mime || 'image/png') + ';base64,' + m.base64 } });\n}\n\nreturn [{ json: {\n  cfg: previo.cfg,\n  vuelo: previo.vuelo,\n  meta: previo.meta,\n  servicio: { indices: r.indices, zonasCandidatas: candidatas, advertencias: Array.isArray(r.advertencias) ? r.advertencias : [] },\n  mensajes: [{ role: 'system', content: sistema }, { role: 'user', content: partes }],\n} }];"
+      },
+      "id": "0805c493-0c56-5d3b-8fb0-c086bf0743b4",
+      "name": "Preparar imágenes para el modelo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1610,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fireworks.ai/inference/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.cfg.modelo, reasoning_effort: $json.cfg.esfuerzoRazonamiento, max_tokens: $json.cfg.maxTokens, temperature: 0.2, response_format: { type: 'json_object' }, messages: $json.mensajes }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 240000
+        }
+      },
+      "id": "caf2fc29-faeb-5eaf-865c-297bf70d33f2",
+      "name": "Interpretar imágenes (visión)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1840,
+        100
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "Cryg3T7vb1XycwP3",
+          "name": "Fireworks AI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta lo calculado por el servicio (cifras) con lo que dice el modelo de visión (texto y severidad).\n// Las cifras NUNCA salen del modelo: vienen del servicio.\nconst previo = $('Preparar imágenes para el modelo').first().json;\nconst resp = $input.first().json;\nif (resp.statusCode !== 200) {\n  const detalle = resp.body && resp.body.error && resp.body.error.message ? resp.body.error.message : JSON.stringify(resp.body);\n  throw new Error('Fireworks respondió ' + resp.statusCode + ': ' + String(detalle).slice(0, 300));\n}\n\nconst eleccion = resp.body.choices && resp.body.choices[0] ? resp.body.choices[0] : {};\nlet texto = eleccion.message && typeof eleccion.message.content === 'string' ? eleccion.message.content : '';\ntexto = texto.replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\nif (!texto) throw new Error('El modelo de visión no devolvió texto (finish_reason: ' + (eleccion.finish_reason || '?') + '). Sube max_tokens o baja el razonamiento.');\nconst ini = texto.indexOf('{');\nconst fin = texto.lastIndexOf('}');\nif (ini < 0 || fin < ini) throw new Error('La respuesta del modelo de visión no contiene un JSON.');\nlet crudo;\ntry {\n  crudo = JSON.parse(texto.slice(ini, fin + 1));\n} catch (e) {\n  throw new Error('El JSON del modelo de visión no es válido: ' + e.message);\n}\n\nconst SEVERIDADES = ['alta', 'media', 'baja', 'informativa'];\nconst CONFIANZAS = ['alta', 'media', 'baja'];\nconst txt = (v) => (typeof v === 'string' ? v.trim() : '');\nconst lista = (v) => (Array.isArray(v) ? v : []);\nconst delModelo = new Map(lista(crudo.zonas).map((z) => [String(z && z.id), z]));\n\nconst { servicio, meta, vuelo: v } = previo;\nconst zonas = servicio.zonasCandidatas.map((z) => {\n  const d = delModelo.get(String(z.id)) || {};\n  return {\n    id: z.id,\n    descripcion: txt(d.descripcion) || 'Zona detectada con el índice ' + z.indice,\n    severidad: SEVERIDADES.includes(d.severidad) ? d.severidad : 'informativa',\n    indice: z.indice,\n    valor: z.valor,\n    ubicacion: z.ubicacion || null,\n  };\n});\n\nconst limitaciones = [...new Set([\n  ...servicio.advertencias,\n  ...lista(crudo.limitaciones).map(txt),\n  meta.incompletas > 0 ? meta.incompletas + ' capturas sin las 4 bandas no se usaron.' : '',\n].filter(Boolean))];\n\nconst uso = resp.body.usage || {};\nreturn [{ json: {\n  vuelo: { id: v.id, nombre: v.nombre, lote: v.lote || null, fecha: meta.fecha, notas: v.notas || null, alturaRelativaM: meta.alturaRelativaM, rtkFijoPct: meta.rtkFijoPct, cantidadCapturas: meta.cantidadCapturas },\n  analisis: {\n    generadoEn: new Date().toISOString(),\n    indices: servicio.indices,\n    zonas,\n    observaciones: lista(crudo.observaciones).map(txt).filter(Boolean),\n    confianza: CONFIANZAS.includes(crudo.confianza) ? crudo.confianza : 'baja',\n    limitaciones,\n  },\n  consumoVision: { entrada: uso.prompt_tokens || 0, salida: uso.completion_tokens || 0, razonamiento: (uso.completion_tokens_details && uso.completion_tokens_details.reasoning_tokens) || 0 },\n} }];"
+      },
+      "id": "afe4215f-fd3c-548c-8446-6bb1dbcc0d91",
+      "name": "Armar análisis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2070,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Flujo 02 · Análisis de vuelo (modelo 2: visión)\n\nRecibe el `vueloId` y devuelve `{ vuelo, analisis }` (el formato está en `docs/03-contratos.md`).\n\n**Para probarlo a mano:** abre el nodo *Vuelo de prueba*, pega el id de un vuelo real y pulsa **Execute workflow**.\n\n**Necesita dos cosas que no son de este flujo:**\n1. La credencial *API AgroVisión (llave de servicio)* (Header Auth) en los nodos *Datos del vuelo* y *Archivos del vuelo*.\n2. El servicio de índices en Python, en `http://indices:8000` (hace los cálculos con los TIFF).",
+        "height": 230,
+        "width": 800,
+        "color": 4
+      },
+      "id": "660387e9-e794-5c99-8b94-dd121c981f2a",
+      "name": "Nota 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Datos del vuelo / Archivos del vuelo**: leen la API. **Agrupar capturas** junta cada captura (4 bandas + RGB) por el nombre del archivo y elige unas pocas repartidas en el vuelo.",
+        "height": 150,
+        "width": 460,
+        "color": 4
+      },
+      "id": "97fd1c1b-4c8b-5024-814c-4e9fec082ac8",
+      "name": "Nota 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        690,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Calcular índices (servicio)**: el servicio hace NDVI, NDRE y GNDVI con código (no con IA) y devuelve estadísticas, zonas candidatas y mapas de calor.\n\n**Interpretar imágenes**: el modelo de visión solo describe lo que ve y califica la severidad de cada zona candidata. **Las cifras no salen del modelo.**",
+        "height": 210,
+        "width": 520,
+        "color": 4
+      },
+      "id": "d2fc48d1-47e7-58e3-8387-3106d62a7d4c",
+      "name": "Nota 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        -190
+      ]
+    }
+  ],
+  "connections": {
+    "Entrada (otro flujo)": {
+      "main": [
+        [
+          {
+            "node": "Configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrada manual (pruebas)": {
+      "main": [
+        [
+          {
+            "node": "Vuelo de prueba",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vuelo de prueba": {
+      "main": [
+        [
+          {
+            "node": "Configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuración": {
+      "main": [
+        [
+          {
+            "node": "Datos del vuelo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos del vuelo": {
+      "main": [
+        [
+          {
+            "node": "Archivos del vuelo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archivos del vuelo": {
+      "main": [
+        [
+          {
+            "node": "Agrupar capturas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agrupar capturas": {
+      "main": [
+        [
+          {
+            "node": "Calcular índices (servicio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular índices (servicio)": {
+      "main": [
+        [
+          {
+            "node": "Preparar imágenes para el modelo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar imágenes para el modelo": {
+      "main": [
+        [
+          {
+            "node": "Interpretar imágenes (visión)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar imágenes (visión)": {
+      "main": [
+        [
+          {
+            "node": "Armar análisis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "errorWorkflow": "VkqK2eaZLtDW7QYz"
+  }
+}

@@ -1,0 +1,235 @@
+{
+  "id": "qsAHFLnDWtRYeiZr",
+  "name": "04-descargar-informe",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "informe",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "be427cb4-af10-5a70-bbce-8b271e5cb2c3",
+      "name": "Webhook informe",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        100
+      ],
+      "webhookId": "0fd9f8ba-3b75-568a-8604-7e9839b0a786"
+    },
+    {
+      "parameters": {
+        "jsCode": "// El enlace trae ?t=<vencimiento>-<48 caracteres>. Se valida el formato (esto impide rutas raras como ../)\n// y que no haya vencido, antes de tocar el disco.\nconst t = String(($input.first().json.query && $input.first().json.query.t) || '');\nconst m = /^(\\d{10})-([a-f0-9]{48})$/.exec(t);\nif (!m) return [{ json: { estado: 400, mensaje: 'Enlace no válido.' } }];\nif (Number(m[1]) * 1000 < Date.now()) return [{ json: { estado: 410, mensaje: 'El enlace venció. Pide un informe nuevo.' } }];\nreturn [{ json: { estado: 200, archivo: t + '.pdf' } }];"
+      },
+      "id": "389f6ab1-9188-5fb2-8627-d7346bf97ff8",
+      "name": "Validar enlace",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.estado }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2f0f55b1-1549-58de-8c3b-ca127ac912d9",
+      "name": "¿Enlace válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "=/informes/{{ $json.archivo }}",
+        "options": {
+          "dataPropertyName": "data"
+        }
+      },
+      "id": "3c524d2a-6fe8-56fe-a328-26070335f078",
+      "name": "Leer PDF",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        20
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "inputDataFieldName": "data",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/pdf"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "attachment; filename=\"informe-agrovision.pdf\""
+              },
+              {
+                "name": "Cache-Control",
+                "value": "private, no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "1cb8b71a-5807-5ee4-8a59-9495008f95de",
+      "name": "Responder PDF",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "No se encontró el informe. Pide uno nuevo.",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "e25d5d3a-077d-5b82-bc11-9773cb353365",
+      "name": "Responder no encontrado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        960,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.mensaje }}",
+        "options": {
+          "responseCode": "={{ $json.estado }}"
+        }
+      },
+      "id": "3fa83b3b-4913-5a51-a259-ce464eeae8b8",
+      "name": "Responder error del enlace",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Flujo 04 · Descargar informe\n\nEs el enlace que recibe quien pide un informe: `.../webhook/informe?t=<código>`.\n\n1. **Webhook**: recibe el GET (por eso este flujo debe estar **activo** para tener URL de producción).\n2. **Validar enlace**: el código debe tener el formato exacto `10 dígitos-48 caracteres` y no haber vencido. Así nadie puede pedir otra ruta del disco.\n3. **Leer PDF**: busca el archivo en `/informes`. Si no existe, responde 404.\n4. **Responder PDF**: entrega el archivo para descargar. Sin guardar en caché.",
+        "height": 250,
+        "width": 720,
+        "color": 4
+      },
+      "id": "ec9c7fee-1330-51b0-bd09-6a3f54cda517",
+      "name": "Nota 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -170
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook informe": {
+      "main": [
+        [
+          {
+            "node": "Validar enlace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar enlace": {
+      "main": [
+        [
+          {
+            "node": "¿Enlace válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Enlace válido?": {
+      "main": [
+        [
+          {
+            "node": "Leer PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder error del enlace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer PDF": {
+      "main": [
+        [
+          {
+            "node": "Responder PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder no encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "errorWorkflow": "VkqK2eaZLtDW7QYz"
+  }
+}

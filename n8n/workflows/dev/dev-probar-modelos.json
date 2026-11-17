@@ -1,0 +1,115 @@
+{
+  "id": "devProbarModelos1",
+  "name": "dev-probar-modelos",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1f1c0de-0001-4a00-8000-000000000001",
+      "name": "Manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Cada modelo con distintos niveles de razonamiento (reasoning_effort). Gasta una fracción de centavo.\nconst modelos = ['glm-5p3-flash', 'glm-5p3', 'kimi-k3p1-pro', 'qwen3p8-max'];\nconst niveles = ['none', 'low'];\nconst items = [];\nfor (const corto of modelos) for (const nivel of niveles) items.push({ json: { corto: `${corto} [${nivel}]`, modelo: `accounts/fireworks/models/${corto}`, nivel } });\nreturn items;"
+      },
+      "id": "a1f1c0de-0002-4a00-8000-000000000002",
+      "name": "Modelos a probar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fireworks.ai/inference/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.modelo, reasoning_effort: $json.nivel, messages: [{ role: 'user', content: 'Responde solo con la palabra: ok' }], max_tokens: 200, temperature: 0 }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "a1f1c0de-0003-4a00-8000-000000000003",
+      "name": "Fireworks chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "Cryg3T7vb1XycwP3",
+          "name": "Fireworks AI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resumen sin mostrar nada sensible: modelo, estado HTTP y, si falla, el mensaje de error.\nreturn $input.all().map((item, i) => {\n  const modelo = $('Modelos a probar').all()[i].json.corto;\n  const estado = item.json.statusCode;\n  const cuerpo = item.json.body || {};\n  const respuesta = cuerpo.choices?.[0]?.message?.content;\n  return { json: {\n    modelo,\n    estado,\n    funciona: estado === 200,\n    respuesta: typeof respuesta === 'string' ? respuesta.slice(0, 60) : null,\n    tokens: cuerpo.usage ?? null,\n    error: estado === 200 ? null : (cuerpo.error?.message ?? JSON.stringify(cuerpo).slice(0, 200)),\n  } };\n});"
+      },
+      "id": "a1f1c0de-0004-4a00-8000-000000000004",
+      "name": "Resumen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Manual": {
+      "main": [
+        [
+          {
+            "node": "Modelos a probar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modelos a probar": {
+      "main": [
+        [
+          {
+            "node": "Fireworks chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fireworks chat": {
+      "main": [
+        [
+          {
+            "node": "Resumen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
