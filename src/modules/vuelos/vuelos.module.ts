@@ -15,11 +15,13 @@ import { ExifrMetadatosAdapter } from "./infrastructure/adapters/out/metadata/ex
 import { HmacMediosAdapter } from "./infrastructure/adapters/out/firmador/hmac-medios.adapter";
 import { VuelosController } from "./infrastructure/adapters/in/http/vuelos.controller";
 import { MediosVuelosController } from "./infrastructure/adapters/in/http/medios-vuelos.controller";
+import { VuelosServicioController } from "./infrastructure/adapters/in/http/vuelos-servicio.controller";
+import { LlaveServicioGuard } from "./infrastructure/adapters/in/http/guards/llave-servicio.guard";
 import { SubidaVueloInterceptor } from "./infrastructure/adapters/in/http/subida-vuelo.interceptor";
 import { VueloExistenteGuard } from "./infrastructure/adapters/in/http/guards/vuelo-existente.guard";
 
 @Module({
-    controllers: [MediosVuelosController, VuelosController],
+    controllers: [MediosVuelosController, VuelosController, VuelosServicioController],
     providers: [
         { provide: GESTION_VUELOS, useClass: GestionVuelosService },
         { provide: LEER_MEDIO_VUELO, useClass: LeerMedioVueloService },
@@ -31,6 +33,7 @@ import { VueloExistenteGuard } from "./infrastructure/adapters/in/http/guards/vu
         { provide: AUDITORIA_VUELOS, useExisting: TypeOrmAuditoriaVuelosAdapter },
         SubidaVueloInterceptor,
         VueloExistenteGuard,
+        LlaveServicioGuard,
     ],
 })
 export class VuelosModule {}
