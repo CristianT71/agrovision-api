@@ -108,7 +108,7 @@ def variabilidad_espacial(rejillas: list[np.ndarray]) -> dict:
 def zonas_bajas(idx: np.ndarray, umbral: float) -> list[dict]:
     """Grupos contiguos de celdas de la rejilla cuyo valor medio queda bajo el umbral.
 
-    Devuelve [{valor, areaPct, cx, cy}] con el centro en fracción de la imagen (0..1).
+    Devuelve [{valor, areaPct, cx, cy, celdas}] con el centro en fracción de la imagen (0..1).
     """
     medias = medias_celdas(idx)
     if medias.size == 0:
@@ -140,6 +140,7 @@ def zonas_bajas(idx: np.ndarray, umbral: float) -> list[dict]:
                 "areaPct": len(celdas) / (CELDAS * CELDAS) * 100,
                 "cx": float((xs.mean() + 0.5) / CELDAS),
                 "cy": float((ys.mean() + 0.5) / CELDAS),
+                "celdas": celdas,
             })
     return zonas
 

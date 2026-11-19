@@ -103,3 +103,6 @@ def test_zonas_conserva_rejilla():
     assert len(zonas) == 1
     assert abs(zonas[0]['valor'] - 0.2) < 1e-8
     assert zonas[0]['areaPct'] == 3 / calculo.CELDAS ** 2 * 100
+    assert set(zonas[0]['celdas']) == {(0, 0), (0, 1), (0, 2)}
+    assert zonas[0]['cx'] == 1.5 / calculo.CELDAS
+    assert zonas[0]['cy'] == 0.5 / calculo.CELDAS

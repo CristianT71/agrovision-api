@@ -176,7 +176,14 @@ variabilidad ausentes.
 - `ficha`: `{ sensores: string[] | null, resolucionesPx: [{ancho, alto}] | null,
   bandasDisponibles: string[] | null, alturaRelativaM: {min, max} | null, capturasUsadas,
   capturasConGeorreferencia, calibracion: {calibradas, sinCalibrar}, fechaCaptura: {min, max} | null,
-  gsdCmPx: null }`. Altura en metros, resolución en píxeles, GSD en cm/píxel; no se estima el GSD.
+  gsdCmPx: {min, max, media} | null, gsdNominalCmPx, gsdEfectivoCmPx: {min, max, media, capturasConEfectivo} | null,
+  razonEfectivoNominal: {mediana, min, max} | null, paresValidos, paresTotales, georreferenciacion }`.
+  Altura en metros, resolución en píxeles, GSD en cm/píxel.
+- **GSD:** el nominal es altura relativa ÷ focal (la altura es relativa al despegue, no al suelo). El efectivo se
+  mide con pares de capturas consecutivas (distancia GPS RTK ÷ desplazamiento medido entre imágenes) y se usa donde
+  exista; si no, se usa el nominal y la zona lo indica en `gsdOrigen`. Para medirlo, la petición a `/analizar`
+  incluye `capturasEscala`: todas las capturas del vuelo (solo banda NIR), porque las capturas analizadas están
+  separadas y no se solapan. Cada zona candidata añade `ubicacionZona`, `poligono`, `areaM2` y `gsdOrigen`.
 - Cada elemento de `indices` incluye `desviacion` y `cv` (números o `null`). El PDF los muestra
   sin convertir el CV a porcentaje.
 - `variabilidadEspacial`: `{desviacion, celdasValidas, nivel: "baja" | "media" | "alta" | null}`;

@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import math
+from statistics import median
 import re
 import xml.etree.ElementTree as ET
 
 import tifffile
 
-from . import calibracion
+from . import calibracion, geo, escala
 
 
 def _campos_xmp(xmp: str) -> dict[str, str]:
@@ -75,6 +76,7 @@ def leer(ruta) -> dict:
         xmp = _campos_xmp(calibracion.leer_xmp(ruta))
     except Exception:
         xmp = {}
+    salida['geo'] = geo.leer_geo(xmp)
     tags, exif, gps = {}, {}, {}
     try:
         with tifffile.TiffFile(ruta) as t:
@@ -103,7 +105,7 @@ def leer(ruta) -> dict:
     return salida
 
 
-def resumir(capturas: list[dict]) -> dict:
+def resumir(capturas: list[dict], pares=None) -> dict:
     metadatos = [m for c in capturas for m in c['metadatos']]
     sensores = sorted({m['sensor'] for m in metadatos if m['sensor'] is not None})
     resoluciones = sorted({m['resolucionPx'] for m in metadatos if m['resolucionPx'] is not None})
@@ -113,6 +115,18 @@ def resumir(capturas: list[dict]) -> dict:
     comparables = fechas and len({f.tzinfo is not None for f in fechas}) == 1
     if comparables and fechas[0].tzinfo is not None:
         fechas = [f.astimezone(timezone.utc) for f in fechas]
+    # Una referencia por captura; en el servicio corresponde a la banda NIR.
+    referencias = [c.get('geo', {}) for c in capturas]
+    nominales = [g * 100 for m in referencias
+               if (g := geo.gsd_m_px(m.get('alturaRelativaM'), m.get('focalPx'))) is not None]
+    escalas = [g * 100 for c in capturas
+               if (g := escala.gsd_para_captura(c.get('geo', {}), c.get('gsdEfectivoM'))[0]) is not None]
+    efectivos = [c['gsdEfectivoM'] * 100 for c in capturas if c.get('gsdEfectivoM') is not None]
+    pares = pares or []
+    razones = [p['razon'] for p in pares if p['valido']]
+    def estadisticas(valores):
+        return {'min': min(valores), 'max': max(valores), 'media': sum(valores) / len(valores)} if valores else None
+    estados_rtk = [m['rtk'] for m in referencias if m.get('rtk') is not None]
     return {
         'sensores': sensores or None,
         'resolucionesPx': [{'ancho': w, 'alto': h} for w, h in resoluciones] or None,
@@ -123,5 +137,15 @@ def resumir(capturas: list[dict]) -> dict:
         'calibracion': {'calibradas': sum(c['calibrada'] for c in capturas),
                         'sinCalibrar': sum(not c['calibrada'] for c in capturas)},
         'fechaCaptura': {'min': min(fechas).isoformat(), 'max': max(fechas).isoformat()} if comparables else None,
-        'gsdCmPx': None,
+        'gsdCmPx': {'min': min(escalas), 'max': max(escalas), 'media': sum(escalas) / len(escalas)} if escalas else None,
+        'gsdNominalCmPx': estadisticas(nominales),
+        'gsdEfectivoCmPx': {**estadisticas(efectivos), 'capturasConEfectivo': len(efectivos)} if efectivos else None,
+        'razonEfectivoNominal': {'mediana': median(razones), 'min': min(razones), 'max': max(razones)} if razones else None,
+        'paresValidos': len(razones), 'paresTotales': len(pares),
+        'georreferenciacion': {
+            'metodo': 'cenital_terreno_plano',
+            'capturasGeorreferenciables': sum(bool(m.get('georreferenciable')) for m in referencias),
+            'capturasUsadas': len(capturas),
+            'rtkPct': 100 * sum(estados_rtk) / len(estados_rtk) if estados_rtk else None,
+        },
     }
