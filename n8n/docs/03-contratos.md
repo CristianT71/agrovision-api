@@ -89,7 +89,7 @@ primero al flujo `02` para calcular el análisis. Es lo que usa la herramienta `
   como se describen arriba. Las cifras (índices y valor de cada zona) vienen del servicio de índices; el
   modelo de visión solo aporta el texto, la severidad, la confianza y las limitaciones.
 
-## Servicio de índices (Python) — aún no existe
+## Servicio de índices (Python) — implementado en `indices/` (2026-11-18)
 
 Lo llama el flujo `02` en `POST http://indices:8000/analizar`. Lee los TIFF directamente del disco
 (`/datos/vuelos/<vueloId>/<archivoId>.<extensión>`, en solo lectura).
@@ -166,3 +166,68 @@ Reglas que el modelo debe cumplir (van en el prompt de sistema y se revisan en e
 Después de redactar, el flujo busca en el texto todos los números y comprueba que existan en los datos de
 entrada (también acepta los enteros del 0 al 10, años y los valores ×100 y ÷100). Los que no aparezcan van a
 `advertencias` y se muestran en el PDF en una nota de revisión. No bloquea el informe: avisa.
+
+## Ficha, variabilidad y correlación con la app (2026-11-19)
+
+Ambas ramas del flujo 02 (con visión y por reglas) conservan los siguientes campos del servicio en
+`analisis`. Los datos desconocidos son `null`; el PDF muestra «no disponible» para la ficha y la
+variabilidad ausentes.
+
+- `ficha`: `{ sensores: string[] | null, resolucionesPx: [{ancho, alto}] | null,
+  bandasDisponibles: string[] | null, alturaRelativaM: {min, max} | null, capturasUsadas,
+  capturasConGeorreferencia, calibracion: {calibradas, sinCalibrar}, fechaCaptura: {min, max} | null,
+  gsdCmPx: null }`. Altura en metros, resolución en píxeles, GSD en cm/píxel; no se estima el GSD.
+- Cada elemento de `indices` incluye `desviacion` y `cv` (números o `null`). El PDF los muestra
+  sin convertir el CV a porcentaje.
+- `variabilidadEspacial`: `{desviacion, celdasValidas, nivel: "baja" | "media" | "alta" | null}`;
+  sus umbrales son provisionales. Se conserva completa en el análisis.
+
+Después de calcular índices, `Registros de la app` consulta
+`GET {urlApi}/servicio/vuelos/{vueloId}/correlacion-app?radioM={config.radioCorrelacionM}` con
+`X-Api-Key` mediante la credencial existente `apiAgroVision01`. El radio configurado es 300 m;
+la petición tiene timeout de 30 s, `neverError` y continuidad ante errores de transporte.
+La API devuelve `{caja, cajaAmpliada, radioM, fechaVuelo, limitaciones, registros, truncado, resumen}`.
+Los registros consentidos incluyen origen, clase, confianza, fecha, latitud, longitud y
+`diasDesdeVuelo`; se usan únicamente dentro de `Correlacionar con la app`.
+
+El nodo devuelve la respuesta completa del servicio de índices más `correlacionApp`, y agrega las
+limitaciones a `advertencias`. Ambas ramas producen:
+
+```text
+analisis.correlacionApp = {
+  radioM,
+  registrosCercanos: número,
+  registrosEnAreaVuelo: número | null,
+  fechaMin: fecha | null,
+  fechaMax: fecha | null,
+  diasMinDesdeVuelo: número | null,
+  diasMaxDesdeVuelo: número | null,
+  porCaptura: [{capturaId, zonas: [id de zona], cercanos, clases: {"nombre de clase": conteo}}],
+  limitaciones: [texto]
+} | null
+```
+
+- `registrosCercanos` cuenta los registros a una distancia menor o igual a `radioM` del centro de alguna captura
+  analizada (sin repetir un registro cercano a varias capturas). `registrosEnAreaVuelo` cuenta los recibidos dentro
+  de `caja` (sur/norte/oeste/este), no de la caja ampliada; no equivale a un lindero exacto. Sin caja válida es `null`.
+- Las zonas se ubican en el centro de su captura (no hay georreferencia por píxel), así que la cercanía se calcula
+  **por captura** con Haversine y las zonas de una misma captura comparten el resultado (`zonas` lista sus ids).
+  Una observación puede contarse en varias capturas. Las clases nulas se agrupan como `sin clase`.
+  Las capturas sin ubicación se omiten y se advierte; los registros sin coordenadas válidas no se cuentan.
+- Las fechas y diferencias temporales son extremos de los registros recibidos en la caja ampliada.
+  Los días se redondean a un decimal y conservan el signo: negativos antes del vuelo, positivos después.
+  Sin datos temporales, los extremos son `null`; no se supone una diferencia de cero días.
+- Si `truncado` es verdadero, se advierte que conteos y rangos son parciales.
+- Las limitaciones incluyen siempre asociación espacial sin causalidad, diferencia temporal con
+  los días reales disponibles y que el porcentaje de incidencia de la app no se guarda en el
+  servidor, por lo que no se compara.
+- Un fallo HTTP, de conexión o respuesta inválida deja `correlacionApp: null` y añade limitaciones
+  al análisis; no interrumpe el cálculo del vuelo.
+- No salen registros, cajas ni coordenadas de la app hacia el PDF, el chat o ningún modelo:
+  solo conteos y rangos temporales agregados. Las ubicaciones de las zonas del propio vuelo se conservan.
+- Al resumen del modelo de visión se añade únicamente `variabilidadEspacial.nivel`; la ficha y la
+  correlación completa se conservan internamente, fuera de `mensajes`. No se cambian modelo ni límites
+  de tokens. El presupuesto de entrada es 7000 tokens/minuto y la petición previa ronda 4800.
+- El PDF incluye «Ficha técnica del vuelo», «Variabilidad espacial» y «Correlación con la app»,
+  con textos dinámicos escapados. `Interpretar respuesta` mantiene la comprobación de cifras sobre
+  todos los datos de entrada, incluidos los campos nuevos.

@@ -13,6 +13,16 @@ services:
     volumes:
       - ./postgres:/var/lib/postgresql/data
 
+  # Servicio de índices (NDVI, NDRE, GNDVI): lo llama el flujo 02 de n8n en http://indices:8000.
+  # No usa modelos de IA: solo calcula con los TIFF. Lee los vuelos en solo lectura.
+  indices:
+    build: ./indices
+    container_name: agrovision-indices
+    profiles: ["n8n"]
+    restart: unless-stopped
+    volumes:
+      - ./uploads/vuelos:/datos/vuelos:ro
+
   # ---------------------------------------------------------------------------------------------
   # n8n: asistente de IA y análisis multiespectral. Es opcional: no arranca con un simple
   # `docker compose up -d`. Para levantarlo:  docker compose --profile n8n up -d

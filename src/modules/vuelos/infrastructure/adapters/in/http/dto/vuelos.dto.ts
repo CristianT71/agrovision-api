@@ -1,4 +1,4 @@
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
     IsDateString,
     IsIn,
@@ -35,4 +35,16 @@ export class ConsultarArchivosDto {
     @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limite?: number;
     @IsOptional() @IsIn(TIPOS_ARCHIVO) tipo?: TipoArchivo;
     @IsOptional() @IsIn(BANDAS) banda?: Banda;
+}
+
+export class ConsultarCorrelacionAppDto {
+    // Un radioM vacío (?radioM=) se rechaza en vez de convertirse en 0.
+    @Transform(({ value, obj }: { value: unknown; obj: { radioM?: unknown } }) =>
+        typeof obj.radioM === "string" && obj.radioM.trim() === "" ? NaN : value,
+    )
+    @Type(() => Number)
+    @IsInt()
+    @Min(0)
+    @Max(2000)
+    radioM: number = 300;
 }

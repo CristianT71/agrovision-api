@@ -1,3 +1,7 @@
+import { CorrelacionAppService } from "./application/use-cases/correlacion-app.service";
+import { LECTURA_CORRELACION_APP } from "./domain/ports/out/correlacion-app.port";
+import { TypeOrmCorrelacionAppAdapter } from "./infrastructure/adapters/out/persistence/typeorm-correlacion-app.adapter";
+import { CORRELACION_APP } from "./domain/ports/in/correlacion-app.port";
 import { Module } from "@nestjs/common";
 import { GESTION_VUELOS } from "./domain/ports/in/vuelos.port";
 import { LEER_MEDIO_VUELO } from "./domain/ports/in/medios.port";
@@ -23,6 +27,8 @@ import { VueloExistenteGuard } from "./infrastructure/adapters/in/http/guards/vu
 @Module({
     controllers: [MediosVuelosController, VuelosController, VuelosServicioController],
     providers: [
+        { provide: LECTURA_CORRELACION_APP, useClass: TypeOrmCorrelacionAppAdapter },
+        { provide: CORRELACION_APP, useClass: CorrelacionAppService },
         { provide: GESTION_VUELOS, useClass: GestionVuelosService },
         { provide: LEER_MEDIO_VUELO, useClass: LeerMedioVueloService },
         { provide: VUELOS_REPOSITORY, useClass: TypeOrmVuelosRepository },

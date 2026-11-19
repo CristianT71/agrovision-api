@@ -123,7 +123,7 @@ Docker con n8n (`docker compose --profile n8n up -d n8n gotenberg`) y el panel s
 
 | Pieza | Para qué | Estado |
 |---|---|---|
-| Servicio de índices (Python) | Calcula NDVI, NDRE y GNDVI con los TIFF y devuelve los mapas de calor. Sin él, las herramientas `analizar_vuelo` y `generar_informe` del chat fallan | Pendiente (contrato en [03-contratos.md](03-contratos.md)) |
+| ~~Servicio de índices (Python)~~ | Calcula NDVI, NDRE y GNDVI con los TIFF y devuelve los mapas de calor. Sin él, las herramientas `analizar_vuelo` y `generar_informe` del chat fallan | **Hecho (2026-11-18)**: carpeta `indices/`, servicio `indices` del compose (perfil n8n). Probado con el vuelo real 73c55c8a. Calibración radiométrica hecha (2026-11-18) con los metadatos XMP del dron M3M: NDVI mediana 0,79 en el vuelo de prueba (antes 0,29) |
 | Un vuelo real con las 4 bandas | Subirlo en la pantalla Vuelos del panel, para probar el análisis de verdad | Falta |
 | Límite de uso del webhook | La URL del chat va en el código público del panel: cualquiera podría gastar tu saldo de Fireworks. Conviene una regla de límite de peticiones en Cloudflare (Seguridad → Reglas de límite de velocidad) para `n8n.agrovision.sbs/webhook/asistente` | Pendiente, hazla tú en Cloudflare |
 

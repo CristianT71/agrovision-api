@@ -24,7 +24,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// El panel manda { action, sessionId, chatInput } dentro de \"body\". Se comprueba antes de gastar saldo del modelo.\nconst body = ($input.first().json.body) || {};\nconst chatInput = typeof body.chatInput === 'string' ? body.chatInput.trim() : '';\nconst sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';\nif (!chatInput) throw new Error('Falta el mensaje (chatInput).');\nif (chatInput.length > 4000) throw new Error('El mensaje supera los 4000 caracteres.');\nif (!/^[A-Za-z0-9-]{8,64}$/.test(sessionId)) throw new Error('El sessionId no es válido.');\nreturn [{ json: { chatInput, sessionId } }];"
+        "jsCode": "// El panel manda { action, sessionId, chatInput, vueloId } dentro de \"body\". Se comprueba antes de gastar saldo del modelo.\nconst body = ($input.first().json.body) || {};\nconst chatInput = typeof body.chatInput === 'string' ? body.chatInput.trim() : '';\nconst sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';\nconst vueloId = typeof body.vueloId === 'string' ? body.vueloId.trim() : '';\nif (!chatInput) throw new Error('Falta el mensaje (chatInput).');\nif (chatInput.length > 4000) throw new Error('El mensaje supera los 4000 caracteres.');\nif (!/^[A-Za-z0-9-]{8,64}$/.test(sessionId)) throw new Error('El sessionId no es válido.');\nif (!/^[0-9a-fA-F-]{36}$/.test(vueloId)) throw new Error('Falta el vuelo (vueloId) o no es válido.');\nreturn [{ json: { chatInput, sessionId, vueloId } }];"
       },
       "id": "e0fa8503-4b36-5751-9b5f-2a75640f51d0",
       "name": "Validar mensaje",
@@ -40,7 +40,7 @@
         "promptType": "define",
         "text": "={{ $json.chatInput }}",
         "options": {
-          "systemMessage": "Eres el asistente de análisis multiespectral de AgroVisión. Ayudas a los administradores a consultar vuelos de dron sobre cafetales, a obtener su análisis y a generar informes en PDF.\n\nCómo trabajas:\n- Usa SIEMPRE las herramientas para obtener datos. Nunca inventes vuelos, cifras ni resultados.\n- Si el usuario no dice qué vuelo, usa 'listar_vuelos' y pídele que elija uno (nombre y lote). No adivines.\n- 'analizar_vuelo' calcula los índices y tarda; úsala solo cuando el usuario quiera el análisis. 'generar_informe' ya incluye el análisis: no llames a las dos para lo mismo.\n- Resume los resultados en español claro y breve. Los índices bajos indican vigor reducido, no la causa: nunca diagnostiques enfermedades, plagas ni deficiencias, y nunca recomiendes productos ni dosis. Sugiere verificar en campo con un agrónomo.\n- Cuando 'generar_informe' devuelva un enlace, escríbelo completo y solo, en una línea aparte (el chat no convierte enlaces en botones), e indica que vence en 24 horas.\n- Si una herramienta falla, dilo con sencillez y sugiere reintentar; no repitas la misma llamada más de una vez.\n- Si te piden algo que no tiene que ver con los vuelos o su análisis, di amablemente que no puedes ayudar con eso.",
+          "systemMessage": "=Eres el asistente de análisis multiespectral de AgroVisión. Estás dentro de UN solo vuelo de dron sobre un cafetal y solo hablas de ese vuelo. El id del vuelo es {{ $('Validar mensaje').first().json.vueloId }}.\n\nCómo trabajas:\n- Usa SIEMPRE las herramientas para obtener datos. Nunca inventes cifras, zonas ni resultados.\n- 'analizar_vuelo' calcula los índices (NDVI, NDRE y GNDVI), el porcentaje de vigor alto, intermedio y bajo, la cobertura, las zonas con vigor reducido, observaciones y limitaciones. Tarda: úsala cuando el usuario pida el análisis o una cifra que aún no tengas. Si ya analizaste el vuelo en esta conversación, responde con lo que obtuviste, sin repetir la llamada.\n- 'generar_informe' crea el informe en PDF e incluye el análisis: úsala cuando el usuario pida el informe, el PDF o descargarlo. No llames a las dos para lo mismo.\n- Resume en español claro y breve. Los índices bajos indican vigor reducido, no la causa: nunca diagnostiques enfermedades, plagas ni deficiencias, y nunca recomiendes productos ni dosis. Sugiere verificar en campo con un agrónomo.\n- La densidad de siembra que aparezca es teórica y provisional, y el conteo real de plantas no está calculado. La propagación no se puede calcular con un solo vuelo. Dilo si te preguntan.\n- Cuando 'generar_informe' devuelva un enlace, escríbelo completo y solo, en una línea aparte, e indica que vence en 24 horas.\n- Si una herramienta falla, dilo con sencillez y sugiere reintentar; no repitas la misma llamada más de una vez.\n- Si piden otro vuelo, di que deben abrir ese vuelo en el panel. Si piden algo que no tiene que ver con este vuelo o su análisis, di amablemente que no puedes ayudar con eso.\n- Puedes explicar la ficha técnica, la variabilidad y la correlación con la app usando los datos del análisis. La correlación es asociación espacial y no causalidad; las fechas de la app y del vuelo pueden diferir mucho. No supongas los datos no disponibles.",
           "maxIterations": 6
         }
       },
@@ -57,7 +57,7 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "accounts/fireworks/models/kimi-k3p1-pro",
+          "value": "openai/gpt-oss-120b",
           "mode": "id"
         },
         "options": {
@@ -76,8 +76,8 @@
       ],
       "credentials": {
         "openAiApi": {
-          "id": "Cryg3T7vb1XycwP3",
-          "name": "Fireworks AI"
+          "id": "fYjKiZwVBiK1XZmB",
+          "name": "OpenAI account"
         }
       }
     },
@@ -98,42 +98,8 @@
     },
     {
       "parameters": {
-        "toolDescription": "Lista los vuelos de dron registrados, del más reciente al más antiguo. Devuelve id, nombre, lote y fecha de cada uno. Úsala para saber qué vuelos existen o para encontrar el id de un vuelo.",
-        "method": "GET",
-        "url": "http://host.docker.internal:3000/api/servicio/vuelos",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendQuery": true,
-        "parametersQuery": {
-          "values": [
-            {
-              "name": "limite",
-              "valueProvider": "fieldValue",
-              "value": "10"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "36db6c0a-17d9-5166-9215-85889b3e05fd",
-      "name": "listar_vuelos",
-      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
-      "typeVersion": 1.1,
-      "position": [
-        700,
-        380
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "apiAgroVision01",
-          "name": "API AgroVisión (llave de servicio)"
-        }
-      }
-    },
-    {
-      "parameters": {
         "name": "analizar_vuelo",
-        "description": "Calcula los índices de vegetación (NDVI, NDRE, GNDVI) de un vuelo y devuelve las zonas con vigor reducido, observaciones y limitaciones. Tarda hasta un minuto. Necesita el vueloId.",
+        "description": "Calcula los índices de vegetación (NDVI, NDRE, GNDVI), el vigor, la cobertura y las zonas con vigor reducido del vuelo actual. Tarda hasta un minuto. No necesita argumentos.",
         "workflowId": {
           "__rl": true,
           "value": "pqkNX56H4EB71jJA",
@@ -142,7 +108,7 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "vueloId": "={{ $fromAI('vueloId', 'El id (UUID) del vuelo. Sácalo de listar_vuelos.', 'string') }}"
+            "vueloId": "={{ $('Validar mensaje').first().json.vueloId }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -173,7 +139,7 @@
     {
       "parameters": {
         "name": "generar_informe",
-        "description": "Analiza un vuelo y genera un informe en PDF. Devuelve un enlace de descarga (vence en 24 horas) y advertencias si las hay. Necesita el vueloId. Ya incluye el análisis.",
+        "description": "Analiza el vuelo actual y genera un informe en PDF. Devuelve un enlace de descarga (vence en 24 horas) y advertencias si las hay. No necesita argumentos.",
         "workflowId": {
           "__rl": true,
           "value": "7hZXnFBsJ5d7LPwF",
@@ -182,7 +148,7 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "vueloId": "={{ $fromAI('vueloId', 'El id (UUID) del vuelo. Sácalo de listar_vuelos.', 'string') }}"
+            "vueloId": "={{ $('Validar mensaje').first().json.vueloId }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -283,17 +249,6 @@
           {
             "node": "Asistente (agente)",
             "type": "ai_memory",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "listar_vuelos": {
-      "ai_tool": [
-        [
-          {
-            "node": "Asistente (agente)",
-            "type": "ai_tool",
             "index": 0
           }
         ]
