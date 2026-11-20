@@ -103,6 +103,7 @@ describe("Prompt del asistente: reportes de la app y sección fitosanitaria", ()
         expect(prompt).toMatch(/SIEMPRE estos dos avisos: \(a\) el diagnóstico fitosanitario está pendiente/);
         expect(prompt).toMatch(/\(b\) no es posible calcular la propagación con un único vuelo/);
         expect(prompt).toMatch(/línea «Avisos:» que copie tal cual los textos de respaldoApp\.fitosanitario\.avisos/);
+        expect(prompt).toMatch(/usa literalmente esa palabra \(p\. ej\. «Hipótesis fitosanitaria/);
         expect(prompt).toMatch(/Nunca digas que el dron confirma o identifica la plaga/);
         expect(prompt).toMatch(/nunca recomiendes productos ni dosis/);
         expect(prompt).toMatch(/nutrición, sequía, sombra, suelo/);
