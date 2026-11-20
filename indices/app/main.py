@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from . import calculo, calibracion, ficha, imagenes, geo, escala, copas
+from .comparacion import comparar_analisis
 
 log = logging.getLogger("indices")
 RAIZ = Path(os.environ.get("RAIZ_VUELOS", "/datos/vuelos"))
@@ -92,6 +93,10 @@ def salud():
 
 @app.post("/analizar")
 def analizar(p: Peticion):
+    return analizar_peticion(p)
+
+
+def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
     if not (RAIZ / p.vueloId).is_dir() or not UUID.match(p.vueloId):
         raise HTTPException(404, "El vuelo no existe en el disco.")
 
@@ -163,9 +168,10 @@ def analizar(p: Peticion):
                 cols = (np.arange(original.shape[1]) * idx.shape[1] / original.shape[1]).astype(int)
                 entradas_copas.append((cap.id, referencia, original, idx[np.ix_(filas, cols)]))
                 rejillas_ndvi.append(calculo.medias_celdas(idx))
-                mapas.append({"titulo": f"NDVI — captura {n}", "indice": "NDVI", "capturaId": cap.id,
+                if incluir_mapas:
+                    mapas.append({"titulo": f"NDVI — captura {n}", "indice": "NDVI", "capturaId": cap.id,
                               "mime": "image/png", "base64": imagenes.mapa_calor(idx)})
-        if cap.rgb:
+        if cap.rgb and incluir_mapas:
             try:
                 mapas.append({"titulo": f"Foto RGB — captura {n}", "indice": "RGB", "capturaId": cap.id,
                               "mime": "image/jpeg", "base64": imagenes.foto_rgb(str(ruta_archivo(p.vueloId, cap.rgb)))})
@@ -284,3 +290,62 @@ def analizar(p: Peticion):
     return {"capturasUsadas": usadas, "indices": indices, "vigor": vigor, "cobertura": cobertura, "siembra": siembra,
             "plantas": plantas, "zonasCandidatas": zonas, "mapas": mapas, "advertencias": advertencias,
             "ficha": ficha.resumir(fichas, pares), "variabilidadEspacial": calculo.variabilidad_espacial(rejillas_ndvi)}
+
+
+class PeticionComparacion(BaseModel):
+    a: Peticion
+    b: Peticion
+    fechaA: str | None = None
+    fechaB: str | None = None
+    nombreA: str | None = None
+    nombreB: str | None = None
+    ruidoMinimo: float | None = Field(None, ge=0, allow_inf_nan=False)
+
+
+def huella_peticion(p: Peticion):
+    """Caja aproximada de encuadres cenitales con GSD nominal; solo lee metadatos."""
+    puntos = []
+    for cap in p.capturasEscala or p.capturas:
+        archivo = cap.bandas.get('nir')
+        if not archivo:
+            return None
+        try:
+            meta = ficha.leer(ruta_archivo(p.vueloId, archivo))
+        except (OSError, ValueError):
+            return None
+        referencia = meta.get('geo') or {}
+        if not referencia.get('georreferenciable'):
+            continue
+        dimensiones = meta.get('resolucionPx')
+        gsd = geo.gsd_m_px(referencia.get('alturaRelativaM'), referencia.get('focalPx'))
+        if not dimensiones or gsd is None:
+            return None
+        ancho, alto = dimensiones
+        referencia = {**referencia, 'cx': ancho/2, 'cy': alto/2}
+        esquinas = [geo.pixel_a_latlon(referencia, x, y, gsd)
+                    for x, y in ((0, 0), (ancho, 0), (ancho, alto), (0, alto))]
+        if any(punto is None for punto in esquinas):
+            return None
+        puntos.extend(esquinas)
+    if not puntos:
+        return None
+    return dict(latMin=min(v['lat'] for v in puntos), latMax=max(v['lat'] for v in puntos),
+                lonMin=min(v['lon'] for v in puntos), lonMax=max(v['lon'] for v in puntos))
+
+
+@app.post('/comparar')
+def comparar(p: PeticionComparacion):
+    vuelos = []
+    for peticion, fecha, nombre in ((p.a, p.fechaA, p.nombreA), (p.b, p.fechaB, p.nombreB)):
+        analisis = analizar_peticion(peticion, incluir_mapas=False)
+        analisis.pop('mapas', None)
+        vuelos.append(dict(vueloId=peticion.vueloId, nombre=nombre, fecha=fecha,
+                           analisis=analisis, huella=huella_peticion(peticion)))
+    resultado = comparar_analisis(*vuelos, parametros={'ruidoMinimo': p.ruidoMinimo})
+    resultado['vuelos'] = {clave: {k: vuelo[k] for k in ('vueloId', 'nombre', 'fecha', 'huella')}
+                           for clave, vuelo in zip(('a', 'b'), vuelos)}
+    if (p.a.umbrales, p.a.umbralVigorBajo, p.a.umbralVigorAlto, p.a.umbralCobertura) != (
+            p.b.umbrales, p.b.umbralVigorBajo, p.b.umbralVigorAlto, p.b.umbralCobertura):
+        resultado['advertencias'].append('Umbrales distintos: las áreas bajo umbral, el vigor y la cobertura usan cortes diferentes.')
+    resultado['advertencias'].append('La huella es una caja aproximada con GSD nominal y terreno plano; no es una superficie común registrada.')
+    return resultado

@@ -184,6 +184,13 @@ variabilidad ausentes.
   exista; si no, se usa el nominal y la zona lo indica en `gsdOrigen`. Para medirlo, la petición a `/analizar`
   incluye `capturasEscala`: todas las capturas del vuelo (solo banda NIR), porque las capturas analizadas están
   separadas y no se solapan. Cada zona candidata añade `ubicacionZona`, `poligono`, `areaM2` y `gsdOrigen`.
+- **Qué copia el flujo 02 al `analisis`:** `plantas` (con `notaValidacion`: estimación experimental sin validar y
+  error observado de −19 % a +46 %) y, en cada zona, `ubicacionZona`, `areaM2`, `gsdOrigen` y `poligono`.
+  El flujo 03 **no envía `poligono` al modelo** (gasta tokens) y el PDF muestra el área de cada zona, el bloque
+  «Conteo de copas (experimental)» y los GSD nominal, efectivo y la razón entre ambos. El chat puede explicarlos.
+- **Prueba nula del comparador** (mismo sitio y día, 70 m frente a 30 m): NDVI +0,07, NDRE +0,03 y GNDVI +0,05.
+  Un solo par de vuelos: sirve como orden de magnitud del ruido, no como umbral. Para comparar fechas conviene
+  volar a la misma altura.
 - Cada elemento de `indices` incluye `desviacion` y `cv` (números o `null`). El PDF los muestra
   sin convertir el CV a porcentaje.
 - `variabilidadEspacial`: `{desviacion, celdasValidas, nivel: "baja" | "media" | "alta" | null}`;

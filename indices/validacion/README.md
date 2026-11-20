@@ -290,3 +290,49 @@ umbrales con evidencia, añadirlos a ese objeto. El PNG muestra atípicas con
 arcos grises discontinuos e identificadores A1, A2…; las masas históricas
 mantienen borde gris continuo. Los círculos representan diámetro equivalente,
 no el contorno exacto de la región.
+
+## Comparación temporal y prueba nula
+
+Desde `indices/`, con las dependencias del servicio y los vuelos montados en
+`/datos/vuelos/` (o `RAIZ_VUELOS`):
+
+```sh
+python -m validacion.comparar_vuelos <vueloIdA> <vueloIdB> \
+  --fecha-a 2026-09-15 --fecha-b 2026-09-15 > comparacion.json
+```
+
+El JSON sale por stdout y el resumen por stderr. Se agrupan TIFF por `BandName`
+y `DateTimeOriginal` de XMP, sin deducir bandas del nombre del archivo. Se eligen
+hasta cuatro capturas completas repartidas por hora y se usan todas las NIR como
+`capturasEscala` (máximo 400; se rechaza un vuelo mayor, no se trunca). Horas o
+bandas ambiguas no se emparejan. Las fechas del vuelo son las proporcionadas;
+si faltan, el intervalo es `null`.
+
+Dos vuelos del mismo día sobre el mismo sitio sirven como **prueba nula**: el
+cambio esperado es cero. Sus diferencias dan el orden de magnitud del ruido del
+método, incluyendo resolución, muestreo y calibración. No constituyen por sí solas
+una validación ni un umbral universal. `--ruido-minimo` permite aportar un umbral
+externo: solo se marca significativo cuando `abs(deltaMedia)` lo supera;
+sin ese parámetro, `significativo` es `null`.
+
+`POST /comparar` recibe `a` y `b` con el mismo esquema de `/analizar`, además de
+`fechaA`, `fechaB`, `nombreA`, `nombreB` y `ruidoMinimo` opcionales. B menos A define
+el signo. Reutiliza el análisis sin generar imágenes ni devolver mapas.
+
+La huella usa las capturas de `capturasEscala` si existen, o las de `capturas`:
+cajas de encuadres NIR cenitales, centrados en GPS, rotados según rumbo y extendidos
+por tamaño en píxeles × GSD nominal. Es una aproximación con terreno plano, no
+una intersección de ortomosaicos. Se exige huella válida, solape de cajas de al
+menos 0,5 (intersección / caja menor, provisional), capturas georreferenciables
+en **cada** vuelo y algún índice común. Metadatos de georreferenciabilidad
+ desconocidos también bloquean. Los incumplimientos se acumulan en `motivos`;
+con cualquiera se anulan los deltas. Resoluciones con razón mayor de 1,3,
+calibración incompleta, alturas, fechas y muestreo distintos producen advertencias.
+
+Los resultados incluyen `indices` por nombre, `vigor` por clase y `cobertura`
+como diferencias en puntos porcentuales; `zonasCandidatas` contiene solo conteos
+A/B/delta y `plantas.deltaDensidadPlantasHa` mantiene la nota experimental.
+No se corresponden píxeles ni zonas entre vuelos. No existe un par real temporal
+validado: los tres vuelos del 15 de septiembre a 70, 45 y 30 m permiten explorar
+ruido; el del 3 de noviembre, desplazado y sin cenitales, debe rechazarse.
+La comparación describe cambios en los índices, no causas.
