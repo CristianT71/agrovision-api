@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { QueryRunner } from "typeorm";
 import { CrearReglasZona1793600000000 } from "./migrations/1793600000000-CrearReglasZona";
 import { SembrarReglasZonaPendientes1793700000000 } from "./migrations/1793700000000-SembrarReglasZonaPendientes";
+import { ProponerReglasZonaV21793900000000 } from "./migrations/1793900000000-ProponerReglasZonaV2";
 
 const DIRECTORIO = join(__dirname, "migrations");
 
@@ -50,5 +51,13 @@ describe("Migraciones", () => {
         expect((query.mock.calls as [string][])[0][0]).toMatch(/ON CONFLICT DO NOTHING/);
         await new SembrarReglasZonaPendientes1793700000000().down();
         expect(query).toHaveBeenCalledTimes(6);
+    });
+
+    it("ProponerReglasZonaV2 agrega dos propuestas y su down no borra nada", async () => {
+        const query = jest.fn().mockResolvedValue([]);
+        await new ProponerReglasZonaV21793900000000().up({ query } as unknown as QueryRunner);
+        expect(query).toHaveBeenCalledTimes(2);
+        await new ProponerReglasZonaV21793900000000().down();
+        expect(query).toHaveBeenCalledTimes(2);
     });
 });
