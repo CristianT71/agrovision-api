@@ -10,7 +10,7 @@ import tifffile
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from . import calculo, calibracion, ficha, imagenes, geo, escala, copas
+from . import calculo, calibracion, ficha, imagenes, geo, escala, copas, mosaico
 from .comparacion import comparar_analisis
 
 log = logging.getLogger("indices")
@@ -58,6 +58,9 @@ class Peticion(BaseModel):
     # Todas las capturas del vuelo (solo banda NIR): sirven únicamente para medir el GSD efectivo con pares
     # consecutivos. Las capturas de `capturas` pueden estar muy separadas y no se solapan entre sí.
     capturasEscala: list[Captura] = Field(default_factory=list, max_length=400)
+    # Capturas con sus bandas para el mosaico aproximado del vuelo (todas las cenitales). Solo se usa si se piden mapas.
+    capturasMosaico: list[Captura] = Field(default_factory=list, max_length=400)
+    indicesMosaico: list[str] = Field(default_factory=lambda: ["NDVI", "NDRE"], max_length=3)
     capturas: list[Captura] = Field(min_length=1)
 
 
@@ -84,6 +87,65 @@ def leer_banda(vuelo_id: str, archivo_id: str) -> tuple[np.ndarray, bool]:
     if params is None:
         return datos, False
     return calibracion.calibrar(datos, params), True
+
+
+ANCHO_MOSAICO_PX = 1600
+
+
+def construir_mosaicos(p: Peticion, efectivos: dict, advertencias: list[str]) -> list[dict]:
+    """Mosaico aproximado por índice con todas las capturas cenitales. Ver app/mosaico.py: no es un ortomosaico."""
+    nombres = [n for n in dict.fromkeys(p.indicesMosaico) if n in calculo.FORMULAS]
+    necesarias = {b for n in nombres for b in calculo.FORMULAS[n][1:3]} | {"nir"}
+    items = []
+    for cap in p.capturasMosaico:
+        if any(b not in cap.bandas for b in necesarias):
+            continue
+        try:
+            meta = ficha.leer(ruta_archivo(p.vueloId, cap.bandas["nir"]))
+        except (OSError, ValueError, FileNotFoundError):
+            continue
+        referencia, dimensiones = meta.get("geo") or {}, meta.get("resolucionPx")
+        if not referencia.get("georreferenciable") or not dimensiones:
+            continue
+        gsd, origen = escala.gsd_para_captura(referencia, efectivos.get(cap.id))
+        if gsd is None:
+            continue
+        items.append(dict(cap=cap, geo=referencia, gsd=gsd, origen=origen, ancho=dimensiones[0], alto=dimensiones[1]))
+    if len(items) < 2 or not nombres:
+        return []
+    ref = mosaico.referencia(items)
+    lim = mosaico.limites(items, ref)
+    if lim is None:
+        return []
+    res = mosaico.resolucion_lienzo(lim, ANCHO_MOSAICO_PX)
+    por_indice = {n: [] for n in nombres}
+    for it in items:
+        try:
+            leidas = {b: leer_banda(p.vueloId, it["cap"].bandas[b])[0] for b in necesarias}
+            bandas = calculo.igualar_formas(leidas)
+        except Exception as e:  # TIFF ilegible: la captura simplemente no entra al mosaico
+            log.warning("Mosaico: captura %s omitida (%s)", it["cap"].id, type(e).__name__)
+            continue
+        factor = max(1, int(res / it["gsd"]))
+        for n in nombres:
+            _, a, b = calculo.FORMULAS[n]
+            idx = calculo.calcular(n, bandas[a], bandas[b])
+            valores = mosaico.reducir(idx, factor)
+            # `factor` se aplicó sobre la forma igualada: si difiere del original, se reescala el ancho/alto original
+            por_indice[n].append({**it, "valores": valores, "factor": factor * (it["ancho"] / bandas[a].shape[1])})
+        del leidas, bandas
+    salida = []
+    nominales = sum(1 for it in items if it["origen"] == "nominal")
+    for n, lista in por_indice.items():
+        if len(lista) < 2:
+            continue
+        m = mosaico.construir(lista, ref, lim, res)
+        salida.append({"indice": n, "mime": "image/jpeg", "base64": imagenes.mapa_calor(m["valores"], "jpg", lado=max(m["ancho"], m["alto"])),
+                       **{k: m[k] for k in ("resM", "ancho", "alto", "origenLat", "origenLon", "kx", "ky", "capturasUsadas", "coberturaPct")},
+                       "capturasConGsdNominal": nominales})
+    if salida:
+        advertencias.append("El mosaico es aproximado: pega las capturas por GPS, orientación y GSD sobre terreno plano, sin corregir el relieve ni la lente; puede tener costuras y desplazamientos.")
+    return salida
 
 
 @app.get("/salud")
@@ -308,8 +370,9 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
         z["id"] = f"Z{i}"
     zonas = [{"id": z["id"], **{k: v for k, v in z.items() if k != "id"}} for z in zonas]
 
+    mosaicos = construir_mosaicos(p, efectivos, advertencias) if incluir_mapas and p.capturasMosaico else []
     return {"capturasUsadas": usadas, "indices": indices, "vigor": vigor, "cobertura": cobertura, "siembra": siembra,
-            "plantas": plantas, "zonasCandidatas": zonas, "mapas": mapas, "mapasInforme": mapas_informe, "huellas": huellas,
+            "plantas": plantas, "zonasCandidatas": zonas, "mapas": mapas, "mapasInforme": mapas_informe, "huellas": huellas, "mosaicos": mosaicos,
             "advertencias": advertencias,
             "ficha": ficha.resumir(fichas, pares), "variabilidadEspacial": calculo.variabilidad_espacial(rejillas_ndvi)}
 

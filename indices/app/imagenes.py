@@ -14,9 +14,9 @@ _COLORES = np.array([[165, 0, 38], [255, 255, 191], [0, 104, 55]], dtype=np.floa
 MIN_VALOR, MAX_VALOR = -0.2, 1.0
 
 
-def _reducir(img: Image.Image) -> Image.Image:
+def _reducir(img: Image.Image, lado: int = LADO) -> Image.Image:
     img = img.copy()
-    img.thumbnail((LADO, LADO))
+    img.thumbnail((lado, lado))
     return img
 
 
@@ -32,12 +32,12 @@ def _jpg64(img: Image.Image) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def mapa_calor(idx: np.ndarray, formato: str = "png") -> str:
+def mapa_calor(idx: np.ndarray, formato: str = "png", lado: int = LADO) -> str:
     """Mapa de calor del índice. PNG para el modelo de visión; JPEG (mucho más liviano) para el informe."""
     t = np.clip((idx - MIN_VALOR) / (MAX_VALOR - MIN_VALOR), 0, 1)
     rgb = np.stack([np.interp(np.nan_to_num(t), _PUNTOS, _COLORES[:, c]) for c in range(3)], axis=-1)
     rgb[~np.isfinite(idx)] = (60, 60, 60)  # sin dato: gris oscuro
-    imagen = _reducir(Image.fromarray(rgb.astype(np.uint8)))
+    imagen = _reducir(Image.fromarray(rgb.astype(np.uint8)), lado)
     return _jpg64(imagen) if formato == "jpg" else _png64(imagen)
 
 
