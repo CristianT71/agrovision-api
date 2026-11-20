@@ -64,6 +64,19 @@ def pixel_a_latlon(geo, x, y, gsd):
             'lon': geo['lon'] + este / (111320 * math.cos(math.radians(geo['lat'])))}
 
 
+def latlon_a_pixel(geo, lat, lon, gsd):
+    """Inversa de pixel_a_latlon (mismos supuestos: terreno plano, nadir, sin lente). None si no aplica."""
+    if (not geo or not _valida(geo) or geo.get('georreferenciable') is False
+            or _numero(gsd) is None or gsd <= 0 or _numero(lat) is None or _numero(lon) is None):
+        return None
+    norte = (lat - geo['lat']) * 111320
+    este = (lon - geo['lon']) * 111320 * math.cos(math.radians(geo['lat']))
+    psi = math.radians(geo['yawGrados'])
+    dx = este * math.cos(psi) - norte * math.sin(psi)
+    dy = este * math.sin(psi) + norte * math.cos(psi)
+    return geo['cx'] + dx / gsd, geo['cy'] - dy / gsd
+
+
 def poligono_de_celdas(celdas, forma, geo, gsd, escala_xy=(1., 1.)):
     """Casco convexo sin cierre repetido, área y centroide del casco (no de la unión).
 

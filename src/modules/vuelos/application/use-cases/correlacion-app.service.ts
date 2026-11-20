@@ -68,8 +68,14 @@ export class CorrelacionAppService implements ICorrelacionApp {
                       fechaMax: null,
                   },
               };
+        // Reglas de zona por tipo (borradores incluidos, marcados): el servicio de índices las cita en el respaldo.
+        const reglasZona = await this.lectura.reglasZona().catch(() => {
+            limitaciones.push("No se pudieron leer las reglas de zona.");
+            return [];
+        });
         return {
             caja,
+            reglasZona,
             cajaAmpliada,
             radioM,
             fechaVuelo,

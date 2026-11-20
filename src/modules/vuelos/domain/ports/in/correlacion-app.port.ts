@@ -1,4 +1,9 @@
-import type { CajaGeografica, LecturaCorrelacion, RegistroCorrelacion } from "../out/correlacion-app.port";
+import type {
+    CajaGeografica,
+    LecturaCorrelacion,
+    RegistroCorrelacion,
+    ReglaZonaCorrelacion,
+} from "../out/correlacion-app.port";
 
 export const CORRELACION_APP = "CORRELACION_APP";
 export interface CorrelacionAppVista {
@@ -10,6 +15,7 @@ export interface CorrelacionAppVista {
     truncado: boolean;
     limitaciones: string[];
     resumen: LecturaCorrelacion["resumen"];
+    reglasZona: ReglaZonaCorrelacion[];
 }
 export interface ICorrelacionApp {
     ejecutar(id: string, radioM?: number): Promise<CorrelacionAppVista>;

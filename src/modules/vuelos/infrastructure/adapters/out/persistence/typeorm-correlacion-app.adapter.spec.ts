@@ -31,7 +31,10 @@ describe("TypeOrmCorrelacionAppAdapter", () => {
         expect(sql).toContain("FROM coincidencias GROUP BY clase");
         // Las solicitudes con ubicación simulada no son posiciones reales: se excluyen. No se filtra por ubicacion_exacta
         expect(sql).toMatch(/s\.ubicacion_simulada IS NOT TRUE/);
-        expect(sql).not.toMatch(/ubicacion_exacta|nombre|telefono/);
+        // Del productor no sale nada personal; del agrónomo que resolvió solo su nombre (quién verificó)
+        expect(sql).not.toMatch(/ubicacion_exacta|p\.nombre|telefono/);
+        expect(sql).toContain("s2.captura_id = d.id_cliente");
+        expect(sql).toContain("a.nombre AS rev_agronomo");
         expect(r.registros).toEqual([]);
         expect(r.resumen.fechaMin).toBeNull();
     });
@@ -73,8 +76,72 @@ describe("TypeOrmCorrelacionAppAdapter", () => {
             fecha: new Date(fecha).toISOString(),
             latitud: 4,
             longitud: -74,
+            revision: null,
         });
         expect(r.resumen.fechaMax).toBe(new Date(fecha).toISOString());
         expect(JSON.stringify(r)).not.toContain("privado");
+    });
+    it("proyecta la revisión del agrónomo y las reglas con su fuente", async () => {
+        const query = jest
+            .fn()
+            .mockResolvedValueOnce([
+                {
+                    registros: [
+                        {
+                            origen: "deteccion",
+                            clase: "Leaf rust",
+                            confianza: 0.9,
+                            fecha: "2026-01-01T10:00:00",
+                            latitud: 4,
+                            longitud: -74,
+                            revision: {
+                                estadoSolicitud: "Resuelta",
+                                tipoResultado: "Confirma diagnóstico IA",
+                                plagaIdentificada: "Roya",
+                                fechaResolucion: "2026-01-03T09:00:00",
+                                agronomo: "Ana",
+                                extra: "privado",
+                            },
+                        },
+                    ],
+                    resumen: {
+                        total: 1,
+                        porOrigen: { deteccion: 1, solicitud: 0 },
+                        porClase: [],
+                        fechaMin: null,
+                        fechaMax: null,
+                    },
+                },
+            ])
+            .mockResolvedValueOnce([
+                {
+                    tipo: "roya",
+                    version: 2,
+                    estado: "borrador",
+                    calibrada: false,
+                    notas: "PROPUESTA. Fuente: https://cenicafe.org/a.pdf . Radios sin fuente.",
+                    cortes: [5, 15, 100],
+                },
+            ]);
+        const adapter = new TypeOrmCorrelacionAppAdapter({ query } as unknown as DataSource);
+        const r = await adapter.consultar({ sur: 3, norte: 5, oeste: -75, este: -73 });
+        expect(r.registros[0].revision).toEqual({
+            estadoSolicitud: "Resuelta",
+            tipoResultado: "Confirma diagnóstico IA",
+            plagaIdentificada: "Roya",
+            fechaResolucion: new Date("2026-01-03T09:00:00").toISOString(),
+            agronomo: "Ana",
+        });
+        expect(await adapter.reglasZona()).toEqual([
+            {
+                tipo: "roya",
+                version: 2,
+                estado: "borrador",
+                calibrada: false,
+                fuente: "https://cenicafe.org/a.pdf",
+                cortesIncidenciaPct: [5, 15, 100],
+            },
+        ]);
+        expect(query.mock.calls[1][0]).toContain("r.estado <> 'archivada'");
     });
 });

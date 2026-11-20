@@ -4,7 +4,7 @@ import { VueloNoEncontradoError } from "../../domain/errors/vuelos.error";
 
 describe("CorrelacionAppService", () => {
     const vuelos = { obtener: jest.fn(), resumen: jest.fn() };
-    const lectura = { consultar: jest.fn() };
+    const lectura = { consultar: jest.fn(), reglasZona: jest.fn() };
     const servicio = new CorrelacionAppService(vuelos as unknown as IVuelosRepository, lectura);
     const caja = { sur: 4, norte: 4.01, oeste: -74, este: -73.99 };
     const resumen = {
@@ -19,6 +19,23 @@ describe("CorrelacionAppService", () => {
         vuelos.obtener.mockResolvedValue({ id: "v" });
         vuelos.resumen.mockResolvedValue({ v: { caja, primeraCapturaEn: "2026-01-10T12:00:00Z" } });
         lectura.consultar.mockResolvedValue({ registros: [], resumen });
+        lectura.reglasZona.mockResolvedValue([]);
+    });
+    it("entrega las reglas de zona con su estado; si fallan, lo avisa sin romper", async () => {
+        const regla = {
+            tipo: "roya",
+            version: 2,
+            estado: "borrador",
+            calibrada: false,
+            fuente: "https://x",
+            cortesIncidenciaPct: [5, 15, 100],
+        };
+        lectura.reglasZona.mockResolvedValue([regla]);
+        expect((await servicio.ejecutar("v")).reglasZona).toEqual([regla]);
+        lectura.reglasZona.mockRejectedValue(new Error("x"));
+        const r = await servicio.ejecutar("v");
+        expect(r.reglasZona).toEqual([]);
+        expect(r.limitaciones).toContain("No se pudieron leer las reglas de zona.");
     });
     it("reutiliza la caja del detalle y amplía 300 metros por defecto", async () => {
         const r = await servicio.ejecutar("v");

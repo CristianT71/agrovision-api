@@ -305,3 +305,59 @@ analisis.correlacionApp = {
 El agente a veces copiaba mal el enlace (un carácter de menos → 400). El agente devuelve ahora sus pasos intermedios y
 el nodo «Corregir enlace» reemplaza cualquier enlace `…/informe?t=…` del texto por el real que devolvió la herramienta
 `generar_informe`; la respuesta del webhook sigue siendo solo `{output}`.
+
+## Respaldo de los reportes de la app y sección fitosanitaria (2026-11-20)
+
+Nuevo campo **`analisis.respaldoApp`** (aditivo: lo demás no cambia). Dice si cada reporte de la app (detección o
+solicitud) tiene respaldo en lo que ve el dron. **El dron nunca identifica ni confirma la plaga**: solo dice si la
+vegetación del entorno es *coherente / no coherente* con lo reportado.
+
+- Orden del flujo 02: `Agrupar capturas → Registros de la app → Calcular índices (servicio) → Correlacionar con la app`.
+  El cuerpo de `/analizar` lleva `reportesApp: [{lat, lon, clase, origen, diasDesdeVuelo, revision}]`,
+  `reglasZona` y `capturasRespaldo` (todas las capturas completas, solo ids). Las coordenadas de los reportes llegan
+  solo al servicio interno y **no salen** en la respuesta. Si la API falla, no se envían reportes y `respaldoApp` es `null`.
+- La API (`/servicio/vuelos/{id}/correlacion-app`) añade a cada registro `revision` (la solicitud ligada —la propia o la
+  de la captura por `solicitudes.captura_id = detecciones_app.id_cliente`—: `estadoSolicitud`, `tipoResultado`,
+  `plagaIdentificada`, `fechaResolucion`, `agronomo`) y a la respuesta `reglasZona` (versión más reciente no
+  archivada por tipo, con `estado`, `calibrada`, `fuente` sacada de las notas y `cortesIncidenciaPct`).
+- Método (`indices/app/respaldo.py`): el reporte se ubica en la captura cenital que lo contiene (inversa de la
+  proyección de píxel, terreno plano). Entorno = círculo de **~30 plantas** con el marco de siembra
+  (2 × 1 m → radio 4,4 m, ~60 m²; configurable con `respaldo.plantasEntorno` o `respaldo.radioEntornoM`). Se compara
+  la mediana de NDVI/NDRE/GNDVI de la vegetación (NDVI ≥ 0,4) del entorno con ventanas del mismo tamaño del resto de la
+  captura (z robusta y percentil) y las copas en NIR (densidad relativa y % de copas con NDRE bajo frente al resto =
+  agrupamiento). Señal *baja* si z(NDRE) ≤ −1 y (z(GNDVI) ≤ −0,5 o agrupamiento ≥ 1,5); *normal* si ambos z > −0,5.
+  Cortes provisionales, sin calibrar.
+- Firma esperada (criterio general, no propio de la plaga): roya, mancha de hierro (cercospora), phoma, antracnosis,
+  minador y deficiencias → vigor bajo; «Sana» → normal; hormigas o clase desconocida → `no_concluyente`.
+- `no_concluyente` con motivo: sin coordenadas, fecha a más de 30 días, fuera de las capturas cenitales, solo
+  capturas inclinadas, GSD supuesto, captura sin las 4 bandas, entorno cortado por el borde, pocos píxeles o poca
+  vegetación, pocas ventanas para comparar, señal intermedia, límite de 6 capturas.
+- Las reglas de zona se citan (tipo, versión, estado —borrador—, calibrada, fuente) pero **no deciden** el veredicto:
+  convierten incidencia/severidad en un radio y no definen firma espectral; la incidencia del celular no se guarda.
+
+```text
+analisis.respaldoApp = {
+  radioEntornoM, radioOrigen, total, resumen: {consistente, no_consistente, no_concluyente},
+  porTipo: {tipo: {…}}, motivosNoConcluyente: {texto: n},
+  grupos: [{clase, tipo, reportes, veredicto, motivo?, razon?, diasDesdeVuelo?: [min, max], distanciaCapturaM?,
+            regla?, metricas?: {radioM, areaM2, pixelesCamara, gsdCm, coberturaVegetalPct, ventanasComparadas,
+                                NDVI|NDRE|GNDVI: {entorno, resto, z, percentil}, copas: {entorno, densidadRelativa,
+                                ndreBajoPct, ndreBajoRestoPct, agrupamiento}},
+            fitosanitario: {estado, …}}],          // máx. 6 grupos (reportes iguales se agrupan)
+  reglas: [{tipo, version, estado, calibrada, fuente, cortesIncidenciaPct, nota}], notaReglas,
+  fitosanitario: {estado, texto, hipotesisPendientes, pendientesPorSolicitud, verificados: [...], avisos},
+  avisos: [texto], firmaEsperada, metodo, umbrales
+} | null
+```
+
+- **Sección fitosanitaria** (siempre en el chat y en el PDF): `estado` = `hipotesis_sin_verificar` (por defecto:
+  el celular sospecha X, el dron es coherente/no coherente/no concluyente, diagnóstico pendiente),
+  `verificado_por_agronomo` (la solicitud ligada está `Resuelta`: `Confirma diagnóstico IA` → confirmada,
+  `Corrige diagnóstico IA`/`Plaga nueva` → otra causa, `Planta sana` → descartada, `Imagen no diagnosticable`),
+  `parcialmente_verificado` o `sin_reportes`. Se usa la resolución que ya existe en `solicitudes`; no hay campo nuevo.
+  Una detección sin solicitud queda como hipótesis («sin solicitud al agrónomo»).
+- Avisos: «diagnóstico fitosanitario pendiente» (solo si queda alguna hipótesis) y «no es posible calcular la
+  propagación con un único vuelo» (siempre), más otras causas de una caída de NDRE y el error del GPS del celular.
+- Chat: `compactarParaChat` quita `metricas`, `firmaEsperada`, `metodo`, `umbrales` y los cortes, deja 4 grupos y
+  cambia el nombre del agrónomo por «agrónomo asignado» (el chat va a un modelo externo). El PDF pinta la sección
+  «Sección fitosanitaria: celular frente a dron» sin pasar `respaldoApp` al modelo redactor.

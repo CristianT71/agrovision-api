@@ -10,7 +10,7 @@ import tifffile
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from . import calculo, calibracion, ficha, imagenes, geo, escala, copas, mosaico, zonas as modulo_zonas
+from . import calculo, calibracion, ficha, imagenes, geo, escala, copas, mosaico, respaldo, zonas as modulo_zonas
 from .comparacion import comparar_analisis
 
 log = logging.getLogger("indices")
@@ -45,6 +45,40 @@ class Siembra(BaseModel):
     provisional: bool = True
 
 
+class RevisionAgronomo(BaseModel):
+    estadoSolicitud: str | None = Field(None, max_length=50)
+    tipoResultado: str | None = Field(None, max_length=100)
+    plagaIdentificada: str | None = Field(None, max_length=150)
+    fechaResolucion: str | None = Field(None, max_length=40)
+    agronomo: str | None = Field(None, max_length=150)
+
+
+class ReporteApp(BaseModel):
+    """Reporte de la app (detección o solicitud). Sus coordenadas solo se usan aquí: nunca salen en la respuesta."""
+    lat: float | None = None
+    lon: float | None = None
+    clase: str | None = Field(None, max_length=150)
+    origen: str | None = Field(None, max_length=20)
+    diasDesdeVuelo: float | None = None
+    revision: RevisionAgronomo | None = None
+
+
+class ReglaZonaApp(BaseModel):
+    tipo: str = Field(max_length=60)
+    version: int | None = None
+    estado: str | None = Field(None, max_length=20)
+    calibrada: bool = False
+    fuente: str | None = Field(None, max_length=500)
+    cortesIncidenciaPct: list[float] = Field(default_factory=list, max_length=20)
+
+
+class ParametrosRespaldo(BaseModel):
+    plantasEntorno: int = Field(30, ge=5, le=500)
+    radioEntornoM: float | None = Field(None, gt=0, le=50)
+    maxDiasDiferencia: float = Field(30, gt=0, le=3650)
+    maxCapturas: int = Field(6, ge=1, le=12)
+
+
 class Peticion(BaseModel):
     vueloId: str
     umbrales: dict[str, float] = Field(default_factory=lambda: {"NDVI": 0.5, "NDRE": 0.3, "GNDVI": 0.45})
@@ -62,6 +96,12 @@ class Peticion(BaseModel):
     capturasMosaico: list[Captura] = Field(default_factory=list, max_length=400)
     indicesMosaico: list[str] = Field(default_factory=lambda: ["NDVI", "NDRE"], max_length=3)
     capturas: list[Captura] = Field(min_length=1)
+    # Respaldo de los reportes de la app: None = no se evalúa. Las capturas con sus 4 bandas en las que se pueden
+    # buscar los reportes (todas las completas del vuelo, no solo las analizadas).
+    reportesApp: list[ReporteApp] | None = Field(None, max_length=500)
+    reglasZona: list[ReglaZonaApp] = Field(default_factory=list, max_length=50)
+    respaldo: ParametrosRespaldo = Field(default_factory=ParametrosRespaldo)
+    capturasRespaldo: list[Captura] = Field(default_factory=list, max_length=400)
 
 
 def ruta_archivo(vuelo_id: str, archivo_id: str) -> Path:
@@ -172,6 +212,32 @@ def construir_mosaicos(p: Peticion, efectivos: dict, advertencias: list[str]) ->
     if salida:
         advertencias.append("El mosaico es aproximado: pega las capturas por GPS, orientación y GSD sobre terreno plano, sin corregir el relieve ni la lente; puede tener costuras y desplazamientos.")
     return salida
+
+
+def evaluar_respaldo(p: Peticion, capturas_escala: list[dict], efectivos: dict) -> dict:
+    """Veredicto de respaldo de cada reporte de la app (ver app/respaldo.py)."""
+    completas = {}
+    for cap in [*p.capturas, *p.capturasMosaico, *p.capturasRespaldo]:
+        if all(b in cap.bandas for b in BANDAS):
+            completas.setdefault(cap.id, cap)
+    capturas = []
+    for c in capturas_escala:
+        g = c.get('geo') or {}
+        gsd, origen = escala.gsd_para_captura(g, efectivos.get(c['id']))
+        if gsd is None and g.get('cx'):
+            gsd = escala.gsd_supuesto(g, 2 * g['cx'])
+            origen = 'supuesto' if gsd is not None else None
+        capturas.append(dict(id=c['id'], geo=g, gsd=gsd, gsdOrigen=origen))
+
+    def cargar(captura_id):
+        cap = completas[captura_id]  # KeyError: sin las 4 bandas
+        leidas = {b: leer_banda(p.vueloId, cap.bandas[b])[0] for b in BANDAS}
+        return calculo.igualar_formas(leidas), leidas['nir'].shape[1]
+
+    return respaldo.evaluar([r.model_dump() for r in p.reportesApp], capturas, cargar,
+                            siembra=p.siembra.model_dump() if p.siembra else None,
+                            reglas=[r.model_dump() for r in p.reglasZona],
+                            parametros=p.respaldo.model_dump())
 
 
 @app.get("/salud")
@@ -326,6 +392,7 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
             continue
         huellas.append({'capturaId': c['id'], 'analizada': c['id'] in analizadas, 'gsdOrigen': origen_h,
                         'poligono': [[round(e['lat'], 6), round(e['lon'], 6)] for e in esquinas]})
+    respaldo_app = evaluar_respaldo(p, capturas_escala, efectivos) if p.reportesApp is not None else None
     del capturas_escala
 
     if sin_calibrar:
@@ -407,7 +474,7 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
 
     mosaicos = construir_mosaicos(p, efectivos, advertencias) if incluir_mapas and p.capturasMosaico else []
     return {"capturasUsadas": usadas, "capturasAnalizadas": [f["id"] for f in fichas], "indices": indices, "vigor": vigor, "cobertura": cobertura, "siembra": siembra,
-            "plantas": plantas, "zonasCandidatas": zonas, "mapas": mapas, "mapasInforme": mapas_informe, "huellas": huellas, "mosaicos": mosaicos,
+            "plantas": plantas, "respaldoApp": respaldo_app, "zonasCandidatas": zonas, "mapas": mapas, "mapasInforme": mapas_informe, "huellas": huellas, "mosaicos": mosaicos,
             "advertencias": advertencias,
             "ficha": ficha.resumir(fichas, pares), "variabilidadEspacial": calculo.variabilidad_espacial(rejillas_ndvi)}
 

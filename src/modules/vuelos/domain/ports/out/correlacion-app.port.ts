@@ -12,6 +12,23 @@ export interface RegistroCorrelacion {
     fecha: string | null;
     latitud: number;
     longitud: number;
+    // Revisión del agrónomo de la solicitud ligada (la propia, o la de la captura por captura_id); null si no hay.
+    revision?: RevisionAgronomo | null;
+}
+export interface RevisionAgronomo {
+    estadoSolicitud: string;
+    tipoResultado: string | null;
+    plagaIdentificada: string | null;
+    fechaResolucion: string | null;
+    agronomo: string | null;
+}
+export interface ReglaZonaCorrelacion {
+    tipo: string;
+    version: number;
+    estado: string;
+    calibrada: boolean;
+    fuente: string | null;
+    cortesIncidenciaPct: number[];
 }
 export interface LecturaCorrelacion {
     registros: RegistroCorrelacion[];
@@ -25,4 +42,5 @@ export interface LecturaCorrelacion {
 }
 export interface ILecturaCorrelacionApp {
     consultar(caja: CajaGeografica): Promise<LecturaCorrelacion>;
+    reglasZona(): Promise<ReglaZonaCorrelacion[]>;
 }
