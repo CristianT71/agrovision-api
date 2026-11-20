@@ -267,3 +267,17 @@ analisis.correlacionApp = {
   esquemático SVG (huellas, polígonos de zonas, celdas de la app, escala y norte; **sin mapa base**) y una tabla
   «Qué es cada resultado» (medición / estimación / pendiente). Los decimales de los textos del modelo se unifican
   (coma decimal; los valores 0,xxx a dos decimales; coordenadas y miles escritos con punto no se tocan).
+
+## Mosaico aproximado del vuelo (2026-11-19)
+
+- **Servicio de índices:** `POST /analizar` acepta `capturasMosaico` (todas las capturas con sus bandas, máx. 400) e
+  `indicesMosaico` (por defecto `["NDVI", "NDRE"]`). Solo se calcula si se piden mapas. Devuelve `mosaicos`:
+  `{indice, mime, base64, resM, ancho, alto, origenLat, origenLon, kx, ky, capturasUsadas, coberturaPct, capturasConGsdNominal}`.
+  Para ubicar un punto sobre la imagen: `x = (lon − origenLon)·kx / resM`, `y = (origenLat − lat)·ky / resM`.
+- **Qué es:** un mosaico **aproximado** (`app/mosaico.py`): pega cada captura cenital en un lienzo con el norte arriba según
+  su posición GPS RTK, su orientación y su GSD (efectivo si existe), promediando con más peso al centro de cada captura.
+  Supone terreno plano y cámara en nadir, no corrige lente ni relieve ni alinea capturas entre sí: puede tener costuras y
+  desplazamientos. No es un ortomosaico. Las capturas inclinadas no se usan. El lienzo mide ≤ 1600 px de lado largo.
+- **Flujo 02** pide el mosaico solo cuando `mapasInforme` es `true` y lo devuelve fuera de `analisis`, como los demás mapas.
+  **Flujo 03** lo dibuja con las zonas críticas, escala y norte encima.
+- Con el vuelo real (28 capturas, 22 cenitales): ~16 s en total, 4,7 cm/píxel, 72 % del rectángulo cubierto.
