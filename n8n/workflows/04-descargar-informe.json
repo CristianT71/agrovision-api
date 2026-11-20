@@ -21,7 +21,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// El enlace trae ?t=<vencimiento>-<48 caracteres>. Se valida el formato (esto impide rutas raras como ../)\n// y que no haya vencido, antes de tocar el disco.\nconst t = String(($input.first().json.query && $input.first().json.query.t) || '');\nconst m = /^(\\d{10})-([a-f0-9]{48})$/.exec(t);\nif (!m) return [{ json: { estado: 400, mensaje: 'Enlace no válido.' } }];\nif (Number(m[1]) * 1000 < Date.now()) return [{ json: { estado: 410, mensaje: 'El enlace venció. Pide un informe nuevo.' } }];\nreturn [{ json: { estado: 200, archivo: t + '.pdf' } }];"
+        "jsCode": "// El enlace trae ?t=<vencimiento>-<48 caracteres>. Se valida el formato (esto impide rutas raras como ../)\n// y que no haya vencido, antes de tocar el disco.\n// Se tolera un \".pdf\" final (el asistente a veces lo añade al copiar el enlace); el formato sigue validándose por completo.\nconst t = String(($input.first().json.query && $input.first().json.query.t) || '').replace(/\\.pdf$/i, '');\nconst m = /^(\\d{10})-([a-f0-9]{48})$/.exec(t);\nif (!m) return [{ json: { estado: 400, mensaje: 'Enlace no válido.' } }];\nif (Number(m[1]) * 1000 < Date.now()) return [{ json: { estado: 410, mensaje: 'El enlace venció. Pide un informe nuevo.' } }];\nreturn [{ json: { estado: 200, archivo: t + '.pdf' } }];"
       },
       "id": "389f6ab1-9188-5fb2-8627-d7346bf97ff8",
       "name": "Validar enlace",

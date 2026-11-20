@@ -245,3 +245,25 @@ analisis.correlacionApp = {
 - El PDF incluye «Ficha técnica del vuelo», «Variabilidad espacial» y «Correlación con la app»,
   con textos dinámicos escapados. `Interpretar respuesta` mantiene la comprobación de cifras sobre
   todos los datos de entrada, incluidos los campos nuevos.
+
+## Mapas, huellas y registros agregados de la app (2026-11-19)
+
+- **Servicio de índices (`POST /analizar`)** añade, sin cambiar lo existente:
+  - `mapasInforme`: mapas de calor **JPEG** de NDVI, NDRE y GNDVI de las capturas cenitales (las inclinadas no se
+    dibujan: no son un mapa) y, por cada captura con copas, el NIR con un círculo por copa detectada
+    (`indice: "COPAS"`). Pesan ~1 MB en total. `mapas` (PNG para el modelo de visión) no cambia.
+  - `huellas`: polígono `[[lat, lon], …]` del encuadre de **todas** las capturas con GPS RTK (hasta 400), calculado
+    con yaw y GSD (efectivo si existe) sobre terreno plano; `analizada` indica si la captura entró en el cálculo.
+    No es el lindero del lote: no existe un polígono del lote registrado.
+- **Flujo 02** acepta la entrada opcional `mapasInforme` (booleano, por defecto falso). Solo si es `true` devuelve
+  `mapasInforme` en la salida, **fuera de `analisis`**: así el chat (`analizar_vuelo`) nunca recibe las imágenes.
+  `analisis.huellas` sí va dentro del análisis (son pocos números).
+- **`analisis.correlacionApp`** ahora mide el área del vuelo con la unión de las huellas (`areaVueloBase: "huellas"`;
+  si no hay huellas, la caja anterior) y añade `clasesEnHuella`, `celdas` y `ladoCeldaM`. Las `celdas` agrupan los
+  registros cercanos en celdas de ~25 m (`{lat, lon, n, clases}`, máximo 150): se ve dónde se concentran sin entregar
+  el punto exacto de cada productor. **Los registros no se asocian a zonas.**
+- **Flujo 03** pide los mapas al flujo 02, no envía `huellas` ni `celdas` al modelo de redacción (conserva todo en
+  `completo` para el PDF) y dibuja: mapas por captura (NDVI/NDRE/GNDVI) con leyenda de color, mapa de copas, mapa
+  esquemático SVG (huellas, polígonos de zonas, celdas de la app, escala y norte; **sin mapa base**) y una tabla
+  «Qué es cada resultado» (medición / estimación / pendiente). Los decimales de los textos del modelo se unifican
+  (coma decimal; los valores 0,xxx a dos decimales; coordenadas y miles escritos con punto no se tocan).
