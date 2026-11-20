@@ -12,7 +12,7 @@ import math
 import numpy as np
 
 METROS_POR_GRADO = 111320.0
-SOLAPE_MINIMO = 0.5  # fracción del área de la zona menor; provisional, calibrar con inspección en campo
+SOLAPE_MINIMO = 0.7  # (0,5 y 0,6 juntaban las seis zonas del vuelo real en una; 0,7 deja dos) fracción del área de la zona menor; provisional, calibrar con inspección en campo
 
 
 def _a_metros(poligono, lat0, kx):

@@ -33,8 +33,10 @@ def test_zonas_separadas_no_se_fusionan():
 def test_solape_menor_al_minimo_no_fusiona_y_mayor_si():
     a = _cuadro(0, 0)
     poco = _cuadro(0, 7)   # 30 % de solape con a
-    mucho = _cuadro(0, 4)  # 60 % de solape con a
+    medio = _cuadro(0, 4)  # 60 % de solape con a: por debajo del 70 % no se fusiona
+    mucho = _cuadro(0, 2)  # 80 % de solape con a
     assert len(zonas.fusionar([_zona('a', 'NDVI', .2, a), _zona('b', 'NDRE', .2, poco)])) == 2
+    assert len(zonas.fusionar([_zona('a', 'NDVI', .2, a), _zona('b', 'NDRE', .2, medio)])) == 2
     assert len(zonas.fusionar([_zona('a', 'NDVI', .2, a), _zona('b', 'NDRE', .2, mucho)])) == 1
 
 
@@ -44,15 +46,15 @@ def test_zona_pequena_dentro_de_otra_grande_se_fusiona():
 
 
 def test_fusion_en_cadena_une_a_las_tres():
-    r = zonas.fusionar([_zona('a', 'NDVI', .2, _cuadro(0, 0)), _zona('b', 'NDRE', .2, _cuadro(0, 4)),
-                        _zona('c', 'GNDVI', .2, _cuadro(0, 8))])
+    r = zonas.fusionar([_zona('a', 'NDVI', .2, _cuadro(0, 0)), _zona('b', 'NDRE', .2, _cuadro(0, 2)),
+                        _zona('c', 'GNDVI', .2, _cuadro(0, 4))])
     assert len(r) == 1 and r[0]['detecciones'] == 3
 
 
 def test_centroide_de_la_fusionada_esta_en_el_centro_del_casco():
-    r = zonas.fusionar([_zona('a', 'NDVI', .2, _cuadro(0, 0)), _zona('b', 'NDRE', .2, _cuadro(0, 4))])
+    r = zonas.fusionar([_zona('a', 'NDVI', .2, _cuadro(0, 0)), _zona('b', 'NDRE', .2, _cuadro(0, 2))])
     c = r[0]['ubicacionZona']
-    assert abs((c['lon'] - LON) / M - 7.0) < 0.3 and abs((c['lat'] - LAT) / M - 5.0) < 0.3
+    assert abs((c['lon'] - LON) / M - 6.0) < 0.3 and abs((c['lat'] - LAT) / M - 5.0) < 0.3
 
 
 def test_zonas_sin_poligono_se_conservan_y_no_se_fusionan():

@@ -294,7 +294,7 @@ analisis.correlacionApp = {
 
 ## Zonas fusionadas y reintento del redactor (2026-11-19)
 
-- El servicio fusiona las zonas candidatas que son el mismo sitio (solape de polígonos ≥ 50 % del área de la menor, valor
+- El servicio fusiona las zonas candidatas que son el mismo sitio (solape de polígonos ≥ 70 % del área de la menor; con 50 y 60 % las seis zonas del vuelo real se juntaban en una; valor
   provisional): cada zona trae `indicesAfectados` (`[{indice, valor}]`), `detecciones` y `capturasIds`; el polígono, el
   área y el centroide son los de la envolvente convexa de las fusionadas (puede sobrestimar el área).
 - Flujo 03: el nodo «Redactar informe» reintenta hasta 3 veces (3 s) ante cualquier error HTTP, p. ej. el 400
