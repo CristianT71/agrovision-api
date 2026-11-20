@@ -10,7 +10,7 @@ import tifffile
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from . import calculo, calibracion, ficha, imagenes, geo, escala, copas, mosaico
+from . import calculo, calibracion, ficha, imagenes, geo, escala, copas, mosaico, zonas as modulo_zonas
 from .comparacion import comparar_analisis
 
 log = logging.getLogger("indices")
@@ -392,6 +392,7 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
     for nombre in calculo.FORMULAS:
         de_indice = sorted((c for c in candidatas if c["indice"] == nombre), key=lambda c: -c["_peso"])
         zonas += de_indice[:MAX_ZONAS_POR_INDICE]
+    zonas = modulo_zonas.fusionar(zonas)  # el mismo sitio detectado por varios índices o capturas es una sola zona
     zonas.sort(key=lambda c: -c["_peso"])
     for i, z in enumerate(zonas, start=1):
         z.pop("_peso")

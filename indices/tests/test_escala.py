@@ -111,7 +111,8 @@ def test_integracion_orden_gsd_local_y_proyeccion():
         with patch.object(main, 'RAIZ', raiz), patch.object(main, 'leer_banda', side_effect=leer_banda) as lectura, \
              patch.object(main, 'ruta_archivo', side_effect=lambda v, a: a), \
              patch.object(main.ficha, 'leer', side_effect=lambda a: metadatos[a.split('-')[0]]), \
-             patch.object(main.imagenes, 'mapa_calor', return_value=''):
+             patch.object(main.imagenes, 'mapa_calor', return_value=''), \
+             patch.object(main.modulo_zonas, 'fusionar', side_effect=lambda zs: list(zs)):  # aquí se prueba la proyección por captura
             r = main.analizar(peticion)
         assert lectura.call_count == 12  # Una lectura de cada banda por captura.
     assert r['ficha']['paresValidos'] == r['ficha']['paresTotales'] == 2

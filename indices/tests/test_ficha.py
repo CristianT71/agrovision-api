@@ -123,13 +123,17 @@ def test_integracion_zonas_geo_y_no_cenital():
             assert r['ficha']['georreferenciacion']['capturasGeorreferenciables'] == (pitch == -90)
             assert r['ficha']['georreferenciacion']['rtkPct'] == 100
             assert geo.ADVERTENCIA in r['advertencias']
-            assert len(r['zonasCandidatas']) == 3
+            if pitch == -90:  # los tres índices marcan el mismo sitio: es una sola zona con tres detecciones
+                assert len(r['zonasCandidatas']) == 1 and r['zonasCandidatas'][0]['detecciones'] == 3
+                assert len(r['zonasCandidatas'][0]['indicesAfectados']) == 3
+            else:
+                assert len(r['zonasCandidatas']) == 3
             for z in r['zonasCandidatas']:
                 assert z['ubicacion'] == {'lat': 4., 'lon': -74.}
                 assert 'celdas' not in z
                 if pitch == -90:
                     assert len(z['poligono']) == 4
-                    assert z['ubicacionZona'] == {'lat': 4.7, 'lon': -74.1}
+                    assert abs(z['ubicacionZona']['lat'] - 4.7) < 1e-5 and abs(z['ubicacionZona']['lon'] + 74.1) < 1e-5
                     assert abs(z['areaM2'] - (48 * 70 / 2170) ** 2) <= 0.05  # el servicio redondea el área a un decimal
                 else:
                     assert z['poligono'] is z['ubicacionZona'] is z['areaM2'] is None
