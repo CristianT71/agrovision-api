@@ -299,3 +299,9 @@ analisis.correlacionApp = {
   área y el centroide son los de la envolvente convexa de las fusionadas (puede sobrestimar el área).
 - Flujo 03: el nodo «Redactar informe» reintenta hasta 3 veces (3 s) ante cualquier error HTTP, p. ej. el 400
   «Failed to validate JSON» que Groq devuelve a veces; si todos fallan, el PDF usa el respaldo con el motivo real.
+
+## Enlace de descarga en el chat (2026-11-19)
+
+El agente a veces copiaba mal el enlace (un carácter de menos → 400). El agente devuelve ahora sus pasos intermedios y
+el nodo «Corregir enlace» reemplaza cualquier enlace `…/informe?t=…` del texto por el real que devolvió la herramienta
+`generar_informe`; la respuesta del webhook sigue siendo solo `{output}`.
