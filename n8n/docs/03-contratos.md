@@ -281,3 +281,13 @@ analisis.correlacionApp = {
 - **Flujo 02** pide el mosaico solo cuando `mapasInforme` es `true` y lo devuelve fuera de `analisis`, como los demás mapas.
   **Flujo 03** lo dibuja con las zonas críticas, escala y norte encima.
 - Con el vuelo real (28 capturas, 22 cenitales): ~16 s en total, 4,7 cm/píxel, 72 % del rectángulo cubierto.
+
+## Zonas siempre ubicables (2026-11-19)
+
+- El flujo 02 ahora envía hasta 40 capturas **candidatas** en `capturas`; el servicio elige entre ellas las `maxImagenes`
+  que analiza, **solo cenitales y georreferenciables** (repartidas por el vuelo). Antes se elegían por reparto uniforme y
+  una captura inclinada producía zonas sin polígono ni área. Si ninguna es cenital, se analizan las primeras como antes.
+  Con `capturas` ≤ `maxImagenes` el comportamiento no cambia.
+- La respuesta añade `capturasAnalizadas` (ids). La correlación con la app usa solo esas capturas.
+- `areaM2` de las zonas se redondea a un decimal. El PDF imprime el **centroide del polígono** de cada zona
+  (`ubicacionZona`), no el centro de la captura, que se repetía en todas las zonas de una misma captura.
