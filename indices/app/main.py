@@ -92,6 +92,32 @@ def leer_banda(vuelo_id: str, archivo_id: str) -> tuple[np.ndarray, bool]:
 ANCHO_MOSAICO_PX = 1600
 
 
+def repartir_uniforme(n: int, k: int) -> list[int]:
+    """Índices de k elementos repartidos de forma pareja entre n (el primero y el último incluidos si k >= 2)."""
+    k = min(k, n)
+    if k <= 0:
+        return []
+    return [0] if k == 1 else sorted({round(i * (n - 1) / (k - 1)) for i in range(k)})
+
+
+def seleccionar_capturas(p: Peticion) -> list[Captura]:
+    """Elige las capturas a analizar. Con más candidatas que `maxImagenes`, se eligen solo entre las cenitales
+    y georreferenciables (repartidas por el vuelo): las inclinadas no permiten ubicar zonas ni dibujar mapas."""
+    if len(p.capturas) <= p.maxImagenes:
+        return list(p.capturas)
+    cenitales = []
+    for cap in p.capturas:
+        archivo = cap.bandas.get("nir")
+        try:
+            meta = ficha.leer(ruta_archivo(p.vueloId, archivo)) if archivo else {}
+        except (OSError, ValueError, FileNotFoundError):
+            continue
+        if (meta.get("geo") or {}).get("georreferenciable"):
+            cenitales.append(cap)
+    base = cenitales or list(p.capturas)  # si ninguna es cenital, se analizan las primeras como antes
+    return [base[i] for i in repartir_uniforme(len(base), p.maxImagenes)]
+
+
 def construir_mosaicos(p: Peticion, efectivos: dict, advertencias: list[str]) -> list[dict]:
     """Mosaico aproximado por índice con todas las capturas cenitales. Ver app/mosaico.py: no es un ortomosaico."""
     nombres = [n for n in dict.fromkeys(p.indicesMosaico) if n in calculo.FORMULAS]
@@ -174,7 +200,7 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
     entradas_copas = []
 
     capturas_escala = []
-    for n, cap in enumerate(p.capturas[: p.maxImagenes], start=1):
+    for n, cap in enumerate(seleccionar_capturas(p), start=1):
         faltan = [b for b in BANDAS if b not in cap.bandas]
         if faltan:
             advertencias.append(f"Captura {cap.id} sin banda(s): {', '.join(faltan)}.")
@@ -284,6 +310,8 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
         if proyeccion is not None:
             proyeccion['poligono'] = geo.poligono_compacto(proyeccion['poligono'])
         zona.update(proyeccion or {'ubicacionZona': None, 'poligono': None, 'areaM2': None})
+        if zona.get('areaM2') is not None:
+            zona['areaM2'] = round(zona['areaM2'], 1)  # un decimal basta: el GSD no da más precisión
         zona['gsdOrigen'] = origen
     huellas = []
     analizadas = {f['id'] for f in fichas}
@@ -371,7 +399,7 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
     zonas = [{"id": z["id"], **{k: v for k, v in z.items() if k != "id"}} for z in zonas]
 
     mosaicos = construir_mosaicos(p, efectivos, advertencias) if incluir_mapas and p.capturasMosaico else []
-    return {"capturasUsadas": usadas, "indices": indices, "vigor": vigor, "cobertura": cobertura, "siembra": siembra,
+    return {"capturasUsadas": usadas, "capturasAnalizadas": [f["id"] for f in fichas], "indices": indices, "vigor": vigor, "cobertura": cobertura, "siembra": siembra,
             "plantas": plantas, "zonasCandidatas": zonas, "mapas": mapas, "mapasInforme": mapas_informe, "huellas": huellas, "mosaicos": mosaicos,
             "advertencias": advertencias,
             "ficha": ficha.resumir(fichas, pares), "variabilidadEspacial": calculo.variabilidad_espacial(rejillas_ndvi)}

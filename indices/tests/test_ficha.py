@@ -130,7 +130,7 @@ def test_integracion_zonas_geo_y_no_cenital():
                 if pitch == -90:
                     assert len(z['poligono']) == 4
                     assert z['ubicacionZona'] == {'lat': 4.7, 'lon': -74.1}
-                    assert abs(z['areaM2'] - (48 * 70 / 2170) ** 2) < 1e-8
+                    assert abs(z['areaM2'] - (48 * 70 / 2170) ** 2) <= 0.05  # el servicio redondea el área a un decimal
                 else:
                     assert z['poligono'] is z['ubicacionZona'] is z['areaM2'] is None
             json.dumps(r, allow_nan=False)

@@ -94,3 +94,11 @@ def test_reducir_promedia_bloques_y_omite_nan():
     assert r.shape == (2, 2) and abs(r[0, 0] - 2.5) < 1e-6
     a[0, 0] = np.nan
     assert abs(mosaico.reducir(a, 2)[0, 0] - (1 + 4 + 5) / 3) < 1e-6
+
+
+def test_repartir_uniforme_incluye_extremos_y_no_repite():
+    from app.main import repartir_uniforme
+    assert repartir_uniforme(28, 4) == [0, 9, 18, 27]
+    assert repartir_uniforme(3, 4) == [0, 1, 2]
+    assert repartir_uniforme(10, 1) == [0]
+    assert repartir_uniforme(0, 4) == []
