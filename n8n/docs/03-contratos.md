@@ -291,3 +291,11 @@ analisis.correlacionApp = {
 - La respuesta añade `capturasAnalizadas` (ids). La correlación con la app usa solo esas capturas.
 - `areaM2` de las zonas se redondea a un decimal. El PDF imprime el **centroide del polígono** de cada zona
   (`ubicacionZona`), no el centro de la captura, que se repetía en todas las zonas de una misma captura.
+
+## Zonas fusionadas y reintento del redactor (2026-11-19)
+
+- El servicio fusiona las zonas candidatas que son el mismo sitio (solape de polígonos ≥ 50 % del área de la menor, valor
+  provisional): cada zona trae `indicesAfectados` (`[{indice, valor}]`), `detecciones` y `capturasIds`; el polígono, el
+  área y el centroide son los de la envolvente convexa de las fusionadas (puede sobrestimar el área).
+- Flujo 03: el nodo «Redactar informe» reintenta hasta 3 veces (3 s) ante cualquier error HTTP, p. ej. el 400
+  «Failed to validate JSON» que Groq devuelve a veces; si todos fallan, el PDF usa el respaldo con el motivo real.
