@@ -353,8 +353,12 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
                      'masasGrandes', 'areaMasasGrandesM2')
     for captura_id, referencia, nir, ndvi in entradas_copas:
         gsd, origen = escala.gsd_para_captura(referencia, efectivos.get(captura_id))
+        if gsd is None:  # sin focal calibrada: último recurso con la cámara supuesta, marcado como tal
+            gsd = escala.gsd_supuesto(referencia, nir.shape[1])
+            origen = 'supuesto' if gsd is not None else None
         resultado_copas = {}
-        if referencia.get('georreferenciable') and gsd is not None:
+        motivo = copas.motivo_sin_conteo(referencia, gsd)
+        if motivo is None:
             try:
                 resultado_copas = copas.detectar_copas(nir, ndvi, gsd)
                 if incluir_mapas and resultado_copas.get('copas'):
@@ -362,8 +366,10 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
                                           "cenital": True, "mime": "image/jpeg",
                                           "base64": imagenes.mapa_copas(nir, resultado_copas['copas'], gsd)})
             except ValueError as error:
+                motivo = str(error)
                 advertencias.append(f'Captura {captura_id}: no se contaron copas ({error}).')
         por_captura.append({'capturaId': captura_id, 'gsdOrigen': origen,
+                            'gsdM': round(gsd, 4) if gsd is not None else None, 'motivoSinConteo': motivo,
                             **{campo: resultado_copas.get(campo) for campo in campos_conteo}})
     del entradas_copas
     teorica = calculo.densidad_teorica(p.siembra.distSurcoM, p.siembra.distPlantaM) if p.siembra else None
@@ -383,7 +389,7 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
             "conteoReal": None,
             "nota": "Densidad teórica del marco de siembra indicado"
             + (" (valor provisional, sin confirmar)" if p.siembra.provisional else "")
-            + ". El conteo real de plantas con el dron no está calculado.",
+            + ". No hay conteo real validado: el de plantas (copas en NIR) es una estimación aproximada sin validar.",
         }
     if p.umbralVigorBajo >= p.umbralVigorAlto:
         raise HTTPException(422, "umbralVigorBajo debe ser menor que umbralVigorAlto.")

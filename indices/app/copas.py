@@ -335,10 +335,47 @@ def detectar_copas(nir, ndvi, gsd_m, parametros=None, recorte=None):
     return salida
 
 
+ADVERTENCIA_GSD_SUPUESTO = ('Hay capturas sin focal calibrada: su GSD se supuso con la altura relativa y el campo de visión '
+                            'de la cámara multiespectral DJI Mavic 3M. Su conteo y su densidad son muy poco fiables, solo orientativos.')
+ADVERTENCIA_RESOLUCION = ('Hay capturas con píxeles de más de {:.0f} cm: una copa de café ocupa pocos píxeles, las copas '
+                          'vecinas se funden y el conteo probablemente subestima las plantas.')
+GSD_MAXIMO_FIABLE_M = 0.05
+
+
+def motivo_sin_conteo(referencia, gsd):
+    """Por qué una captura no admite el conteo de copas, o None si se puede contar."""
+    if gsd is None:
+        return 'sin altura relativa ni focal en los metadatos: no hay escala para medir copas'
+    inclinacion = referencia.get('pitchGrados')
+    if inclinacion is None:
+        if referencia.get('georreferenciable'):
+            return None
+        return 'sin ángulo del gimbal: no se puede comprobar que la captura sea cenital'
+    if abs(inclinacion + 90) > 5:
+        return f'captura inclinada ({inclinacion:.0f}°): la escala cambia dentro de la imagen'
+    return None
+
+
 def resumir_capturas(capturas, teorica=None):
     densidades = [c['densidadPlantasHa'] for c in capturas if c['densidadPlantasHa'] is not None]
     media = float(np.mean(densidades)) if densidades else None
+    contadas = [c for c in capturas if c.get('conteo') is not None]
+    advertencias = [ADVERTENCIA]
+    if any(c['gsdOrigen'] == 'nominal' for c in capturas):
+        advertencias.append(ADVERTENCIA_GSD)
+    if any(c['gsdOrigen'] == 'supuesto' for c in contadas):
+        advertencias.append(ADVERTENCIA_GSD_SUPUESTO)
+    if any((c.get('gsdM') or 0) > GSD_MAXIMO_FIABLE_M for c in contadas):
+        advertencias.append(ADVERTENCIA_RESOLUCION.format(GSD_MAXIMO_FIABLE_M*100))
+    advertencias += [f"Captura {c['capturaId']}: sin conteo ({c['motivoSinConteo']})."
+                     for c in capturas if c.get('conteo') is None and c.get('motivoSinConteo')]
+    if not contadas:
+        advertencias.append('No se obtuvo conteo de copas en ninguna captura analizada.')
+    origenes = {c['gsdOrigen'] for c in contadas}
+    fiabilidad = (None if not contadas else 'muy baja' if 'supuesto' in origenes
+                  or any((c.get('gsdM') or 0) > GSD_MAXIMO_FIABLE_M for c in contadas) else 'baja')
     return dict(metodo='maximos_locales_nir', validado=False, porCaptura=capturas,
+                capturasConConteo=len(contadas), fiabilidad=fiabilidad,
                 densidadMediaPlantasHa=media,
                 diferenciaVsTeoricaPct=(media-teorica)/teorica*100 if media is not None and teorica else None,
-                advertencias=[ADVERTENCIA] + ([ADVERTENCIA_GSD] if any(c['gsdOrigen'] == 'nominal' for c in capturas) else []))
+                advertencias=advertencias)

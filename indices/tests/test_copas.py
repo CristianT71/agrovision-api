@@ -1,7 +1,7 @@
 """Casos sintéticos reproducibles; no sustituyen el conteo manual en campo."""
 import json
 import numpy as np
-from app.copas import detectar_copas, resumir_capturas
+from app.copas import detectar_copas, motivo_sin_conteo, resumir_capturas
 
 
 def escena(centros, sigma=10, forma=(320, 400), ruido=0.002):
@@ -64,7 +64,8 @@ def test_nan_y_gsd_invalido():
 
 def test_borde_y_promedio_capturas():
     assert detectar_copas(*escena([(160, 2)], sigma=4), 0.02)['conteo'] == 0
-    datos = [{'densidadPlantasHa': d, 'gsdOrigen': 'nominal'} for d in (1000, 3000, None)]
+    datos = [{'capturaId': str(d), 'conteo': d and d // 100, 'densidadPlantasHa': d, 'gsdOrigen': 'nominal', 'gsdM': .03}
+             for d in (1000, 3000, None)]
     r = resumir_capturas(datos, 4000)
     assert r['densidadMediaPlantasHa'] == 2000 and r['diferenciaVsTeoricaPct'] == -50
     assert len(r['advertencias']) == 2
@@ -182,3 +183,24 @@ def test_valle_en_region_brillante_compartida():
     r = detectar_copas(*escena([(160, 180), (160, 220)], sigma=12, ruido=0),
                        .02, {'copaTipicaM': .4})
     assert r['conteo'] == 2 and r['fusionadas'] == 2, r
+
+
+def test_conteo_degradado_con_motivo_y_gsd_supuesto():
+    cenital = dict(pitchGrados=-89.9, georreferenciable=False)
+    assert motivo_sin_conteo(cenital, 0.03) is None  # sin focal ni centro óptico, pero cenital: se cuenta
+    assert 'escala' in motivo_sin_conteo(cenital, None)
+    assert 'inclinada' in motivo_sin_conteo(dict(pitchGrados=-45), 0.03)
+    assert motivo_sin_conteo(dict(georreferenciable=True), 0.03) is None
+    assert 'cenital' in motivo_sin_conteo(dict(georreferenciable=False), 0.03)
+    r = resumir_capturas([
+        dict(capturaId='a', conteo=6, densidadPlantasHa=9, gsdOrigen='supuesto', gsdM=.3, motivoSinConteo=None),
+        dict(capturaId='b', conteo=None, densidadPlantasHa=None, gsdOrigen='nominal', gsdM=.03,
+             motivoSinConteo='captura inclinada (-45°): la escala cambia dentro de la imagen')], 5000)
+    assert r['capturasConConteo'] == 1 and r['fiabilidad'] == 'muy baja'
+    texto = ' '.join(r['advertencias'])
+    assert 'supuso' in texto and 'subestima' in texto and 'Captura b: sin conteo (captura inclinada' in texto
+    vacio = resumir_capturas([dict(capturaId='c', conteo=None, densidadPlantasHa=None, gsdOrigen=None, gsdM=None,
+                                   motivoSinConteo='sin altura relativa ni focal en los metadatos: no hay escala para medir copas')])
+    assert vacio['fiabilidad'] is None and vacio['capturasConConteo'] == 0
+    assert any('ninguna captura' in a for a in vacio['advertencias'])
+    assert any('Captura c: sin conteo (sin altura' in a for a in vacio['advertencias'])

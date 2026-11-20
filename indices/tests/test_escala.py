@@ -145,3 +145,12 @@ def test_limites_de_aceptacion_del_par():
         b['geo']['yawGrados'] = giro
         with patch('app.escala.desplazamiento_multiescala', return_value={**medida, 'coincide': True}):
             assert escala.gsd_efectivo_pares([a, b])['pares'][0]['valido'] == valido
+
+
+def test_gsd_supuesto_sin_focal():
+    # Imagen reducida a 320 px a 80 m: se supone el campo de visión de la Mavic 3M.
+    assert math.isclose(escala.gsd_supuesto({'alturaRelativaM': 80}, 320), 80 / (2170 / 2592 * 320))
+    assert math.isclose(escala.gsd_supuesto({'alturaRelativaM': 70}, 2592), 70 / 2170)
+    assert escala.gsd_supuesto({}, 320) is None
+    assert escala.gsd_supuesto({'alturaRelativaM': 0}, 320) is None
+    assert escala.gsd_supuesto({'alturaRelativaM': 80}, 0) is None

@@ -71,6 +71,19 @@ def gsd_para_captura(geo_captura, efectivo):
     return (nominal, 'nominal') if nominal is not None else (None, None)
 
 
+# Focal en píxeles ÷ ancho de la imagen de la cámara multiespectral DJI Mavic 3M (2170 px / 2592 px, ≈62° horizontal).
+# Solo se usa cuando la imagen no trae focal calibrada: es un supuesto, no una medida.
+RELACION_FOCAL_SUPUESTA = 2170 / 2592
+
+
+def gsd_supuesto(geo_captura, ancho_px):
+    """GSD de último recurso: altura relativa con el campo de visión supuesto de la cámara. Muy poco fiable."""
+    altura = geo._numero(geo_captura.get('alturaRelativaM'))
+    if altura is None or altura <= 0 or not ancho_px or ancho_px <= 0:
+        return None
+    return altura / (RELACION_FOCAL_SUPUESTA * ancho_px)
+
+
 def _par(a, b):
     salida = dict(primera=a['id'], segunda=b['id'], valido=False, motivo=None,
                   distanciaGpsM=None, modulo=None, gsdEfectivoM=None, gsdNominalM=None,
