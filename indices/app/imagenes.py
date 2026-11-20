@@ -32,13 +32,35 @@ def _jpg64(img: Image.Image) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def mapa_calor(idx: np.ndarray) -> str:
+def mapa_calor(idx: np.ndarray, formato: str = "png") -> str:
+    """Mapa de calor del índice. PNG para el modelo de visión; JPEG (mucho más liviano) para el informe."""
     t = np.clip((idx - MIN_VALOR) / (MAX_VALOR - MIN_VALOR), 0, 1)
     rgb = np.stack([np.interp(np.nan_to_num(t), _PUNTOS, _COLORES[:, c]) for c in range(3)], axis=-1)
     rgb[~np.isfinite(idx)] = (60, 60, 60)  # sin dato: gris oscuro
-    return _png64(_reducir(Image.fromarray(rgb.astype(np.uint8))))
+    imagen = _reducir(Image.fromarray(rgb.astype(np.uint8)))
+    return _jpg64(imagen) if formato == "jpg" else _png64(imagen)
 
 
 def foto_rgb(ruta: str) -> str:
     with Image.open(ruta) as img:
         return _jpg64(_reducir(img.convert("RGB")))
+
+
+def mapa_copas(nir: np.ndarray, copas_detectadas: list[dict], gsd_m: float, ancho: int = 640) -> str:
+    """NIR en gris con un círculo por copa detectada (diámetro estimado). Es una verificación visual, no un dato."""
+    from PIL import ImageDraw
+    valido = nir[np.isfinite(nir)]
+    bajo, alto = (np.percentile(valido, [1, 99]) if valido.size else (0.0, 1.0))
+    gris = (np.clip((np.nan_to_num(nir) - bajo) / max(alto - bajo, 1e-9), 0, 1) * 255).astype(np.uint8)
+    imagen = Image.fromarray(gris).convert("RGB")
+    factor = ancho / imagen.width
+    imagen = imagen.resize((ancho, max(1, round(imagen.height * factor))), Image.Resampling.BILINEAR)
+    pincel = ImageDraw.Draw(imagen)
+    for c in copas_detectadas:
+        radio = max(2.0, c["diametroM"] / gsd_m / 2 * factor)
+        x, y = c["x"] * factor, c["y"] * factor
+        pincel.ellipse((x - radio, y - radio, x + radio, y + radio), outline=(255, 140, 0) if c.get("fusionada") else (0, 230, 118), width=1)
+    buf = io.BytesIO()
+    imagen.save(buf, format="JPEG", quality=82, optimize=True)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+

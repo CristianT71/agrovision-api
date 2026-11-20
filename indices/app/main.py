@@ -105,6 +105,7 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
     muestras: dict[str, list[np.ndarray]] = {n: [] for n in calculo.FORMULAS}
     candidatas: list[dict] = []
     mapas: list[dict] = []
+    mapas_informe: list[dict] = []
     usadas = 0
     fichas = []
     rejillas_ndvi = []
@@ -161,6 +162,9 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
                     "_proyeccion": (z['celdas'], idx.shape, referencia, escala_xy),
                     "_peso": (umbral - z["valor"]) * z["areaPct"],
                 })
+            if incluir_mapas and referencia.get('georreferenciable'):  # una captura inclinada no es un mapa
+                mapas_informe.append({"titulo": f"{nombre} — captura {n}", "indice": nombre, "capturaId": cap.id,
+                                      "cenital": True, "mime": "image/jpeg", "base64": imagenes.mapa_calor(idx, "jpg")})
             if nombre == "NDVI":
                 # Llevar el NDVI ya calculado a los píxeles NIR originales y su GSD.
                 original = leidas['nir'][0]
@@ -219,6 +223,19 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
             proyeccion['poligono'] = geo.poligono_compacto(proyeccion['poligono'])
         zona.update(proyeccion or {'ubicacionZona': None, 'poligono': None, 'areaM2': None})
         zona['gsdOrigen'] = origen
+    huellas = []
+    analizadas = {f['id'] for f in fichas}
+    for c in capturas_escala[:400]:
+        g = c['geo']
+        gsd_h, origen_h = escala.gsd_para_captura(g, efectivos.get(c['id']))
+        if not g.get('georreferenciable') or gsd_h is None or g.get('cx') is None or g.get('cy') is None:
+            continue
+        ancho_h, alto_h = 2 * g['cx'], 2 * g['cy']
+        esquinas = [geo.pixel_a_latlon(g, x, y, gsd_h) for x, y in ((0, 0), (ancho_h, 0), (ancho_h, alto_h), (0, alto_h))]
+        if any(e is None for e in esquinas):
+            continue
+        huellas.append({'capturaId': c['id'], 'analizada': c['id'] in analizadas, 'gsdOrigen': origen_h,
+                        'poligono': [[round(e['lat'], 6), round(e['lon'], 6)] for e in esquinas]})
     del capturas_escala
 
     if sin_calibrar:
@@ -250,6 +267,10 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
         if referencia.get('georreferenciable') and gsd is not None:
             try:
                 resultado_copas = copas.detectar_copas(nir, ndvi, gsd)
+                if incluir_mapas and resultado_copas.get('copas'):
+                    mapas_informe.append({"titulo": f"Copas detectadas — captura {captura_id}", "indice": "COPAS", "capturaId": captura_id,
+                                          "cenital": True, "mime": "image/jpeg",
+                                          "base64": imagenes.mapa_copas(nir, resultado_copas['copas'], gsd)})
             except ValueError as error:
                 advertencias.append(f'Captura {captura_id}: no se contaron copas ({error}).')
         por_captura.append({'capturaId': captura_id, 'gsdOrigen': origen,
@@ -288,7 +309,8 @@ def analizar_peticion(p: Peticion, incluir_mapas: bool = True):
     zonas = [{"id": z["id"], **{k: v for k, v in z.items() if k != "id"}} for z in zonas]
 
     return {"capturasUsadas": usadas, "indices": indices, "vigor": vigor, "cobertura": cobertura, "siembra": siembra,
-            "plantas": plantas, "zonasCandidatas": zonas, "mapas": mapas, "advertencias": advertencias,
+            "plantas": plantas, "zonasCandidatas": zonas, "mapas": mapas, "mapasInforme": mapas_informe, "huellas": huellas,
+            "advertencias": advertencias,
             "ficha": ficha.resumir(fichas, pares), "variabilidadEspacial": calculo.variabilidad_espacial(rejillas_ndvi)}
 
 
