@@ -111,9 +111,11 @@ Si falla: *«reasoning_effort»* → en **Modelo del chat**, quita la opción de
   en los demás. Sus ids son los de la tabla de [../workflows/README.md](../workflows/README.md).
 - La credencial **API AgroVisión (llave de servicio)** (Header Auth, cabecera `X-Api-Key`) está creada y enlazada.
   La llave es `N8N_API_KEY` del `.env` de la API y abre solo `GET /api/servicio/vuelos` (lectura).
-- El webhook del chat es `https://n8n.agrovision.sbs/webhook/asistente`. Por el túnel solo salen las rutas
-  `/webhook/…`: el editor de n8n y `/webhook-test/…` **no** se publican.
-- El panel lee esa URL de `VITE_N8N_CHAT_WEBHOOK_URL` (se compila dentro del panel).
+- **Cambio (2026-11-20):** el panel ya no llama a n8n. Llama a la API (`/api/vuelos/:id/chat` y
+  `/api/vuelos/:id/informe`), que reenvía a `N8N_WEBHOOK_URL` con la cabecera `X-N8N-Secret`. Los webhooks
+  01 y 04 exigen esa cabecera (credencial Header Auth). n8n ya no se publica por el túnel. Configuración en
+  [05-seguridad-webhooks.md](05-seguridad-webhooks.md). Las pruebas con `Invoke-RestMethod` de arriba
+  necesitan ahora `-Headers @{ 'X-N8N-Secret' = '<secreto>' }`.
 - El chat del panel espera hasta 240 s y convierte en enlaces las URL de las respuestas.
 
 **Para que funcione después de un reinicio:** API encendida (`node dist/main`), `cloudflared tunnel run agrovision`,
@@ -125,7 +127,7 @@ Docker con n8n (`docker compose --profile n8n up -d n8n gotenberg`) y el panel s
 |---|---|---|
 | ~~Servicio de índices (Python)~~ | Calcula NDVI, NDRE y GNDVI con los TIFF y devuelve los mapas de calor. Sin él, las herramientas `analizar_vuelo` y `generar_informe` del chat fallan | **Hecho (2026-11-18)**: carpeta `indices/`, servicio `indices` del compose (perfil n8n). Probado con el vuelo real 73c55c8a. Calibración radiométrica hecha (2026-11-18) con los metadatos XMP del dron M3M: NDVI mediana 0,79 en el vuelo de prueba (antes 0,29) |
 | Un vuelo real con las 4 bandas | Subirlo en la pantalla Vuelos del panel, para probar el análisis de verdad | Falta |
-| Límite de uso del webhook | La URL del chat va en el código público del panel: cualquiera podría gastar tu saldo de Fireworks. Conviene una regla de límite de peticiones en Cloudflare (Seguridad → Reglas de límite de velocidad) para `n8n.agrovision.sbs/webhook/asistente` | Pendiente, hazla tú en Cloudflare |
+| ~~Límite de uso del webhook~~ | Que nadie gaste el saldo del modelo desde fuera | **Hecho (2026-11-20)**: el chat pasa por la API (admin con sesión, 10 mensajes/min por cuenta) y n8n exige `X-N8N-Secret` |
 
 El chat funciona sin el servicio de índices para conversar y listar vuelos. Con la base sin vuelos, «¿qué vuelos hay?»
 responde que no hay ninguno.

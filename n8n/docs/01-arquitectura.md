@@ -4,8 +4,9 @@ Estado: **propuesta** (2026-11-14). Pendiente de confirmar antes de construir.
 
 ## Qué ya existe
 
-- **Chat del panel.** `agrovision-panel/src/components/ChatAsistente` hace un `POST` a
-  `VITE_N8N_CHAT_WEBHOOK_URL` con `{ "action": "sendMessage", "sessionId": "...", "chatInput": "..." }`
+- **Chat del panel.** `agrovision-panel/src/components/ChatAsistente` hace un `POST` a la API
+  (`/api/vuelos/:id/chat`, con JWT), que lo reenvía a n8n con la cabecera secreta
+  (ver [05-seguridad-webhooks.md](05-seguridad-webhooks.md)). A n8n le llega `{ "action": "sendMessage", "sessionId": "...", "chatInput": "..." }`
   y espera `{ "output": "texto" }` **en la misma respuesta** (también acepta un arreglo cuyo primer
   elemento tenga `output`). Solo aparece para administradores, en la pantalla de vuelos.
 - **No se envía contexto del vuelo.** El chat solo manda el texto que escribe el administrador. Los datos
@@ -73,8 +74,8 @@ Decisión (2026-11-14): **en local, con Docker, definido en el `docker-compose.y
 |---|---|
 | Acceso a los datos | `/api/vuelos` exige un administrador con JWT y el login es por OTP, que n8n no puede automatizar. Opciones: (a) una llave de servicio de solo lectura en la API, lo más limpio pero toca la API de Kevin; (b) como n8n corre en el mismo equipo, montar `UPLOADS_DIR/vuelos` en el contenedor en solo lectura y leer los datos del vuelo con un usuario de Postgres de solo lectura, más rápido pero acopla n8n al esquema de la base. |
 | TIFF de 16 bits | Un nodo Code de n8n no los procesa bien. Propuesta: un pequeño servicio en Python (numpy y tifffile) que n8n llama por HTTP. |
-| Exponer n8n | El navegador llama directo al webhook, así que n8n debe estar publicado (por ejemplo con otro nombre en el túnel de Cloudflare) y permitir CORS desde `agrovision.sbs`. |
-| Seguridad del webhook | La URL va en el código público del panel: cualquiera podría gastar créditos de IA. Mínimo: ruta con token largo y límite de uso en Cloudflare. Lo correcto sería pasar por la API (lo revisaría Kevin). |
+| Exponer n8n | **Resuelto (2026-11-20):** el navegador ya no llama a n8n; lo llama la API. n8n no se publica. |
+| Seguridad del webhook | **Resuelto (2026-11-20):** pasa por la API con JWT, límite por cuenta y secreto `X-N8N-Secret`. Ver [05-seguridad-webhooks.md](05-seguridad-webhooks.md). |
 | Dónde queda el PDF | Carpeta con enlace temporal, o guardarlo en la API. Falta decidir y comprobar si el chat muestra bien un enlace. |
 | Formato real del dron | El README del módulo de vuelos dice que el sufijo `_MS_*` y el SRT **no están verificados** con archivos reales. Probar primero con un vuelo real. |
 | Privacidad | Las imágenes de los lotes salen hacia el proveedor de IA (Fireworks). Confirmar que es aceptable. |

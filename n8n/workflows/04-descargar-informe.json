@@ -6,6 +6,7 @@
       "parameters": {
         "httpMethod": "GET",
         "path": "informe",
+        "authentication": "headerAuth",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -17,7 +18,13 @@
         0,
         100
       ],
-      "webhookId": "0fd9f8ba-3b75-568a-8604-7e9839b0a786"
+      "webhookId": "0fd9f8ba-3b75-568a-8604-7e9839b0a786",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "webhookAgroVision01",
+          "name": "Webhook AgroVision (secreto de la API)"
+        }
+      }
     },
     {
       "parameters": {
@@ -152,7 +159,7 @@
     },
     {
       "parameters": {
-        "content": "## Flujo 04 · Descargar informe\n\nEs el enlace que recibe quien pide un informe: `.../webhook/informe?t=<código>`.\n\n1. **Webhook**: recibe el GET (por eso este flujo debe estar **activo** para tener URL de producción).\n2. **Validar enlace**: el código debe tener el formato exacto `10 dígitos-48 caracteres` y no haber vencido. Así nadie puede pedir otra ruta del disco.\n3. **Leer PDF**: busca el archivo en `/informes`. Si no existe, responde 404.\n4. **Responder PDF**: entrega el archivo para descargar. Sin guardar en caché.",
+        "content": "## Flujo 04 · Descargar informe\n\nEs el enlace que recibe quien pide un informe: `.../webhook/informe?t=<código>`.\n\n1. **Webhook**: recibe el GET de la API (GET /api/vuelos/:id/informe, con sesión de admin). Exige la cabecera `X-N8N-Secret` (credencial «Webhook AgroVision (secreto de la API)»); sin ella responde 403. El flujo debe estar **activo**.\n2. **Validar enlace**: el código debe tener el formato exacto `10 dígitos-48 caracteres` y no haber vencido. Así nadie puede pedir otra ruta del disco.\n3. **Leer PDF**: busca el archivo en `/informes`. Si no existe, responde 404.\n4. **Responder PDF**: entrega el archivo para descargar. Sin guardar en caché.",
         "height": 250,
         "width": 720,
         "color": 4

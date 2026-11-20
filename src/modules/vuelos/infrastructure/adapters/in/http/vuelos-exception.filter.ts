@@ -2,6 +2,9 @@ import { ArgumentsHost, Catch, HttpException, Logger, type ExceptionFilter } fro
 import type { Request, Response } from "express";
 import {
     ArchivoVueloNoEncontradoError,
+    AsistenteNoConfiguradoError,
+    AsistenteOcupadoError,
+    InformeAsistenteError,
     FormatoVueloError,
     TokenMedioError,
     VueloNoEncontradoError,
@@ -23,6 +26,15 @@ export class VuelosExceptionFilter implements ExceptionFilter {
             // El ValidationPipe global usa 400; este contrato pide 422 para DTOs inválidos.
             if (status === 400 && Array.isArray(mensaje)) status = 422;
         } else if (error instanceof FormatoVueloError) {
+            status = error.estado;
+            mensaje = error.message;
+        } else if (error instanceof AsistenteNoConfiguradoError) {
+            status = 503;
+            mensaje = error.message;
+        } else if (error instanceof AsistenteOcupadoError) {
+            status = error.agotado ? 504 : 503;
+            mensaje = error.message;
+        } else if (error instanceof InformeAsistenteError) {
             status = error.estado;
             mensaje = error.message;
         } else if (error instanceof TokenMedioError) {

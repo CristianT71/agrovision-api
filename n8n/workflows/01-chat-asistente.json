@@ -6,10 +6,11 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "asistente",
+        "authentication": "headerAuth",
         "responseMode": "lastNode",
         "responseData": "firstEntryJson",
         "options": {
-          "allowedOrigins": "https://agrovision.sbs"
+          "allowedOrigins": "https://agrovision.sbs,http://localhost:5173"
         }
       },
       "id": "e38dab81-2a40-5eff-9de4-239d04de0d25",
@@ -20,11 +21,17 @@
         0,
         100
       ],
-      "webhookId": "8e6dd5ef-c40f-500a-a07e-9fc45fb45a87"
+      "webhookId": "8e6dd5ef-c40f-500a-a07e-9fc45fb45a87",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "webhookAgroVision01",
+          "name": "Webhook AgroVision (secreto de la API)"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// El panel manda { action, sessionId, chatInput, vueloId } dentro de \"body\". Se comprueba antes de gastar saldo del modelo.\nconst body = ($input.first().json.body) || {};\nconst chatInput = typeof body.chatInput === 'string' ? body.chatInput.trim() : '';\nconst sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';\nconst vueloId = typeof body.vueloId === 'string' ? body.vueloId.trim() : '';\nif (!chatInput) throw new Error('Falta el mensaje (chatInput).');\nif (chatInput.length > 4000) throw new Error('El mensaje supera los 4000 caracteres.');\nif (!/^[A-Za-z0-9-]{8,64}$/.test(sessionId)) throw new Error('El sessionId no es válido.');\nif (!/^[0-9a-fA-F-]{36}$/.test(vueloId)) throw new Error('Falta el vuelo (vueloId) o no es válido.');\nreturn [{ json: { chatInput, sessionId, vueloId } }];"
+        "jsCode": "// La API (POST /api/vuelos/:id/chat, con sesión de admin) manda { action, sessionId, chatInput, vueloId } dentro de \"body\". Se comprueba antes de gastar saldo del modelo.\nconst body = ($input.first().json.body) || {};\nconst chatInput = typeof body.chatInput === 'string' ? body.chatInput.trim() : '';\nconst sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';\nconst vueloId = typeof body.vueloId === 'string' ? body.vueloId.trim() : '';\nif (!chatInput) throw new Error('Falta el mensaje (chatInput).');\nif (chatInput.length > 4000) throw new Error('El mensaje supera los 4000 caracteres.');\nif (!/^[A-Za-z0-9-]{8,64}$/.test(sessionId)) throw new Error('El sessionId no es válido.');\nif (!/^[0-9a-fA-F-]{36}$/.test(vueloId)) throw new Error('Falta el vuelo (vueloId) o no es válido.');\nreturn [{ json: { chatInput, sessionId, vueloId } }];"
       },
       "id": "e0fa8503-4b36-5751-9b5f-2a75640f51d0",
       "name": "Validar mensaje",

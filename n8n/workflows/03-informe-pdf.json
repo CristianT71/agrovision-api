@@ -80,7 +80,7 @@
             {
               "id": "f5ef026d",
               "name": "config.urlPublica",
-              "value": "https://n8n.agrovision.sbs/",
+              "value": "http://localhost:5679/",
               "type": "string"
             },
             {

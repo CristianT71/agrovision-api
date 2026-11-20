@@ -13,10 +13,11 @@ base de datos.
 | [docs/02-modelos-fireworks.md](docs/02-modelos-fireworks.md) | Modelos de Fireworks AI elegidos, por qué y cuánto cuestan |
 | [docs/03-contratos.md](docs/03-contratos.md) | Qué JSON entra y sale de cada flujo y del servicio de índices |
 | [docs/04-guia-importar-y-probar.md](docs/04-guia-importar-y-probar.md) | Cómo importar los flujos, probarlos y arreglarlos |
+| [docs/05-seguridad-webhooks.md](docs/05-seguridad-webhooks.md) | El panel pasa por la API; secreto `X-N8N-Secret` en los webhooks y por qué n8n no se publica |
 | `workflows/` | Los 5 flujos de n8n (`.json`), uno por archivo, más utilidades de desarrollo |
 | `data/informes/` | Informes PDF generados (no se sube a git) |
 | `../docker-compose.yml` | Servicios `n8n` y `gotenberg` (perfil `n8n`) |
-| `../.env.example` | Variables `N8N_ENCRYPTION_KEY` y `N8N_WEBHOOK_URL` |
+| `../.env.example` | Variables `N8N_ENCRYPTION_KEY`, `N8N_WEBHOOK_URL` y `N8N_CHAT_SECRET` |
 
 ## Cómo levantarlo
 
@@ -51,6 +52,8 @@ marcadas como **propuesta** en los documentos se confirman antes de construir lo
 
 ## Reglas para esta carpeta
 
+- **n8n no se expone a Internet.** Solo la API lo llama, con la cabecera secreta `X-N8N-Secret`
+  (ver [docs/05-seguridad-webhooks.md](docs/05-seguridad-webhooks.md)).
 - **Nunca** guardar claves (API key de Fireworks, tokens) en estos archivos ni en los JSON de los flujos.
   Las credenciales viven en n8n; al exportar un flujo solo sale el nombre de la credencial, no su valor.
   Revisa el JSON antes de subirlo.

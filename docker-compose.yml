@@ -36,12 +36,12 @@ services:
     depends_on:
       - gotenberg
     ports:
-      # Solo desde este equipo. Al exterior salen únicamente los webhooks, por el túnel de Cloudflare.
+      # Solo desde este equipo. n8n no se publica en Internet: solo la API lo llama (cabecera X-N8N-Secret).
       - "127.0.0.1:5679:5678"
     environment:
       # Cifra las credenciales guardadas. Si se pierde o se cambia, hay que volver a crearlas todas.
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
-      # URL con la que n8n arma las direcciones de los webhooks (la que verá el panel)
+      # URL con la que n8n arma las direcciones de sus webhooks (la API los llama por aquí)
       WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5679/}
       GENERIC_TIMEZONE: America/Bogota
       TZ: America/Bogota

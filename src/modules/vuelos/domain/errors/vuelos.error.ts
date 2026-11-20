@@ -23,3 +23,26 @@ export class TokenMedioError extends ReglaNegocioError {
         super(vencido ? "El enlace ha vencido." : "El enlace es inválido.");
     }
 }
+// Errores del asistente de IA (n8n). Los mensajes son aptos para mostrarse en el panel.
+export class AsistenteNoConfiguradoError extends ReglaNegocioError {
+    constructor() {
+        super("El asistente aún no está configurado.");
+    }
+}
+export class AsistenteOcupadoError extends ReglaNegocioError {
+    constructor(public readonly agotado = false) {
+        super(
+            agotado
+                ? "El asistente tardó demasiado en responder. Inténtalo de nuevo."
+                : "El asistente está ocupado o tuvo un problema. Espera un minuto e inténtalo de nuevo.",
+        );
+    }
+}
+export class InformeAsistenteError extends ReglaNegocioError {
+    constructor(
+        public readonly estado: 400 | 404 | 410,
+        mensaje: string,
+    ) {
+        super(mensaje);
+    }
+}
