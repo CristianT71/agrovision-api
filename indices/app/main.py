@@ -10,7 +10,7 @@ import tifffile
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from . import calculo, calibracion, ficha, imagenes, geo, escala
+from . import calculo, calibracion, ficha, imagenes, geo, escala, copas
 
 log = logging.getLogger("indices")
 RAIZ = Path(os.environ.get("RAIZ_VUELOS", "/datos/vuelos"))
@@ -103,6 +103,7 @@ def analizar(p: Peticion):
     usadas = 0
     fichas = []
     rejillas_ndvi = []
+    entradas_copas = []
 
     capturas_escala = []
     for n, cap in enumerate(p.capturas[: p.maxImagenes], start=1):
@@ -156,6 +157,11 @@ def analizar(p: Peticion):
                     "_peso": (umbral - z["valor"]) * z["areaPct"],
                 })
             if nombre == "NDVI":
+                # Llevar el NDVI ya calculado a los píxeles NIR originales y su GSD.
+                original = leidas['nir'][0]
+                filas = (np.arange(original.shape[0]) * idx.shape[0] / original.shape[0]).astype(int)
+                cols = (np.arange(original.shape[1]) * idx.shape[1] / original.shape[1]).astype(int)
+                entradas_copas.append((cap.id, referencia, original, idx[np.ix_(filas, cols)]))
                 rejillas_ndvi.append(calculo.medias_celdas(idx))
                 mapas.append({"titulo": f"NDVI — captura {n}", "indice": "NDVI", "capturaId": cap.id,
                               "mime": "image/png", "base64": imagenes.mapa_calor(idx)})
@@ -196,7 +202,7 @@ def analizar(p: Peticion):
     for f in fichas:
         f['gsdEfectivoM'] = efectivos.get(f['id'])
     if any(escala.gsd_para_captura(f['geo'], f['gsdEfectivoM'])[1] == 'nominal' for f in fichas):
-        advertencias.append('Hay capturas con GSD nominal: la altura es relativa al despegue y en terreno inclinado el tamaño del píxel puede estar sobrestimado.')
+        advertencias.append(copas.ADVERTENCIA_GSD)
     if any(par['valido'] and par['razon'] < 0.9 for par in pares):
         advertencias.append('El GSD efectivo es menor que el nominal en parte del vuelo (terreno ascendente); se usó el efectivo donde fue medible.')
     for zona in candidatas:
@@ -228,6 +234,23 @@ def analizar(p: Peticion):
 
     vigor = calculo.clases_vigor(muestras["NDVI"], p.umbralVigorBajo, p.umbralVigorAlto)
     cobertura = calculo.cobertura_vegetal(muestras["NDVI"], p.umbralCobertura)
+    por_captura = []
+    campos_conteo = ('conteo', 'areaAnalizadaM2', 'densidadPlantasHa', 'diametroCopaM',
+                     'vecinoMasCercanoM', 'fusionadas', 'descartadasGrandes',
+                     'masasGrandes', 'areaMasasGrandesM2')
+    for captura_id, referencia, nir, ndvi in entradas_copas:
+        gsd, origen = escala.gsd_para_captura(referencia, efectivos.get(captura_id))
+        resultado_copas = {}
+        if referencia.get('georreferenciable') and gsd is not None:
+            try:
+                resultado_copas = copas.detectar_copas(nir, ndvi, gsd)
+            except ValueError as error:
+                advertencias.append(f'Captura {captura_id}: no se contaron copas ({error}).')
+        por_captura.append({'capturaId': captura_id, 'gsdOrigen': origen,
+                            **{campo: resultado_copas.get(campo) for campo in campos_conteo}})
+    del entradas_copas
+    teorica = calculo.densidad_teorica(p.siembra.distSurcoM, p.siembra.distPlantaM) if p.siembra else None
+    plantas = copas.resumir_capturas(por_captura, teorica)
     siembra = None
     if p.siembra:
         siembra = {
@@ -237,9 +260,9 @@ def analizar(p: Peticion):
             "variedad": p.siembra.variedad,
             "alturaPlantaM": p.siembra.alturaPlantaM,
             "provisional": p.siembra.provisional,
-            # Se llenan cuando exista el conteo de plantas con el dron; hasta entonces no se compara con la teórica.
-            "plantasPorHaDetectada": None,
-            "diferenciaPct": None,
+            # Densidad experimental; no representa un total del lote.
+            "plantasPorHaDetectada": plantas["densidadMediaPlantasHa"],
+            "diferenciaPct": plantas["diferenciaVsTeoricaPct"],
             "conteoReal": None,
             "nota": "Densidad teórica del marco de siembra indicado"
             + (" (valor provisional, sin confirmar)" if p.siembra.provisional else "")
@@ -259,5 +282,5 @@ def analizar(p: Peticion):
     zonas = [{"id": z["id"], **{k: v for k, v in z.items() if k != "id"}} for z in zonas]
 
     return {"capturasUsadas": usadas, "indices": indices, "vigor": vigor, "cobertura": cobertura, "siembra": siembra,
-            "zonasCandidatas": zonas, "mapas": mapas, "advertencias": advertencias,
+            "plantas": plantas, "zonasCandidatas": zonas, "mapas": mapas, "advertencias": advertencias,
             "ficha": ficha.resumir(fichas, pares), "variabilidadEspacial": calculo.variabilidad_espacial(rejillas_ndvi)}
