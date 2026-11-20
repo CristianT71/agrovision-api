@@ -7,7 +7,7 @@ describe("Range de medios", () => {
         ["bytes=-10", 90, 99, true],
         ["bytes=0-1000", 0, 99, true],
     ])("interpreta %s", (range, inicio, fin, parcial) => {
-        expect(rangoMedio(range as string | undefined, 100)).toEqual({ inicio, fin, parcial });
+        expect(rangoMedio(range, 100)).toEqual({ inicio, fin, parcial });
     });
     it.each([
         "bytes=100-",

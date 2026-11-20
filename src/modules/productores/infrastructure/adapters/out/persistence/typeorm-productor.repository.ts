@@ -95,4 +95,24 @@ export class TypeOrmProductorRepository implements IProductorRepository {
 
         return this.toDomain(saved);
     }
+
+    async guardarConsentimiento(productor: Productor): Promise<boolean> {
+        // UPDATE condicionado al valor anterior: una operación concurrente que ya lo cambió no se pisa
+        const resultado = await this.repository.update(
+            { id: productor.id, consentimiento: !productor.consentimiento },
+            { consentimiento: productor.consentimiento, fechaConsentimiento: productor.fechaConsentimiento },
+        );
+
+        return (resultado.affected ?? 0) > 0;
+    }
+
+    async guardarValidacion(productor: Productor): Promise<boolean> {
+        // Solo cambia el estado: validar no puede restaurar un consentimiento ya revocado
+        const resultado = await this.repository.update(
+            { id: productor.id, estado: "registrado" },
+            { estado: productor.estado },
+        );
+
+        return (resultado.affected ?? 0) > 0;
+    }
 }

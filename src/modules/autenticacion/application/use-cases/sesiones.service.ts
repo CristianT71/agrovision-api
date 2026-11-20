@@ -4,6 +4,7 @@ import {
     type ISesionUsuarioRepository,
 } from "../../domain/ports/out/sesion-usuario.repository";
 import { POLITICA_SESION, type IPoliticaSesion } from "../../domain/ports/out/politica-sesion.port";
+import { USUARIO_REPOSITORY, type IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
 import type { MotivoSesionInvalida } from "../../domain/entities/sesion-usuario.entity";
 
 const MENSAJES: Record<MotivoSesionInvalida | "desconocida", string> = {
@@ -12,6 +13,7 @@ const MENSAJES: Record<MotivoSesionInvalida | "desconocida", string> = {
     vencida: "Tu sesión expiró. Inicia sesión de nuevo.",
     desconocida: "La sesión no es válida. Inicia sesión de nuevo.",
 };
+const CUENTA_NO_ACTIVA = "La cuenta no está activa.";
 
 @Injectable()
 export class SesionesService {
@@ -20,6 +22,8 @@ export class SesionesService {
         private readonly sesionRepository: ISesionUsuarioRepository,
         @Inject(POLITICA_SESION)
         private readonly politicaSesion: IPoliticaSesion,
+        @Inject(USUARIO_REPOSITORY)
+        private readonly usuarioRepository: IUsuarioRepository,
     ) {}
 
     // La usa la estrategia JWT en cada petición autenticada (RNF-02.2).
@@ -38,6 +42,13 @@ export class SesionesService {
         const motivo = sesion.motivoInvalida(ahora, minutosPanel);
         if (motivo) {
             throw new UnauthorizedException(MENSAJES[motivo]);
+        }
+
+        // La cuenta debe seguir activa ahora: una desactivación que llegue mientras se valida el OTP
+        // revoca las sesiones abiertas, pero no la que se crea justo después. Comprobarlo aquí la cubre.
+        const usuario = await this.usuarioRepository.findById(sesion.usuarioId);
+        if (!usuario?.estaActivo()) {
+            throw new UnauthorizedException(CUENTA_NO_ACTIVA);
         }
 
         if (!esSondeo && sesion.necesitaRegistrarActividad(ahora)) {

@@ -99,6 +99,8 @@ describe("Detecciones - casos de uso", () => {
                 findByTelefono: jest.fn(),
                 findAll: jest.fn(),
                 guardar: jest.fn(),
+                guardarConsentimiento: jest.fn(),
+                guardarValidacion: jest.fn(),
             };
         });
 

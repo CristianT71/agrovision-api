@@ -174,10 +174,8 @@ describe("Rutas de vuelos y multipart real", () => {
         [false, 403],
         [true, 410],
     ])("token vencido=%s responde %s sin exponer el token", async (vencido, status) => {
-        leer.ejecutar.mockRejectedValue(new TokenMedioError(vencido as boolean));
-        const r = await http()
-            .get("/api/vuelos/medios/token-secreto")
-            .expect(status as number);
+        leer.ejecutar.mockRejectedValue(new TokenMedioError(vencido));
+        const r = await http().get("/api/vuelos/medios/token-secreto").expect(status);
         expect(JSON.stringify(r.body)).not.toContain("token-secreto");
     });
 });

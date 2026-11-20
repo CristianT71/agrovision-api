@@ -65,6 +65,12 @@ export class TypeOrmModeloIaRepository implements IModeloIaRepository {
     async guardarMetricas(modelo: ModeloIa, auditoria: RegistroAuditoria): Promise<void> {
         // Se reemplazan completas en una transacción: nunca quedan mezcladas la versión vieja y la nueva
         await this.modeloRepository.manager.transaction(async (manager) => {
+            // La transacción sola no serializa dos reemplazos simultáneos (ambos borran y ambos insertan):
+            // bloquear la fila del modelo hace que el segundo espere a que el primero confirme
+            await manager.findOne(TypeOrmModeloIaEntity, {
+                where: { id: modelo.id },
+                lock: { mode: "pessimistic_write" },
+            });
             await manager.delete(TypeOrmMetricaModeloEntity, { modeloId: modelo.id });
             await manager.insert(
                 TypeOrmMetricaModeloEntity,

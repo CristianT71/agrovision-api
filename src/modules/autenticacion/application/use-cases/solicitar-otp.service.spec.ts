@@ -38,7 +38,7 @@ describe("SolicitarOtpService", () => {
             findUltimaPorUsuarioId: () => Promise.resolve(ultimaSesion),
             contarDesde: () => Promise.resolve(codigosUltimaHora),
             guardar: sesionGuardada,
-            registrarIntentoFallido: jest.fn(),
+            reservarIntento: jest.fn().mockResolvedValue(true),
             consumir: jest.fn(),
         };
         const sms: ISmsService = { enviarOtp };
@@ -144,7 +144,7 @@ describe("SolicitarOtpService", () => {
                     await latencia();
                     guardadas.push(sesion);
                 },
-                registrarIntentoFallido: jest.fn(),
+                reservarIntento: jest.fn().mockResolvedValue(true),
                 consumir: jest.fn(),
             },
             { enviarOtp },

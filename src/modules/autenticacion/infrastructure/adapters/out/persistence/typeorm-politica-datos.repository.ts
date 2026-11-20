@@ -6,6 +6,7 @@ import type {
     IPoliticaDatosRepository,
 } from "../../../../domain/ports/out/politica-datos.repository";
 import { TypeOrmUsuarioEntity } from "./typeorm-usuario.entity";
+import { TypeOrmProductorEntity } from "../../../../../productores/infrastructure/adapters/out/persistence/typeorm-productor.entity";
 
 @Injectable()
 export class TypeOrmPoliticaDatosRepository implements IPoliticaDatosRepository {
@@ -26,6 +27,19 @@ export class TypeOrmPoliticaDatosRepository implements IPoliticaDatosRepository 
     }
 
     async revocar(usuarioId: string): Promise<void> {
-        await this.repository.update({ id: usuarioId }, { politicaDatosVersion: null, politicaDatosFecha: null });
+        // Las capturas, solicitudes y lecturas de ubicación autorizan con productores.consentimiento:
+        // revocar la política también lo retira, en la misma transacción, para que deje de valer en todas
+        await this.repository.manager.transaction(async (manager) => {
+            await manager.update(
+                TypeOrmUsuarioEntity,
+                { id: usuarioId },
+                { politicaDatosVersion: null, politicaDatosFecha: null },
+            );
+            await manager.update(
+                TypeOrmProductorEntity,
+                { usuarioId },
+                { consentimiento: false, fechaConsentimiento: null },
+            );
+        });
     }
 }

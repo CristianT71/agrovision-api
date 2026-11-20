@@ -67,3 +67,31 @@ describe("TypeOrmModeloIaRepository.guardarCambios", () => {
         await expect(repositorio.guardarCambios([borrador()], [])).rejects.toBeInstanceOf(ReglaNegocioError);
     });
 });
+
+describe("TypeOrmModeloIaRepository.guardarMetricas", () => {
+    it("bloquea la fila del modelo antes de reemplazar sus métricas", async () => {
+        const orden: string[] = [];
+        const manager = {
+            findOne: jest.fn((_entidad: unknown, opciones: { lock?: { mode: string } }) => {
+                orden.push(`findOne:${opciones.lock?.mode ?? "sin-bloqueo"}`);
+                return Promise.resolve({});
+            }),
+            delete: jest.fn(() => {
+                orden.push("delete");
+                return Promise.resolve();
+            }),
+            insert: jest.fn(() => Promise.resolve()),
+        };
+        const repositorio = new TypeOrmModeloIaRepository(
+            {
+                manager: { transaction: (trabajo: (m: typeof manager) => Promise<void>) => trabajo(manager) },
+            } as unknown as Repository<TypeOrmModeloIaEntity>,
+            {} as Repository<TypeOrmAuditoriaModeloEntity>,
+        );
+        const modelo = { id: "m-1", metricas: [] } as unknown as ModeloIa;
+
+        await repositorio.guardarMetricas(modelo, {} as never);
+
+        expect(orden).toEqual(["findOne:pessimistic_write", "delete"]);
+    });
+});

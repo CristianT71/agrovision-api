@@ -62,7 +62,7 @@ describe("Disco privado de vuelos", () => {
             const a = await disco.recibir(id, `a.${ext}`, Readable.from([buffer]), 1000000);
             expect(await disco.miniatura(a.rutaAlmacenamiento, a.mime)).toBe(true);
             const meta = await sharp(disco.rutaLocal(`${a.rutaAlmacenamiento}.miniatura.jpg`)).metadata();
-            expect(Math.max(meta.width!, meta.height!)).toBe(320);
+            expect(Math.max(meta.width, meta.height)).toBe(320);
         }
     });
     it("una miniatura fallida o un video no rompe la subida", async () => {

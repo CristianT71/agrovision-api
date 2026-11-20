@@ -43,8 +43,10 @@ export class ValidarOtpService implements IValidarOtpUseCase {
             throw new UnauthorizedException(CREDENCIALES_INVALIDAS);
         }
 
-        if (!ultimaSesion.coincide(codigo)) {
-            await this.sesionOtpRepository.registrarIntentoFallido(ultimaSesion.id);
+        // El intento se gasta en la base ANTES de comparar: con peticiones simultáneas, la lectura
+        // anterior puede estar desfasada y solo la reserva atómica limita los códigos que se prueban
+        const reservado = await this.sesionOtpRepository.reservarIntento(ultimaSesion.id);
+        if (!reservado || !ultimaSesion.coincide(codigo)) {
             throw new UnauthorizedException(CREDENCIALES_INVALIDAS);
         }
 

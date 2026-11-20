@@ -108,7 +108,7 @@ export function normalizarTags(tags: Record<string, unknown>, nombre: string): D
         }
         return null;
     };
-    const texto = (clave: string) => (typeof t[clave] === "string" ? (t[clave] as string).slice(0, 500) : null);
+    const texto = (clave: string) => (typeof t[clave] === "string" ? t[clave].slice(0, 500) : null);
     const bloque = (v: Record<string, Json>): Bloque =>
         Object.values(v).every(
             (x) => x === null || (typeof x === "object" && x && Object.values(x).every((y) => y === null)),
@@ -119,7 +119,7 @@ export function normalizarTags(tags: Record<string, unknown>, nombre: string): D
         let valor = n(claves[0], claves[1]);
         if (valor === null && Array.isArray(t[claves[1]])) {
             const dms = (t[claves[1]] as unknown[]).map(numero);
-            if (dms.length === 3 && dms.every((x) => x !== null)) valor = dms[0]! + dms[1]! / 60 + dms[2]! / 3600;
+            if (dms.length === 3 && dms.every((x) => x !== null)) valor = dms[0] + dms[1] / 60 + dms[2] / 3600;
         }
         if (valor !== null && /^[SW]$/i.test(String(t[ref]))) valor = -Math.abs(valor);
         if (valor === null) valor = n(claves[2]);

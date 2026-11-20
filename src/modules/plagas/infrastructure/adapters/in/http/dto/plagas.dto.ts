@@ -10,6 +10,7 @@ import {
     MaxLength,
 } from "class-validator";
 import { Transform } from "class-transformer";
+import { OmitibleNoNulo } from "../../../../../../../common/validators/omitible-no-nulo";
 import { TIPOS_PLAGA, type TipoPlaga } from "../../../../../domain/entities/plaga.entity";
 
 const MENSAJE_TIPO = `El tipo debe ser uno de: ${TIPOS_PLAGA.join(", ")}`;
@@ -38,7 +39,7 @@ export class CrearPlagaDto {
     @IsNotEmpty({ message: "Los síntomas son obligatorios." })
     sintomas: string;
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsString()
     @MaxLength(100)
     cultivo?: string;
@@ -51,7 +52,7 @@ export class CrearPlagaDto {
     organosAfectados: string[];
 
     // RF-05.5: listas dinámicas
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsArray()
     @ArrayMaxSize(50)
     @IsString({ each: true })
@@ -62,7 +63,7 @@ export class CrearPlagaDto {
     @IsNotEmpty({ message: "Las medidas de contención son obligatorias." })
     medidasContencion: string;
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsArray()
     @ArrayMaxSize(50)
     @IsString({ each: true })
@@ -70,9 +71,10 @@ export class CrearPlagaDto {
     sinonimos?: string[];
 }
 
-// RF-05.3: todos los campos son opcionales, pero si llegan no pueden venir vacíos
+// RF-05.3: todos los campos son opcionales, pero si llegan no pueden venir vacíos ni en null
+// (salvo el nombre científico, que admite null para borrarlo)
 export class ActualizarPlagaDto {
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsString()
     @IsNotEmpty({ message: "El nombre común no puede quedar vacío." })
     @MaxLength(150)
@@ -83,26 +85,26 @@ export class ActualizarPlagaDto {
     @MaxLength(150)
     nombreCientifico?: string | null;
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsIn(TIPOS_PLAGA, { message: MENSAJE_TIPO })
     tipo?: TipoPlaga;
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsString()
     @IsNotEmpty({ message: "La descripción no puede quedar vacía." })
     descripcion?: string;
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsString()
     @IsNotEmpty({ message: "Los síntomas no pueden quedar vacíos." })
     sintomas?: string;
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsString()
     @MaxLength(100)
     cultivo?: string;
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsArray()
     @ArrayMinSize(1, { message: "Debe indicar al menos un órgano afectado." })
     @ArrayMaxSize(20)
@@ -110,19 +112,19 @@ export class ActualizarPlagaDto {
     @MaxLength(100, { each: true })
     organosAfectados?: string[];
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsArray()
     @ArrayMaxSize(50)
     @IsString({ each: true })
     @MaxLength(150, { each: true })
     hospederos?: string[];
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsString()
     @IsNotEmpty({ message: "Las medidas de contención no pueden quedar vacías." })
     medidasContencion?: string;
 
-    @IsOptional()
+    @OmitibleNoNulo()
     @IsArray()
     @ArrayMaxSize(50)
     @IsString({ each: true })

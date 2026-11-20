@@ -40,6 +40,20 @@ const PRODUCTOR = new Productor(
     new Date(),
 );
 
+const sinConsentimiento = () =>
+    new Productor(
+        "p-1",
+        "u-1",
+        "Ana Muñoz",
+        "La Esperanza",
+        "El Cedro",
+        "Pitalito",
+        "+573001112233",
+        "validado",
+        false,
+        null,
+    );
+
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
 
 const entrada = (idCliente: string, cantidadFotos = 2): SolicitudAppEntrada => ({
@@ -164,7 +178,10 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             guardarAsignacion: jest.fn(),
             guardarAltitudDeServicio: jest.fn(),
         };
-        productores = { findByUsuarioId: () => Promise.resolve(productor) } as unknown as IProductorRepository;
+        productores = {
+            findByUsuarioId: () => Promise.resolve(productor),
+            findById: () => Promise.resolve(productor),
+        } as unknown as IProductorRepository;
         firmador = { firmar: (fotoId: string) => `http://api/v1/uploads/token-${fotoId}`, verificar };
         capturaModelo = {
             obtenerModeloIdPorIdCliente: () => Promise.resolve(null),
@@ -280,6 +297,18 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             expect(crearConFotos).not.toHaveBeenCalled();
         });
 
+        it("rechaza todo el lote con sin_consentimiento si el productor revocó su consentimiento", async () => {
+            productor = sinConsentimiento();
+
+            const { results } = await recibir([entrada("c-1"), entrada("c-2")]);
+
+            expect(results.map((resultado) => [resultado.status, resultado.reason])).toEqual([
+                ["rejected", "sin_consentimiento"],
+                ["rejected", "sin_consentimiento"],
+            ]);
+            expect(crearConFotos).not.toHaveBeenCalled();
+        });
+
         it("no revela una solicitud de otro productor que use el mismo id", async () => {
             solicitudes.set("c-1", crearSolicitud({ productorId: "p-otro" }));
 
@@ -317,9 +346,16 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
         const asignarAutomaticamente = jest.fn<Promise<Solicitud | null>, [string]>(() => Promise.resolve(null));
 
         const subir = (contenido?: Buffer) =>
-            new SubirFotoSolicitudService(appRepository, solicitudRepository, firmador, almacenamiento, {
-                ejecutar: asignarAutomaticamente,
-            } as unknown as AsignarAutomaticamenteService).ejecutar({
+            new SubirFotoSolicitudService(
+                appRepository,
+                solicitudRepository,
+                firmador,
+                almacenamiento,
+                {
+                    ejecutar: asignarAutomaticamente,
+                } as unknown as AsignarAutomaticamenteService,
+                productores,
+            ).ejecutar({
                 token: "token",
                 archivo: archivo(contenido),
             });
@@ -332,6 +368,13 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
 
         it("responde 403 si el token no es válido o venció", async () => {
             verificar.mockReturnValue(null);
+
+            await expect(subir()).rejects.toThrow(ForbiddenException);
+            expect(guardarPrivado).not.toHaveBeenCalled();
+        });
+
+        it("responde 403 sin guardar la foto si el productor revocó su consentimiento tras firmar la URL", async () => {
+            productor = sinConsentimiento();
 
             await expect(subir()).rejects.toThrow(ForbiddenException);
             expect(guardarPrivado).not.toHaveBeenCalled();

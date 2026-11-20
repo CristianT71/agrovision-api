@@ -77,7 +77,7 @@ describe("Normalización DJI con tags inventados", () => {
         ["a.srt", {}, "srt", null],
         ["a.tif", {}, "otro", null],
     ])("clasifica %s %j", (nombre, tags, tipo, banda) => {
-        expect(clasificar(nombre as string, tags as Record<string, unknown>)).toMatchObject({ tipo, banda });
+        expect(clasificar(nombre, tags as Record<string, unknown>)).toMatchObject({ tipo, banda });
     });
     it("marca el sufijo no verificado y prefiere BandName sobre SensorIndex y nombre", () => {
         expect(normalizarTags({}, "a_MS_G.tif").metadatos.crudos.bandaInferidaPorNombreNoVerificada).toBe(true);

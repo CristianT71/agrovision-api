@@ -25,18 +25,24 @@ const crearProductor = (consentimiento: boolean) => Productor.registrar({ id: "p
 describe("Productores - casos de uso", () => {
     let productor: Productor | null;
     let guardar: jest.Mock<Promise<Productor>, [Productor]>;
+    let guardarConsentimiento: jest.Mock<Promise<boolean>, [Productor]>;
+    let guardarValidacion: jest.Mock<Promise<boolean>, [Productor]>;
     let repositorio: IProductorRepository;
     let obtener: ObtenerProductorService;
 
     beforeEach(() => {
         productor = null;
         guardar = jest.fn((p: Productor) => Promise.resolve(p));
+        guardarConsentimiento = jest.fn<Promise<boolean>, [Productor]>(() => Promise.resolve(true));
+        guardarValidacion = jest.fn<Promise<boolean>, [Productor]>(() => Promise.resolve(true));
         repositorio = {
             findById: () => Promise.resolve(productor),
             findByUsuarioId: () => Promise.resolve(productor),
             findByTelefono: () => Promise.resolve(productor),
             findAll: () => Promise.resolve([]),
             guardar,
+            guardarConsentimiento,
+            guardarValidacion,
         };
         obtener = new ObtenerProductorService(repositorio);
     });
@@ -84,6 +90,35 @@ describe("Productores - casos de uso", () => {
         const revocado = await servicio.revocar({ id: "p-1" }, true);
         expect(revocado.consentimiento).toBe(false);
         expect(revocado.permiteUsoDeFotos()).toBe(false);
+    });
+
+    it("validar escribe solo el estado, sin reescribir el perfil ni el consentimiento", async () => {
+        productor = crearProductor(true);
+
+        const validado = await new ValidarProductorService(repositorio, obtener).ejecutar("p-1");
+
+        expect(validado.estado).toBe("validado");
+        expect(guardarValidacion).toHaveBeenCalledTimes(1);
+        expect(guardar).not.toHaveBeenCalled();
+    });
+
+    it("validar responde conflicto si otra operación cambió al productor entretanto", async () => {
+        productor = crearProductor(false);
+        guardarValidacion.mockResolvedValue(false);
+
+        await expect(new ValidarProductorService(repositorio, obtener).ejecutar("p-1")).rejects.toBeInstanceOf(
+            ConflictException,
+        );
+    });
+
+    it("revocar responde conflicto si el consentimiento cambió entre la lectura y la escritura", async () => {
+        productor = crearProductor(true);
+        guardarConsentimiento.mockResolvedValue(false);
+
+        await expect(
+            new ConsentimientoProductorService(repositorio, obtener).revocar({ id: "p-1" }, true),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(guardar).not.toHaveBeenCalled();
     });
 
     it("la búsqueda trata % y _ como texto literal", () => {

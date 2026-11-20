@@ -20,7 +20,7 @@ describe("ValidarOtpService", () => {
     let usuario: Usuario | null;
     let sesion: SesionOtp | null;
     let agronomo: Agronomo | null;
-    let intentoFallido: jest.Mock;
+    let reservarIntento: jest.Mock;
     let consumir: jest.Mock;
     let sesionCreada: jest.Mock<Promise<void>, [SesionUsuario]>;
     let firmar: jest.Mock;
@@ -34,7 +34,7 @@ describe("ValidarOtpService", () => {
         usuario = crearUsuario("admin");
         sesion = SesionOtp.crear({ id: "s-1", usuarioId: "u-1", codigo: CODIGO, minutosVigencia: 5 });
         agronomo = null;
-        intentoFallido = jest.fn();
+        reservarIntento = jest.fn().mockResolvedValue(true);
         consumir = jest.fn().mockResolvedValue(true);
         sesionCreada = jest.fn<Promise<void>, [SesionUsuario]>(() => Promise.resolve());
         firmar = jest.fn(() => "token-firmado");
@@ -48,7 +48,7 @@ describe("ValidarOtpService", () => {
             findUltimaPorUsuarioId: () => Promise.resolve(sesion),
             contarDesde: () => Promise.resolve(0),
             guardar: jest.fn(),
-            registrarIntentoFallido: intentoFallido,
+            reservarIntento,
             consumir,
         };
         const agronomos = {
@@ -93,11 +93,22 @@ describe("ValidarOtpService", () => {
         expect(sesionCreada).not.toHaveBeenCalled();
     });
 
-    it("registra el intento fallido cuando el código no coincide", async () => {
+    it("gasta el intento en la base cuando el código no coincide", async () => {
         await expect(servicio.ejecutar({ telefono: TELEFONO, codigo: "000000" })).rejects.toBeInstanceOf(
             UnauthorizedException,
         );
-        expect(intentoFallido).toHaveBeenCalledWith("s-1");
+        expect(reservarIntento).toHaveBeenCalledWith("s-1");
+    });
+
+    it("rechaza el código correcto si peticiones simultáneas ya agotaron los intentos", async () => {
+        // La lectura dice que quedan intentos, pero la reserva atómica en la base ya no lo permite
+        reservarIntento.mockResolvedValue(false);
+
+        await expect(servicio.ejecutar({ telefono: TELEFONO, codigo: CODIGO })).rejects.toBeInstanceOf(
+            UnauthorizedException,
+        );
+        expect(consumir).not.toHaveBeenCalled();
+        expect(sesionCreada).not.toHaveBeenCalled();
     });
 
     it("bloquea el código al agotar los intentos aunque luego llegue el correcto", async () => {

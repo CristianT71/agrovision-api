@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import type {
     CriterioProductor,
     IConsentimientoProductorUseCase,
@@ -20,7 +20,7 @@ export class ConsentimientoProductorService implements IConsentimientoProductorU
         const productor = await this.obtenerProductorService.ejecutar(criterio);
         productor.otorgarConsentimiento();
 
-        return await this.productorRepository.guardar(productor);
+        return await this.guardarConsentimiento(productor);
     }
 
     // RF-10.3: la revocación exige confirmación explícita
@@ -28,6 +28,16 @@ export class ConsentimientoProductorService implements IConsentimientoProductorU
         const productor = await this.obtenerProductorService.ejecutar(criterio);
         productor.revocarConsentimiento(confirmacion);
 
-        return await this.productorRepository.guardar(productor);
+        return await this.guardarConsentimiento(productor);
+    }
+
+    // Solo se escriben consentimiento y fecha, condicionados al valor leído: si otra petición lo cambió
+    // entretanto, se responde conflicto en vez de pisarla
+    private async guardarConsentimiento(productor: Productor): Promise<Productor> {
+        if (!(await this.productorRepository.guardarConsentimiento(productor))) {
+            throw new ConflictException("El productor cambió mientras se procesaba la operación. Vuelve a intentarlo.");
+        }
+
+        return productor;
     }
 }

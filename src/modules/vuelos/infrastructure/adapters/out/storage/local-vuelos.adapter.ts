@@ -58,6 +58,8 @@ export class LocalVuelosAdapter implements IAlmacenamientoVuelos {
             tamanoBytes = 0;
         const decoder = new TextDecoder("utf-8", { fatal: true });
         const validarTexto = (texto: string) => {
+            // Intencional: los caracteres de control (salvo tab y saltos de línea) delatan un binario, no un SRT
+            // eslint-disable-next-line no-control-regex
             if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(texto))
                 throw new FormatoVueloError(422, "El SRT debe contener texto UTF-8.");
         };

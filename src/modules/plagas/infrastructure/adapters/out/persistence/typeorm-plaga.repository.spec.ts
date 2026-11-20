@@ -41,7 +41,7 @@ describe("TypeOrmPlagaRepository - eliminación y protección", () => {
     ])(
         "mapea catalog_id %s a protegida=%s en fichas individuales, listas y respuestas JSON",
         async (catalogId, protegida) => {
-            const fila = ficha(catalogId as string);
+            const fila = ficha(catalogId);
             const repository = {
                 findOne: jest.fn().mockResolvedValue(fila),
                 find: jest.fn().mockResolvedValue([fila]),

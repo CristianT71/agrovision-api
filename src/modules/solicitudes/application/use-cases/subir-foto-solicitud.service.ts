@@ -11,6 +11,10 @@ import {
     type IAlmacenamientoArchivos,
 } from "../../../../common/almacenamiento/almacenamiento.port";
 import { AsignarAutomaticamenteService } from "./asignar-automaticamente.service";
+import {
+    PRODUCTOR_REPOSITORY,
+    type IProductorRepository,
+} from "../../../productores/domain/ports/out/productor.repository";
 import { TIPOS_IMAGEN, validarArchivo } from "../../../../common/almacenamiento/validar-archivo";
 
 export const MAX_BYTES_FOTO_SOLICITUD = 10 * 1024 * 1024;
@@ -29,6 +33,8 @@ export class SubirFotoSolicitudService implements ISubirFotoSolicitudUseCase {
         @Inject(ALMACENAMIENTO_ARCHIVOS)
         private readonly almacenamiento: IAlmacenamientoArchivos,
         private readonly asignarAutomaticamenteService: AsignarAutomaticamenteService,
+        @Inject(PRODUCTOR_REPOSITORY)
+        private readonly productorRepository: IProductorRepository,
     ) {}
 
     async ejecutar(comando: SubirFotoCommand): Promise<void> {
@@ -45,6 +51,9 @@ export class SubirFotoSolicitudService implements ISubirFotoSolicitudUseCase {
 
         // 2. Idempotente: si la app reintenta una subida que sí llegó, no se guarda otra copia
         if (!foto.estaSubida()) {
+            // La URL pudo firmarse antes de que el productor revocara su consentimiento: se comprueba ahora
+            await this.verificarConsentimiento(foto.solicitudId);
+
             // Tipo y tamaño se verifican por el contenido real, no por lo que declara el cliente
             const archivo = validarArchivo(comando.archivo, {
                 tiposPermitidos: TIPOS_IMAGEN,
@@ -68,6 +77,14 @@ export class SubirFotoSolicitudService implements ISubirFotoSolicitudUseCase {
         // 3. Con la última foto la solicitud pasa a revisión. También se revisa en un
         // reintento, por si la vez anterior falló justo después de guardar la foto.
         await this.enviarSiEstaCompleta(foto.solicitudId);
+    }
+
+    private async verificarConsentimiento(solicitudId: string): Promise<void> {
+        const solicitud = await this.solicitudRepository.findById(solicitudId);
+        const productor = solicitud ? await this.productorRepository.findById(solicitud.productorId) : null;
+        if (!productor?.consentimiento) {
+            throw new ForbiddenException("El productor no tiene un consentimiento vigente para guardar fotos.");
+        }
     }
 
     private async enviarSiEstaCompleta(solicitudId: string): Promise<void> {

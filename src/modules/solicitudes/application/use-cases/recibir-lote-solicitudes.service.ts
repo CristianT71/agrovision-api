@@ -56,6 +56,14 @@ export class RecibirLoteSolicitudesService implements IRecibirLoteSolicitudesUse
             };
         }
 
+        // Sin consentimiento vigente no se guardan datos del productor (RF-10): ni coordenadas ni fotos.
+        // Como en las capturas, la app lo ve como rechazo
+        if (!productor.consentimiento) {
+            return {
+                results: comando.solicitudes.map((entrada) => this.rechazada(entrada.idCliente, "sin_consentimiento")),
+            };
+        }
+
         // 2. En orden: si el lote repite un id, la segunda aparición sale como duplicada
         const results: ResultadoSolicitudApp[] = [];
         for (const entrada of comando.solicitudes) {
