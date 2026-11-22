@@ -1,0 +1,109 @@
+# Entorno de la nube (demostración). Va aparte del docker-compose.yml de la API, que sigue siendo el del equipo local.
+# En el servidor vive en /opt/agrovision, con su .env, y se levanta con:
+#   docker compose -f deploy/nube/docker-compose.nube.yml --env-file .env up -d --build
+# Solo Caddy publica puertos (80 y 443). La base, n8n, el PDF y el servicio de índices no salen a Internet.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/nube/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: ../../.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_HOST: db
+      DB_PORT: "5432"
+      UPLOADS_DIR: /app/uploads
+      # Un salto de proxy (Caddy)
+      TRUST_PROXY: "1"
+      # n8n se ve por su nombre dentro de la red de Docker
+      N8N_WEBHOOK_URL: http://n8n:5678/
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      default:
+        # Los flujos de n8n llaman a http://host.docker.internal:3000: en la nube ese nombre apunta a la API
+        aliases:
+          - host.docker.internal
+
+  indices:
+    build: ../../indices
+    restart: unless-stopped
+    volumes:
+      - ./uploads/vuelos:/datos/vuelos:ro
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--api-timeout=60s"
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.35.7
+    restart: unless-stopped
+    depends_on:
+      - gotenberg
+    # Sin puertos publicados: el editor se abre por un túnel SSH (ssh -L 5679:localhost:5678 ...) solo cuando hace falta
+    ports:
+      - "127.0.0.1:5679:5678"
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      WEBHOOK_URL: http://n8n:5678/
+      GENERIC_TIMEZONE: America/Bogota
+      TZ: America/Bogota
+      N8N_SECURE_COOKIE: "false"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "true"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+      N8N_RESTRICT_FILE_ACCESS_TO: /informes
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      N8N_PAYLOAD_SIZE_MAX: "64"
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./uploads/vuelos:/datos/vuelos:ro
+      - ./informes:/informes
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${DOMINIO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  n8n_data:
+  caddy_data:
+  caddy_config:

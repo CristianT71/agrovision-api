@@ -1,0 +1,18 @@
+# Proxy con certificado https automático (Let's Encrypt). El DOMINIO sale del .env del servidor.
+{$DOMINIO} {
+	encode zstd gzip
+
+	# Los vuelos llegan a 2 GB por archivo
+	request_body {
+		max_size 2100MB
+	}
+
+	@api path /api/* /archivos/*
+	handle @api {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		respond "AgroVisión API" 200
+	}
+}
