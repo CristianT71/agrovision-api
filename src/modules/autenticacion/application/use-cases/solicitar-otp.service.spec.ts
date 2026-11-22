@@ -165,4 +165,63 @@ describe("SolicitarOtpService", () => {
         await expect(servicio.ejecutar({ telefono: TELEFONO })).rejects.toBeInstanceOf(ForbiddenException);
         expect(enviarOtp).not.toHaveBeenCalled();
     });
+
+    describe("con códigos fijos (demostración)", () => {
+        const fijos = {
+            para: (rol: string) => ({ admin: "111111", agronomo: "222222", productor: "333333" })[rol] as string,
+        };
+        let conFijos: SolicitarOtpService;
+
+        beforeEach(() => {
+            const sesiones = {
+                findUltimaPorUsuarioId: () => Promise.resolve(null),
+                contarDesde: () => Promise.resolve(0),
+                guardar: sesionGuardada,
+            } as never;
+            const usuarios: IUsuarioRepository = {
+                findByTelefono: () => Promise.resolve(usuario),
+                findById: () => Promise.resolve(usuario),
+                guardar: usuarioGuardado,
+            };
+            conFijos = new SolicitarOtpService(usuarios, sesiones, { enviarOtp }, undefined, fijos);
+        });
+
+        it.each([
+            ["admin", "111111"],
+            ["agronomo", "222222"],
+            ["productor", "333333"],
+        ] as const)("una cuenta %s recibe el código fijo de su rol", async (rol, codigo) => {
+            usuario = new Usuario("u-1", TELEFONO, rol, "activo", new Date());
+
+            await conFijos.ejecutar({ telefono: TELEFONO });
+
+            expect(enviarOtp).toHaveBeenCalledWith(TELEFONO, codigo);
+        });
+
+        it("sin códigos fijos el código sigue siendo aleatorio de 6 dígitos", async () => {
+            usuario = new Usuario("u-1", TELEFONO, "admin", "activo", new Date());
+
+            await servicio.ejecutar({ telefono: TELEFONO });
+
+            expect(enviarOtp.mock.calls[0][1]).toMatch(/^\d{6}$/);
+        });
+
+        it("mantiene la espera entre solicitudes aunque el código sea fijo", async () => {
+            usuario = new Usuario("u-1", TELEFONO, "admin", "activo", new Date());
+            ultimaSesion = SesionOtp.crear({ id: "s-1", usuarioId: "u-1", codigo: "111111", minutosVigencia: 5 });
+            const limitado = new SolicitarOtpService(
+                { findByTelefono: () => Promise.resolve(usuario), findById: jest.fn(), guardar: usuarioGuardado },
+                {
+                    findUltimaPorUsuarioId: () => Promise.resolve(ultimaSesion),
+                    contarDesde: () => Promise.resolve(0),
+                    guardar: sesionGuardada,
+                } as never,
+                { enviarOtp },
+                undefined,
+                fijos,
+            );
+
+            await expect(limitado.ejecutar({ telefono: TELEFONO })).rejects.toMatchObject({ status: 429 });
+        });
+    });
 });

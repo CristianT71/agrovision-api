@@ -12,11 +12,12 @@ import { ISolicitarOtpUseCase, SolicitarOtpCommand } from "../../domain/ports/in
 import { USUARIO_REPOSITORY, type IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
 import { SESION_OTP_REPOSITORY, type ISesionOtpRepository } from "../../domain/ports/out/sesion-otp.repository";
 import { SMS_SERVICE, type ISmsService } from "../../domain/ports/out/sms.service";
-import { Usuario } from "../../domain/entities/usuario.entity";
+import { Usuario, type RolUsuario } from "../../domain/entities/usuario.entity";
 import { SesionOtp } from "../../domain/entities/sesion-otp.entity";
 import { v4 as uuidv4 } from "uuid";
 import { PresupuestoRegistrosOtp } from "./presupuesto-registros-otp";
 import { ColaPorClave } from "../../../../common/utils/cola-por-clave";
+import { CODIGOS_FIJOS, type CodigosFijos } from "./codigos-fijos";
 
 const SEGUNDOS_ENTRE_SOLICITUDES = 30;
 const MINUTOS_VIGENCIA_OTP = 5;
@@ -39,6 +40,10 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         // Instancia propia por servicio: el cupo se comparte entre todas las peticiones del proceso
         @Optional()
         private readonly presupuestoRegistros = new PresupuestoRegistrosOtp(),
+        // Solo existe con SMS_PROVIDER=fijo (demostración): el código sale del rol de la cuenta, no del azar
+        @Optional()
+        @Inject(CODIGOS_FIJOS)
+        private readonly codigosFijos?: CodigosFijos | null,
     ) {}
 
     async ejecutar(comando: SolicitarOtpCommand): Promise<{ mensaje: string; esperaSegundos: number }> {
@@ -68,7 +73,8 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         }
 
         const usuarioId = usuario.id;
-        const codigoOtp = await this.porCuenta.ejecutar(usuarioId, () => this.reservarCodigo(usuarioId));
+        const rol = usuario.rol;
+        const codigoOtp = await this.porCuenta.ejecutar(usuarioId, () => this.reservarCodigo(usuarioId, rol));
 
         // 4. Enviar mediante el puerto SMS (Twilio/Zavu/Logger), ya con el código guardado
         await this.smsService.enviarOtp(telefono, codigoOtp);
@@ -77,7 +83,7 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
     }
 
     // Comprueba la espera y el tope de la cuenta y guarda un código nuevo. Devuelve el código.
-    private async reservarCodigo(usuarioId: string): Promise<string> {
+    private async reservarCodigo(usuarioId: string, rol: RolUsuario): Promise<string> {
         // 2. Verificar la regla de los 30 segundos (RF-01.5)
         const ultimaSesion = await this.sesionOtpRepository.findUltimaPorUsuarioId(usuarioId);
         if (ultimaSesion && !ultimaSesion.puedeSolicitarNuevoOtp(SEGUNDOS_ENTRE_SOLICITUDES)) {
@@ -99,7 +105,8 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         }
 
         // 3. Generar código numérico de 6 dígitos con un generador criptográfico
-        const codigoOtp = randomInt(0, 1_000_000).toString().padStart(6, "0");
+        //    (en demostración, con SMS_PROVIDER=fijo, es el código fijo del rol de la cuenta)
+        const codigoOtp = this.codigosFijos?.para(rol) ?? randomInt(0, 1_000_000).toString().padStart(6, "0");
 
         const nuevaSesion = SesionOtp.crear({
             id: uuidv4(),

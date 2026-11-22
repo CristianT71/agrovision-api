@@ -1,4 +1,4 @@
-export type ProveedorSms = "log" | "zavu";
+export type ProveedorSms = "log" | "zavu" | "fijo";
 export type CanalZavu = "sms" | "whatsapp" | "auto";
 
 interface Entorno {
@@ -10,13 +10,16 @@ interface Entorno {
 // SMS_PROVIDER decide cómo llega el código OTP:
 //  - "log": se escribe en la consola de la API. Solo para desarrollo: no cuesta dinero.
 //  - "zavu": se envía de verdad por Zavu.
+//  - "fijo": no se envía nada; el código de cada rol sale de OTP_FIJO_ADMIN, OTP_FIJO_AGRONOMO y OTP_FIJO_PRODUCTOR.
+//    Es una función de demostración: es como una contraseña compartida, así que solo con datos de prueba.
+//    Se permite con NODE_ENV=production porque hay que pedirla a propósito.
 // En producción el modo "log" está prohibido: dejaría los códigos de acceso (de cualquier cuenta,
 // administrador incluido) en los logs, y nadie los recibiría en su celular.
 export function elegirProveedorSms({ proveedor, nodeEnv, zavuApiKey }: Entorno): ProveedorSms {
     const elegido = (proveedor?.trim() || "log").toLowerCase();
 
-    if (elegido !== "log" && elegido !== "zavu") {
-        throw new Error(`SMS_PROVIDER no es válido: "${proveedor}". Usa "log" o "zavu".`);
+    if (elegido !== "log" && elegido !== "zavu" && elegido !== "fijo") {
+        throw new Error(`SMS_PROVIDER no es válido: "${proveedor}". Usa "log", "zavu" o "fijo".`);
     }
 
     if (elegido === "log" && nodeEnv === "production") {

@@ -13,6 +13,8 @@ import { TypeOrmSesionUsuarioRepository } from "./infrastructure/adapters/out/pe
 import { ZavuSmsAdapter } from "./infrastructure/adapters/out/sms/zavu-sms.adapter";
 import { elegirProveedorSms } from "./infrastructure/adapters/out/sms/proveedor-sms";
 import { LoggerSmsAdapter } from "./infrastructure/adapters/out/sms/logger-sms.adapter";
+import { FijoSmsAdapter } from "./infrastructure/adapters/out/sms/fijo-sms.adapter";
+import { CODIGOS_FIJOS, leerCodigosFijos, type CodigosFijos } from "./application/use-cases/codigos-fijos";
 import { AuthController } from "./infrastructure/adapters/in/http/auth.controller";
 import { JwtStrategy } from "./infrastructure/adapters/in/http/strategies/jwt.strategy";
 import { USUARIO_REPOSITORY } from "./domain/ports/out/usuario.repository";
@@ -91,11 +93,31 @@ import { AjustesPoliticaSesionAdapter } from "./infrastructure/adapters/out/ajus
 
                 if (proveedor === "zavu") return new ZavuSmsAdapter(configService);
 
+                if (proveedor === "fijo") {
+                    new Logger("AutenticacionModule").warn(
+                        "SMS_PROVIDER=fijo: el acceso usa un código fijo por rol (demostración). Úsalo solo con datos de prueba.",
+                    );
+                    return new FijoSmsAdapter();
+                }
+
                 new Logger("AutenticacionModule").warn(
                     "SMS_PROVIDER=log: los códigos OTP se escriben en la consola. Úsalo solo en desarrollo.",
                 );
                 return new LoggerSmsAdapter();
             },
+        },
+        {
+            // null salvo con SMS_PROVIDER=fijo; leerCodigosFijos falla al arrancar si falta un código
+            provide: CODIGOS_FIJOS,
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService): CodigosFijos | null =>
+                configService.get<string>("SMS_PROVIDER")?.trim().toLowerCase() === "fijo"
+                    ? leerCodigosFijos({
+                          admin: configService.get<string>("OTP_FIJO_ADMIN"),
+                          agronomo: configService.get<string>("OTP_FIJO_AGRONOMO"),
+                          productor: configService.get<string>("OTP_FIJO_PRODUCTOR"),
+                      })
+                    : null,
         },
     ],
     exports: [SolicitarOtpService, ValidarOtpService, JwtModule, PassportModule],

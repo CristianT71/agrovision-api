@@ -19,6 +19,10 @@ describe("Proveedor de SMS", () => {
             expect(elegirProveedorSms({ proveedor: "zavu", zavuApiKey: "zv_123", nodeEnv: "production" })).toBe("zavu");
         });
 
+        it("el modo fijo (demostración) sí arranca en producción porque hay que pedirlo a propósito", () => {
+            expect(elegirProveedorSms({ proveedor: "fijo", nodeEnv: "production" })).toBe("fijo");
+        });
+
         it("Zavu sin clave falla al arrancar y no al primer login", () => {
             expect(() => elegirProveedorSms({ proveedor: "zavu" })).toThrow("ZAVU_API_KEY");
             expect(() => elegirProveedorSms({ proveedor: "zavu", zavuApiKey: "  " })).toThrow("ZAVU_API_KEY");
