@@ -96,9 +96,11 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      DOMINIO: ${DOMINIO}
+      DOMINIOS: ${DOMINIOS}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # El panel ya compilado (npm run build con VITE_API_URL=https://agrovision.sbs/api)
+      - ./panel:/srv/panel:ro
       - caddy_data:/data
       - caddy_config:/config
 

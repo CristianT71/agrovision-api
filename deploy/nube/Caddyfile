@@ -1,5 +1,7 @@
-# Proxy con certificado https automático (Let's Encrypt). El DOMINIO sale del .env del servidor.
-{$DOMINIO} {
+# Proxy con certificado https automático (Let's Encrypt). DOMINIOS sale del .env del servidor
+# (una o varias direcciones separadas por coma, por ejemplo: agrovision.sbs, nube.agrovision.sbs).
+# Sirve el panel (archivos estáticos en /srv/panel) y reenvía /api y /archivos a la API.
+{$DOMINIOS} {
 	encode zstd gzip
 
 	# Los vuelos llegan a 2 GB por archivo
@@ -13,6 +15,8 @@
 	}
 
 	handle {
-		respond "AgroVisión API" 200
+		root * /srv/panel
+		try_files {path} /index.html
+		file_server
 	}
 }
