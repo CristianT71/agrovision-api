@@ -2,12 +2,20 @@ import type { Solicitud } from "../../entities/solicitud.entity";
 import type { AnexoResolucion } from "../../entities/anexo-resolucion.entity";
 import type { FiltrosSolicitud } from "./solicitud.repository";
 import type { ConteoBandeja } from "../../services/contadores-bandeja";
+import type { FiltrosMapa, PuntoMapa } from "../in/ubicacion-solicitudes.port";
 import type { VentanaTiempo } from "../../../../../common/utils/ventana-tiempo";
 
 // Solicitud con los datos del productor que muestra el panel (la tabla solicitudes solo guarda su id)
+export interface AutorizacionDatos {
+    version: string;
+    fecha: Date | null;
+}
+
 export interface SolicitudConProductor {
     solicitud: Solicitud;
     productorNombre: string | null;
+    // Solo en obtener(): autorización de datos (habeas data) vigente del productor; null si no la tiene
+    autorizacionDatos?: AutorizacionDatos | null;
 }
 
 export interface FiltrosLecturaSolicitudes extends FiltrosSolicitud {
@@ -34,6 +42,9 @@ export interface ILecturaSolicitudes {
     // RF-03.4, RF-08.2: una sola consulta agregada por estado
     contarBandeja(filtros: { agronomoId?: string }): Promise<ConteoBandeja>;
     obtener(id: string): Promise<SolicitudConProductor | null>;
+    // Mapa de casos: solo solicitudes con ubicación cuyo productor mantiene su consentimiento. Devuelve hasta
+    // `limite` filas (el llamador pide una de más para saber si hubo exceso). Usa la altitud ya guardada.
+    listarMapa(filtros: FiltrosMapa, limite: number): Promise<PuntoMapa[]>;
     // RF-04.3: casos ya resueltos (los más recientes) para compararlos con uno nuevo
     listarResueltas(excluirId: string, limite: number): Promise<SolicitudConProductor[]>;
     // RF-04.6: anexos que el agrónomo adjuntó a la resolución

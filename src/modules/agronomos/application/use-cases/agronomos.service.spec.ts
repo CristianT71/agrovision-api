@@ -1,3 +1,4 @@
+import { VERSION_TERMINOS_AGRONOMO } from "../../domain/terminos-agronomo";
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import { RegistrarAgronomoService } from "./registrar-agronomo.service";
 import { CambiarEstadoAgronomoService } from "./cambiar-estado-agronomo.service";
@@ -27,6 +28,7 @@ const DATOS = {
     correo: "Claudia@AgroVision.co",
     tarjetaProfesional: "TP-098712",
     especialidad: "Fitopatología",
+    terminosVersion: VERSION_TERMINOS_AGRONOMO,
 };
 
 const crearAgronomo = (estado: EstadoAgronomo) =>
@@ -66,6 +68,7 @@ describe("Agrónomos - casos de uso", () => {
             eliminarPublico: jest.fn(),
             guardarPrivado,
             leerPrivado: jest.fn(),
+            abrirLecturaPrivada: jest.fn(),
             eliminarPrivado,
         };
     });
@@ -85,6 +88,25 @@ describe("Agrónomos - casos de uso", () => {
             expect(agronomo.correo).toBe("claudia@agrovision.co");
             expect(documentos).toHaveLength(1);
             expect(guardarPrivado).toHaveBeenCalled();
+        });
+
+        it("guarda la versión de los términos aceptados y la fecha", async () => {
+            await registrarAgronomo();
+
+            const [agronomo] = registrar.mock.calls[0];
+            expect(agronomo.terminosVersion).toBe(VERSION_TERMINOS_AGRONOMO);
+            expect(agronomo.terminosFecha).toBeInstanceOf(Date);
+        });
+
+        it("rechaza una versión de los términos que no es la vigente", async () => {
+            await expect(
+                new RegistrarAgronomoService(repositorio, almacenamiento).ejecutar({
+                    ...DATOS,
+                    terminosVersion: "0.1",
+                    documentos: [PDF],
+                }),
+            ).rejects.toBeInstanceOf(ConflictException);
+            expect(registrar).not.toHaveBeenCalled();
         });
 
         it("exige al menos un documento de acreditación (RF-10.4)", async () => {

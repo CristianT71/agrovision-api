@@ -1,15 +1,6 @@
-import {
-    Body,
-    Controller,
-    HttpCode,
-    HttpStatus,
-    Post,
-    UploadedFiles,
-    UseGuards,
-    UseInterceptors,
-} from "@nestjs/common";
+import { Body, Controller, HttpCode, HttpStatus, Post, UploadedFiles, UseInterceptors } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
-import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
+import { Throttle } from "@nestjs/throttler";
 import { RegistrarAgronomoService } from "../../../../application/use-cases/registrar-agronomo.service";
 import { RegistrarAgronomoDto } from "./dto/registrar-agronomo.dto";
 import {
@@ -20,9 +11,12 @@ import {
 
 const MAX_DOCUMENTOS = 3;
 const MAX_BYTES_DOCUMENTO = 5 * 1024 * 1024;
+// Endpoint anónimo: multer acumula los campos de texto en memoria antes de validar el DTO, así que
+// se acota cuántos llegan y cuánto pesa cada uno. El DTO tiene 7 campos; se deja algo de holgura.
+const MAX_CAMPOS = 10;
+const MAX_BYTES_CAMPO = 1024;
 
 // Endpoint público: lo usa el formulario "Solicitar acceso" antes de tener cuenta (RF-01.6)
-@UseGuards(ThrottlerGuard)
 @Controller("agronomos")
 export class RegistroAgronomoController {
     constructor(private readonly registrarAgronomoService: RegistrarAgronomoService) {}
@@ -33,7 +27,14 @@ export class RegistroAgronomoController {
     @HttpCode(HttpStatus.CREATED)
     @UseInterceptors(
         FilesInterceptor("documentos", MAX_DOCUMENTOS, {
-            limits: { fileSize: MAX_BYTES_DOCUMENTO, files: MAX_DOCUMENTOS },
+            limits: {
+                fileSize: MAX_BYTES_DOCUMENTO,
+                files: MAX_DOCUMENTOS,
+                fields: MAX_CAMPOS,
+                fieldSize: MAX_BYTES_CAMPO,
+                fieldNameSize: 100,
+                parts: MAX_CAMPOS + MAX_DOCUMENTOS,
+            },
         }),
     )
     async registrar(@Body() dto: RegistrarAgronomoDto, @UploadedFiles() archivos: ArchivoSubido[] | undefined) {

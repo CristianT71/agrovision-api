@@ -59,6 +59,7 @@ export function inicioSemanaAlerta(ahora: Date): Date {
     return new Date(ahora.getTime() - DIAS_SEMANA_ALERTA * MS_POR_DIA);
 }
 
-export function alcanzaUmbralPlagaNueva(casosUltimaSemana: number): boolean {
-    return casosUltimaSemana >= UMBRAL_PLAGA_NUEVA_SEMANAL;
+// El umbral vigente lo trae la configuración; el valor por defecto solo cubre el caso sin ella
+export function alcanzaUmbralPlagaNueva(casosUltimaSemana: number, umbral = UMBRAL_PLAGA_NUEVA_SEMANAL): boolean {
+    return casosUltimaSemana >= umbral;
 }

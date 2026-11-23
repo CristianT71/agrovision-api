@@ -1,7 +1,8 @@
 import { UnauthorizedException } from "@nestjs/common";
 import { SesionesService } from "./sesiones.service";
 import { SesionUsuario } from "../../domain/entities/sesion-usuario.entity";
-import type { RolUsuario } from "../../domain/entities/usuario.entity";
+import { Usuario, type RolUsuario } from "../../domain/entities/usuario.entity";
+import type { IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
 import type { ISesionUsuarioRepository } from "../../domain/ports/out/sesion-usuario.repository";
 
 const MINUTO = 60 * 1000;
@@ -19,6 +20,9 @@ describe("SesionesService", () => {
     let registrarActividad: jest.Mock<Promise<void>, [string, Date]>;
     let revocar: jest.Mock<Promise<void>, [string, Date]>;
     let servicio: SesionesService;
+    let minutosPanel: number;
+    let consultasPolitica: jest.Mock<Promise<number>, []>;
+    let usuario: Usuario | null;
 
     beforeEach(() => {
         sesion = crearSesion("agronomo", 10, 5);
@@ -31,13 +35,30 @@ describe("SesionesService", () => {
             registrarActividad,
             revocar,
         };
-        servicio = new SesionesService(repositorio);
+        minutosPanel = 30;
+        consultasPolitica = jest.fn<Promise<number>, []>(() => Promise.resolve(minutosPanel));
+        usuario = new Usuario("u-1", "+573001112233", "agronomo", "activo", new Date());
+        const usuarios = { findById: () => Promise.resolve(usuario) } as unknown as IUsuarioRepository;
+        servicio = new SesionesService(repositorio, { minutosInactividadPanel: consultasPolitica }, usuarios);
     });
 
     it("acepta una sesión con actividad reciente y renueva su actividad", async () => {
         await servicio.verificar("s-1");
 
         expect(registrarActividad).toHaveBeenCalledWith("s-1", expect.any(Date));
+    });
+
+    it("rechaza una sesión abierta si la cuenta se desactivó después de crearla", async () => {
+        usuario!.estado = "inactivo";
+
+        await expect(servicio.verificar("s-1")).rejects.toBeInstanceOf(UnauthorizedException);
+        expect(registrarActividad).not.toHaveBeenCalled();
+    });
+
+    it("rechaza una sesión cuyo usuario ya no existe", async () => {
+        usuario = null;
+
+        await expect(servicio.verificar("s-1")).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it("no escribe en la base si la última actividad fue hace menos de un minuto", async () => {
@@ -48,10 +69,44 @@ describe("SesionesService", () => {
         expect(registrarActividad).not.toHaveBeenCalled();
     });
 
+    it("una petición de sondeo no renueva la actividad de la sesión", async () => {
+        await servicio.verificar("s-1", { esSondeo: true });
+
+        expect(registrarActividad).not.toHaveBeenCalled();
+    });
+
+    it("un sondeo con la sesión vencida por inactividad sigue siendo rechazado", async () => {
+        sesion = crearSesion("admin", 60, 31);
+
+        await expect(servicio.verificar("s-1", { esSondeo: true })).rejects.toThrow("inactividad");
+    });
+
     it("cierra la sesión del panel tras 30 minutos sin actividad (RNF-02.2)", async () => {
         sesion = crearSesion("admin", 60, 31);
 
         await expect(servicio.verificar("s-1")).rejects.toThrow("inactividad");
+    });
+
+    it("usa la inactividad configurada: con 15 minutos cierra una sesión inactiva hace 20", async () => {
+        minutosPanel = 15;
+        sesion = crearSesion("agronomo", 60, 20);
+
+        await expect(servicio.verificar("s-1")).rejects.toThrow("inactividad");
+    });
+
+    it("usa la inactividad configurada: con 4 horas mantiene una sesión inactiva hace 2", async () => {
+        minutosPanel = 240;
+        sesion = crearSesion("admin", 180, 120);
+
+        await expect(servicio.verificar("s-1")).resolves.toBeUndefined();
+    });
+
+    it("el ajuste del panel no cambia la sesión del productor ni la consulta", async () => {
+        minutosPanel = 15;
+        sesion = crearSesion("productor", 60, 20);
+
+        await expect(servicio.verificar("s-1")).resolves.toBeUndefined();
+        expect(consultasPolitica).not.toHaveBeenCalled();
     });
 
     it("la sesión del productor en la app no se cierra por 30 minutos sin actividad", async () => {

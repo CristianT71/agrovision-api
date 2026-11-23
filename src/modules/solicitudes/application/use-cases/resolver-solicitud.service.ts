@@ -22,12 +22,8 @@ import {
     NOTIFICADOR_SOLICITUDES,
     type INotificadorSolicitudes,
 } from "../../domain/ports/out/notificador-solicitudes.port";
-import {
-    alcanzaUmbralPlagaNueva,
-    inicioSemanaAlerta,
-    TIPO_PLAGA_NUEVA,
-    UMBRAL_PLAGA_NUEVA_SEMANAL,
-} from "../../domain/services/resoluciones";
+import { alcanzaUmbralPlagaNueva, inicioSemanaAlerta, TIPO_PLAGA_NUEVA } from "../../domain/services/resoluciones";
+import { UMBRAL_PLAGA_NUEVA, type IUmbralPlagaNueva } from "../../domain/ports/out/umbral-plaga-nueva.port";
 
 @Injectable()
 export class ResolverSolicitudService implements IResolverSolicitudUseCase {
@@ -44,6 +40,8 @@ export class ResolverSolicitudService implements IResolverSolicitudUseCase {
         private readonly lecturaSolicitudes: ILecturaSolicitudes,
         @Inject(NOTIFICADOR_SOLICITUDES)
         private readonly notificador: INotificadorSolicitudes,
+        @Inject(UMBRAL_PLAGA_NUEVA)
+        private readonly umbralPlagaNueva: IUmbralPlagaNueva,
     ) {}
 
     async ejecutar(comando: ResolverSolicitudCommand): Promise<void> {
@@ -117,12 +115,13 @@ export class ResolverSolicitudService implements IResolverSolicitudUseCase {
         try {
             const desde = inicioSemanaAlerta(new Date());
             const casos = await this.lecturaSolicitudes.contarPlagaNuevaDesde(desde);
-            if (!alcanzaUmbralPlagaNueva(casos)) return;
+            const umbral = await this.umbralPlagaNueva.obtener();
+            if (!alcanzaUmbralPlagaNueva(casos, umbral)) return;
 
             // Una vez por episodio: si ya salió una alerta esta semana, las resoluciones siguientes no la repiten
             if (await this.notificador.hayAlertaPlagasDesde(desde)) return;
 
-            await this.notificador.notificarAlertaPlagas({ casos, umbral: UMBRAL_PLAGA_NUEVA_SEMANAL });
+            await this.notificador.notificarAlertaPlagas({ casos, umbral });
         } catch (error) {
             this.logger.warn(
                 `No se pudo revisar o emitir la alerta de plagas nuevas: ${error instanceof Error ? error.message : String(error)}`,

@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Logger, NotFoundException } from "@nestjs/common";
 import { RecibirLoteSolicitudesService } from "./recibir-lote-solicitudes.service";
 import { VerificarAccesoSolicitudService } from "./verificar-acceso-solicitud.service";
 import type { ILecturaSolicitudes } from "../../domain/ports/out/lectura-solicitudes.port";
 import type { IAgronomoRepository } from "../../../agronomos/domain/ports/out/agronomo.repository";
 import { SubirFotoSolicitudService } from "./subir-foto-solicitud.service";
+import type { AsignarAutomaticamenteService } from "./asignar-automaticamente.service";
 import { ListarMisSolicitudesService } from "./listar-mis-solicitudes.service";
 import { ListarFotosSolicitudService } from "./listar-fotos-solicitud.service";
 import { DescargarFotoSolicitudService } from "./descargar-foto-solicitud.service";
@@ -14,6 +15,8 @@ import type { ISolicitudAppRepository } from "../../domain/ports/out/solicitud-a
 import type { ISolicitudRepository } from "../../domain/ports/out/solicitud.repository";
 import type { IFirmadorUrlsSubida } from "../../domain/ports/out/firmador-urls-subida.port";
 import type { IProductorRepository } from "../../../productores/domain/ports/out/productor.repository";
+import type { ICapturaModeloRepository } from "../../domain/ports/out/captura-modelo.repository";
+import type { INotificadorSolicitudes } from "../../domain/ports/out/notificador-solicitudes.port";
 import { Productor } from "../../../productores/domain/entities/productor.entity";
 import type {
     ArchivoParaGuardar,
@@ -37,16 +40,38 @@ const PRODUCTOR = new Productor(
     new Date(),
 );
 
+const sinConsentimiento = () =>
+    new Productor(
+        "p-1",
+        "u-1",
+        "Ana Muñoz",
+        "La Esperanza",
+        "El Cedro",
+        "Pitalito",
+        "+573001112233",
+        "validado",
+        false,
+        null,
+    );
+
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
 
 const entrada = (idCliente: string, cantidadFotos = 2): SolicitudAppEntrada => ({
     idCliente,
     capturaId: null,
+    modeloVersion: null,
     cultivo: "CAFE",
     organo: "HOJA",
     nota: "Manchas en el haz",
     creadaEn: 1_750_000_000_000,
-    ubicacion: { latitud: 1.85, longitud: -76.05, precisionMetros: 10 },
+    ubicacion: {
+        latitud: 1.85,
+        longitud: -76.05,
+        precisionMetros: 10,
+        exacta: true,
+        simulada: false,
+        altitudMetros: null,
+    },
     fotos: Array.from({ length: cantidadFotos }, (_, indice) => ({
         idCliente: `${idCliente}-img-${indice + 1}`,
         angulo: "GENERAL" as const,
@@ -103,6 +128,8 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
     let solicitudRepository: ISolicitudRepository;
     let productores: IProductorRepository;
     let firmador: IFirmadorUrlsSubida;
+    let capturaModelo: ICapturaModeloRepository;
+    let notificador: INotificadorSolicitudes;
     let almacenamiento: IAlmacenamientoArchivos;
     // Mocks sueltos para las aserciones: evita referenciar métodos del objeto (unbound-method)
     let crearConFotos: jest.Mock<Promise<boolean>, [Solicitud, FotoSolicitud[]]>;
@@ -149,21 +176,43 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             guardar: jest.fn(),
             guardarResolucion: jest.fn(),
             guardarAsignacion: jest.fn(),
+            guardarAltitudDeServicio: jest.fn(),
         };
-        productores = { findByUsuarioId: () => Promise.resolve(productor) } as unknown as IProductorRepository;
+        productores = {
+            findByUsuarioId: () => Promise.resolve(productor),
+            findById: () => Promise.resolve(productor),
+        } as unknown as IProductorRepository;
         firmador = { firmar: (fotoId: string) => `http://api/v1/uploads/token-${fotoId}`, verificar };
+        capturaModelo = {
+            obtenerModeloIdPorIdCliente: () => Promise.resolve(null),
+            obtenerVersionPorModeloId: () => Promise.resolve(null),
+            obtenerModeloIdPorVersion: () => Promise.resolve(null),
+        };
+        notificador = {
+            notificarNuevaSolicitud: jest.fn(),
+            notificarAsignacion: jest.fn(),
+            hayAlertaPlagasDesde: jest.fn(),
+            notificarAlertaPlagas: jest.fn(),
+        };
         almacenamiento = {
             guardarPublico: jest.fn(),
             eliminarPublico: jest.fn(),
             guardarPrivado,
             leerPrivado: jest.fn().mockResolvedValue(JPEG),
+            abrirLecturaPrivada: jest.fn(),
             eliminarPrivado,
         };
     });
 
     describe("RecibirLoteSolicitudesService", () => {
         const recibir = (lote: SolicitudAppEntrada[]) =>
-            new RecibirLoteSolicitudesService(appRepository, productores, firmador).ejecutar({
+            new RecibirLoteSolicitudesService(
+                appRepository,
+                productores,
+                firmador,
+                capturaModelo,
+                notificador,
+            ).ejecutar({
                 usuarioId: "u-1",
                 solicitudes: lote,
             });
@@ -190,6 +239,25 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             expect(solicitud.estado).toBe("Pendiente");
             expect(solicitud.finca).toBe("La Esperanza");
             expect(creadas).toHaveLength(3);
+        });
+
+        it("toma la versión del modelo de la captura y, si el servidor no la tiene, de la que declara la app", async () => {
+            capturaModelo.obtenerModeloIdPorVersion = (version) => Promise.resolve(version === "1.0.0" ? "m-1" : null);
+
+            await recibir([{ ...entrada("c-1", 2), modeloVersion: "1.0.0" }]);
+            await recibir([{ ...entrada("c-2", 2), modeloVersion: "9.9.9" }]);
+
+            expect(crearConFotos.mock.calls[0][0].modeloVersionId).toBe("m-1");
+            expect(crearConFotos.mock.calls[1][0].modeloVersionId).toBeNull();
+        });
+
+        it("busca el modelo de la captura solo entre las del mismo productor", async () => {
+            const porCaptura = jest.fn<Promise<string | null>, [string | null, string]>(() => Promise.resolve(null));
+            capturaModelo.obtenerModeloIdPorIdCliente = porCaptura;
+
+            await recibir([{ ...entrada("c-1", 2), capturaId: "22222222-2222-4222-8222-222222222222" }]);
+
+            expect(porCaptura).toHaveBeenCalledWith("22222222-2222-4222-8222-222222222222", "p-1");
         });
 
         it("una solicitud repetida sale como duplicate con el mismo serverId y URLs solo de las fotos pendientes", async () => {
@@ -229,6 +297,18 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             expect(crearConFotos).not.toHaveBeenCalled();
         });
 
+        it("rechaza todo el lote con sin_consentimiento si el productor revocó su consentimiento", async () => {
+            productor = sinConsentimiento();
+
+            const { results } = await recibir([entrada("c-1"), entrada("c-2")]);
+
+            expect(results.map((resultado) => [resultado.status, resultado.reason])).toEqual([
+                ["rejected", "sin_consentimiento"],
+                ["rejected", "sin_consentimiento"],
+            ]);
+            expect(crearConFotos).not.toHaveBeenCalled();
+        });
+
         it("no revela una solicitud de otro productor que use el mismo id", async () => {
             solicitudes.set("c-1", crearSolicitud({ productorId: "p-otro" }));
 
@@ -263,19 +343,38 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             buffer: contenido,
         });
 
+        const asignarAutomaticamente = jest.fn<Promise<Solicitud | null>, [string]>(() => Promise.resolve(null));
+
         const subir = (contenido?: Buffer) =>
-            new SubirFotoSolicitudService(appRepository, solicitudRepository, firmador, almacenamiento).ejecutar({
+            new SubirFotoSolicitudService(
+                appRepository,
+                solicitudRepository,
+                firmador,
+                almacenamiento,
+                {
+                    ejecutar: asignarAutomaticamente,
+                } as unknown as AsignarAutomaticamenteService,
+                productores,
+            ).ejecutar({
                 token: "token",
                 archivo: archivo(contenido),
             });
 
         beforeEach(() => {
+            asignarAutomaticamente.mockClear();
             solicitudes.set("c-1", crearSolicitud());
             fotos.push(crearFoto("f-1", 1), crearFoto("f-2", 2));
         });
 
         it("responde 403 si el token no es válido o venció", async () => {
             verificar.mockReturnValue(null);
+
+            await expect(subir()).rejects.toThrow(ForbiddenException);
+            expect(guardarPrivado).not.toHaveBeenCalled();
+        });
+
+        it("responde 403 sin guardar la foto si el productor revocó su consentimiento tras firmar la URL", async () => {
+            productor = sinConsentimiento();
 
             await expect(subir()).rejects.toThrow(ForbiddenException);
             expect(guardarPrivado).not.toHaveBeenCalled();
@@ -308,6 +407,33 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
 
             expect(guardarEnvio).toHaveBeenCalledTimes(1);
             expect(guardarEnvio.mock.calls[0][0].estado).toBe("Enviada");
+        });
+
+        it("con la última foto intenta la asignación automática", async () => {
+            fotos[1].marcarSubida("solicitudes/s-1/2.jpg", "image/jpeg", 100);
+
+            await subir();
+
+            expect(asignarAutomaticamente).toHaveBeenCalledWith("s-1");
+        });
+
+        it("no intenta asignar si otra petición ya había enviado la solicitud", async () => {
+            fotos[1].marcarSubida("solicitudes/s-1/2.jpg", "image/jpeg", 100);
+            guardarEnvio.mockResolvedValue(false);
+
+            await subir();
+
+            expect(asignarAutomaticamente).not.toHaveBeenCalled();
+        });
+
+        it("si la asignación automática falla, la subida igual responde OK", async () => {
+            fotos[1].marcarSubida("solicitudes/s-1/2.jpg", "image/jpeg", 100);
+            asignarAutomaticamente.mockRejectedValueOnce(new Error("sin conexión"));
+            const warn = jest.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
+
+            await expect(subir()).resolves.toBeUndefined();
+
+            warn.mockRestore();
         });
 
         it("si la foto ya estaba subida responde OK sin guardarla de nuevo", async () => {
@@ -372,7 +498,7 @@ describe("Solicitudes desde la app móvil - casos de uso", () => {
             expect(mias[3]).toEqual({
                 id: "c-1",
                 status: "RESOLVED",
-                resolutionType: "Confirma diagnóstico IA",
+                resolutionType: "CONFIRMED",
                 resolvedPestId: null,
                 agronomistResponse: "Roya en estadio inicial.",
                 resolvedAt: 1_750_000_123_456,

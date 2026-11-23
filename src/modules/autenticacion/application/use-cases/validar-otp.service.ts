@@ -43,14 +43,14 @@ export class ValidarOtpService implements IValidarOtpUseCase {
             throw new UnauthorizedException(CREDENCIALES_INVALIDAS);
         }
 
-        if (!ultimaSesion.coincide(codigo)) {
-            await this.sesionOtpRepository.registrarIntentoFallido(ultimaSesion.id);
+        // El intento se gasta en la base ANTES de comparar: con peticiones simultáneas, la lectura
+        // anterior puede estar desfasada y solo la reserva atómica limita los códigos que se prueban
+        const reservado = await this.sesionOtpRepository.reservarIntento(ultimaSesion.id);
+        if (!reservado || !ultimaSesion.coincide(codigo)) {
             throw new UnauthorizedException(CREDENCIALES_INVALIDAS);
         }
 
-        // RF-01.2: el rol seleccionado se valida contra el de la cuenta, nunca se asigna.
-        // Se revisa antes de consumir el código para que el usuario pueda corregir el rol.
-        if (!usuario.tieneRol(rolSeleccionado)) {
+        if (rolSeleccionado && !usuario.tieneRol(rolSeleccionado)) {
             throw new ForbiddenException("El rol seleccionado no corresponde a esta cuenta.");
         }
 

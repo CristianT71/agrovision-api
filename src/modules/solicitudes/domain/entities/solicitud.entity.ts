@@ -37,6 +37,33 @@ export class SolicitudAppInvalidaError extends ReglaNegocioError {
     }
 }
 
+// Origen de la altitud sobre el nivel del mar: la midió el GPS del celular o la dedujo un servicio de elevación
+export const ORIGENES_ALTITUD = ["servicio", "gps"] as const;
+export type OrigenAltitud = (typeof ORIGENES_ALTITUD)[number];
+
+// Rango físico razonable de una altitud (Mar Muerto -430 m, Everest 8849 m)
+export const ALTITUD_MIN_METROS = -500;
+export const ALTITUD_MAX_METROS = 9000;
+
+// Una solicitud de revisión sin ubicación exacta no sirve para ubicar el cultivo en el mapa
+export class UbicacionExactaRequeridaError extends SolicitudAppInvalidaError {
+    constructor() {
+        super("ubicacion_exacta_requerida", "La solicitud de revisión necesita la ubicación exacta del cultivo.");
+        this.name = "UbicacionExactaRequeridaError";
+    }
+}
+
+export interface UbicacionSolicitud {
+    latitud: number;
+    longitud: number;
+    precisionMetros: number | null;
+    // true cuando el celular entregó la ubicación fina (no la aproximada)
+    exacta: boolean;
+    // true cuando el sistema operativo marcó la ubicación como simulada (mock location)
+    simulada: boolean;
+    altitudMetros: number | null;
+}
+
 export interface DatosSolicitudApp {
     id: string;
     idCliente: string;
@@ -47,7 +74,7 @@ export interface DatosSolicitudApp {
     organo: Organo;
     nota: string | null;
     fecha: Date;
-    ubicacion: { latitud: number; longitud: number; precisionMetros: number | null } | null;
+    ubicacion: UbicacionSolicitud | null;
     fotos: { id: string; idCliente: string; angulo: AnguloFoto }[];
 }
 
@@ -78,6 +105,11 @@ export class Solicitud {
         public readonly longitud: number | null = null,
         public readonly precisionMetros: number | null = null,
         public readonly actualizadoEn: Date | null = null,
+        // Metros sobre el nivel del mar: la manda el GPS o la completa el servidor la primera vez que se consulta
+        public altitudMsnm: number | null = null,
+        public altitudOrigen: OrigenAltitud | null = null,
+        public readonly ubicacionSimulada: boolean = false,
+        public readonly ubicacionExacta: boolean = false,
     ) {}
 
     // La app crea la solicitud y luego sube cada foto por separado: queda "Pendiente"
@@ -110,7 +142,11 @@ export class Solicitud {
         }
 
         const { ubicacion } = datos;
-        if (ubicacion && !Solicitud.esUbicacionValida(ubicacion)) {
+        if (!ubicacion || !ubicacion.exacta) {
+            throw new UbicacionExactaRequeridaError();
+        }
+
+        if (!Solicitud.esUbicacionValida(ubicacion)) {
             throw new SolicitudAppInvalidaError("ubicacion_invalida", "La ubicación de la solicitud no es válida.");
         }
 
@@ -138,9 +174,14 @@ export class Solicitud {
             datos.cultivo,
             datos.organo,
             nota,
-            ubicacion?.latitud ?? null,
-            ubicacion?.longitud ?? null,
-            ubicacion?.precisionMetros ?? null,
+            ubicacion.latitud,
+            ubicacion.longitud,
+            ubicacion.precisionMetros,
+            null,
+            ubicacion.altitudMetros,
+            ubicacion.altitudMetros === null ? null : "gps",
+            ubicacion.simulada,
+            ubicacion.exacta,
         );
 
         // El orden es el de la app: el ángulo puede repetirse, la posición no
@@ -151,8 +192,8 @@ export class Solicitud {
         return { solicitud, fotos };
     }
 
-    private static esUbicacionValida(ubicacion: NonNullable<DatosSolicitudApp["ubicacion"]>): boolean {
-        const { latitud, longitud, precisionMetros } = ubicacion;
+    private static esUbicacionValida(ubicacion: UbicacionSolicitud): boolean {
+        const { latitud, longitud, precisionMetros, altitudMetros } = ubicacion;
         return (
             Number.isFinite(latitud) &&
             Number.isFinite(longitud) &&
@@ -160,8 +201,35 @@ export class Solicitud {
             latitud <= 90 &&
             longitud >= -180 &&
             longitud <= 180 &&
-            (precisionMetros === null || (Number.isFinite(precisionMetros) && precisionMetros >= 0))
+            (precisionMetros === null || (Number.isFinite(precisionMetros) && precisionMetros >= 0)) &&
+            (altitudMetros === null ||
+                (Number.isFinite(altitudMetros) &&
+                    altitudMetros >= ALTITUD_MIN_METROS &&
+                    altitudMetros <= ALTITUD_MAX_METROS))
         );
+    }
+
+    // Copia sin coordenadas ni altitud: el detalle y la bandeja no las exponen. Dónde está un cultivo solo
+    // sale por los endpoints de ubicación y del mapa, que comprueban el consentimiento y dejan rastro.
+    public sinUbicacion(): Solicitud {
+        return Object.assign(Object.create(Solicitud.prototype) as Solicitud, this, {
+            latitud: null,
+            longitud: null,
+            precisionMetros: null,
+            altitudMsnm: null,
+            altitudOrigen: null,
+        });
+    }
+
+    public tieneUbicacion(): boolean {
+        return this.latitud !== null && this.longitud !== null;
+    }
+
+    // La altitud del GPS manda: la del servicio solo rellena cuando el celular no la dio
+    public registrarAltitudDeServicio(metros: number): void {
+        if (this.altitudMsnm !== null) return;
+        this.altitudMsnm = metros;
+        this.altitudOrigen = "servicio";
     }
 
     // Solo pasa a revisión cuando todas sus fotos llegaron al servidor

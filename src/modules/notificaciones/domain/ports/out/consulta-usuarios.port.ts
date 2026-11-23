@@ -2,6 +2,8 @@
 // tiene su propio puerto de SOLO LECTURA sobre usuarios para avisar a todo un rol.
 export interface IConsultaUsuarios {
     listarIdsActivosPorRol(rol: string): Promise<string[]>;
+    // De esos usuarios, solo los que pidieron recibir correo y dejaron una dirección
+    obtenerCorreosDeAviso(usuarioIds: string[]): Promise<{ usuarioId: string; correo: string }[]>;
 }
 
 // Token de inyección PARA dependencias de NestJS

@@ -1,5 +1,5 @@
-import { Controller, Get, HttpStatus, Param, Query, Res, StreamableFile, UseGuards } from "@nestjs/common";
-import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
+import { Controller, Get, HttpStatus, Param, Query, Res, StreamableFile } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import type { Response } from "express";
 import { ObtenerManifiestoService } from "../../../../application/use-cases/obtener-manifiesto.service";
 import { DescargarArtefactoService } from "../../../../application/use-cases/descargar-artefacto.service";
@@ -9,7 +9,6 @@ import { ArtefactoParamsDto, ConsultarManifiestoDto } from "./dto/manifiesto.dto
 // abrir por primera vez, y si este endpoint exigiera token un usuario anónimo quedaría congelado
 // en el modelo de fábrica para siempre (PublicApiService en la app). Lo protegen el límite por IP
 // y la firma Ed25519 de los artefactos.
-@UseGuards(ThrottlerGuard)
 @Controller("public/v1/models")
 export class ManifiestoModelosController {
     constructor(
@@ -35,12 +34,15 @@ export class ManifiestoModelosController {
     // Cada instalación descarga tres archivos (modelo, etiquetas y calibración)
     @Get(":version/:artefacto")
     @Throttle({ publico: { limit: 30, ttl: 60_000 } })
-    async artefacto(@Param() params: ArtefactoParamsDto) {
-        const { contenido, tipoMime, nombre } = await this.descargarArtefactoService.ejecutar(params);
+    async artefacto(@Param() params: ArtefactoParamsDto, @Res({ passthrough: true }) res: Response) {
+        const { flujo, tamano, tipoMime, nombre } = await this.descargarArtefactoService.ejecutar(params);
 
-        return new StreamableFile(contenido, {
+        // Una versión publicada no cambia: la app y cualquier caché pueden reutilizar la respuesta
+        res.setHeader("Cache-Control", "public, max-age=86400");
+
+        return new StreamableFile(flujo, {
             type: tipoMime,
-            length: contenido.length,
+            length: tamano,
             disposition: `attachment; filename="${nombre}"`,
         });
     }

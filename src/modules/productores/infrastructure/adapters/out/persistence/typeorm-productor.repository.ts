@@ -26,11 +26,13 @@ export class TypeOrmProductorRepository implements IProductorRepository {
             entity.estado as EstadoProductor,
             entity.consentimiento,
             entity.fechaConsentimiento,
+            entity.usuario?.politicaDatosVersion ?? null,
+            entity.usuario?.politicaDatosFecha ?? null,
         );
     }
 
     async findById(id: string): Promise<Productor | null> {
-        const entity = await this.repository.findOne({ where: { id } });
+        const entity = await this.repository.findOne({ where: { id }, relations: { usuario: true } });
         if (!entity) return null;
 
         return this.toDomain(entity);
@@ -69,6 +71,7 @@ export class TypeOrmProductorRepository implements IProductorRepository {
 
         const entities = await this.repository.find({
             where,
+            relations: { usuario: true },
             order: { nombre: "ASC" },
         });
 
@@ -91,5 +94,25 @@ export class TypeOrmProductorRepository implements IProductorRepository {
         });
 
         return this.toDomain(saved);
+    }
+
+    async guardarConsentimiento(productor: Productor): Promise<boolean> {
+        // UPDATE condicionado al valor anterior: una operación concurrente que ya lo cambió no se pisa
+        const resultado = await this.repository.update(
+            { id: productor.id, consentimiento: !productor.consentimiento },
+            { consentimiento: productor.consentimiento, fechaConsentimiento: productor.fechaConsentimiento },
+        );
+
+        return (resultado.affected ?? 0) > 0;
+    }
+
+    async guardarValidacion(productor: Productor): Promise<boolean> {
+        // Solo cambia el estado: validar no puede restaurar un consentimiento ya revocado
+        const resultado = await this.repository.update(
+            { id: productor.id, estado: "registrado" },
+            { estado: productor.estado },
+        );
+
+        return (resultado.affected ?? 0) > 0;
     }
 }

@@ -2,7 +2,10 @@ import {
     BadRequestException,
     Body,
     Controller,
+    Delete,
     Get,
+    HttpCode,
+    HttpStatus,
     Param,
     ParseUUIDPipe,
     Patch,
@@ -20,6 +23,7 @@ import { ActualizarPlagaService } from "../../../../application/use-cases/actual
 import { AvalarPlagaService } from "../../../../application/use-cases/avalar-plaga.service";
 import { ActualizarProtocoloQuimicoService } from "../../../../application/use-cases/actualizar-protocolo-quimico.service";
 import { SubirFotoPlagaService } from "../../../../application/use-cases/subir-foto-plaga.service";
+import { EliminarPlagaService } from "../../../../application/use-cases/eliminar-plaga.service";
 import { ActualizarPlagaDto, ActualizarProtocoloQuimicoDto, ConsultarPlagasDto, CrearPlagaDto } from "./dto/plagas.dto";
 import { JwtAuthGuard } from "../../../../../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../../../../../common/guards/roles.guard";
@@ -47,6 +51,7 @@ export class PlagasController {
         private readonly avalarPlagaService: AvalarPlagaService,
         private readonly actualizarProtocoloService: ActualizarProtocoloQuimicoService,
         private readonly subirFotoService: SubirFotoPlagaService,
+        private readonly eliminarPlagaService: EliminarPlagaService,
     ) {}
 
     @Get()
@@ -69,6 +74,12 @@ export class PlagasController {
     @Patch(":id")
     async actualizar(@Param("id", ParseUUIDPipe) id: string, @Body() dto: ActualizarPlagaDto) {
         return await this.actualizarPlagaService.ejecutar(id, dto);
+    }
+
+    @Delete(":id")
+    @HttpCode(HttpStatus.NO_CONTENT)
+    async eliminar(@Param("id", ParseUUIDPipe) id: string): Promise<void> {
+        await this.eliminarPlagaService.ejecutar(id);
     }
 
     // RF-05.7: la firma del agrónomo autenticado libera el protocolo químico

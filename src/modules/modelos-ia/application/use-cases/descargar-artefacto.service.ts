@@ -1,3 +1,4 @@
+import type { Readable } from "node:stream";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Artefacto, IDescargarArtefactoUseCase } from "../../domain/ports/in/manifiesto-modelos.port";
 import { MODELO_IA_REPOSITORY, type IModeloIaRepository } from "../../domain/ports/out/modelo-ia.repository";
@@ -26,7 +27,7 @@ export class DescargarArtefactoService implements IDescargarArtefactoUseCase {
     async ejecutar(consulta: {
         version: string;
         artefacto: Artefacto;
-    }): Promise<{ contenido: Buffer; tipoMime: string; nombre: string }> {
+    }): Promise<{ flujo: Readable; tamano: number; tipoMime: string; nombre: string }> {
         const modelo = await this.modeloRepository.findByVersion(consulta.version);
 
         // Borradores, internos, descontinuados o retirados con kill-switch no se distribuyen.
@@ -45,6 +46,7 @@ export class DescargarArtefactoService implements IDescargarArtefactoUseCase {
             throw new NotFoundException("El artefacto solicitado no está disponible.");
         }
 
-        return { contenido: await this.almacenamiento.leerPrivado(ruta), ...NOMBRES[consulta.artefacto] };
+        // En streaming: con el archivo entero en memoria, pocas descargas simultáneas tumbarían la API
+        return { ...(await this.almacenamiento.abrirLecturaPrivada(ruta)), ...NOMBRES[consulta.artefacto] };
     }
 }

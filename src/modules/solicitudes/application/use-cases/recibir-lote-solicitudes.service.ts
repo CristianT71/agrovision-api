@@ -19,6 +19,14 @@ import {
 import type { Productor } from "../../../productores/domain/entities/productor.entity";
 import { Solicitud, SolicitudAppInvalidaError } from "../../domain/entities/solicitud.entity";
 import type { FotoSolicitud } from "../../domain/entities/foto-solicitud.entity";
+import {
+    CAPTURA_MODELO_REPOSITORY,
+    type ICapturaModeloRepository,
+} from "../../domain/ports/out/captura-modelo.repository";
+import {
+    NOTIFICADOR_SOLICITUDES,
+    type INotificadorSolicitudes,
+} from "../../domain/ports/out/notificador-solicitudes.port";
 
 @Injectable()
 export class RecibirLoteSolicitudesService implements IRecibirLoteSolicitudesUseCase {
@@ -29,6 +37,10 @@ export class RecibirLoteSolicitudesService implements IRecibirLoteSolicitudesUse
         private readonly productorRepository: IProductorRepository,
         @Inject(FIRMADOR_URLS_SUBIDA)
         private readonly firmador: IFirmadorUrlsSubida,
+        @Inject(CAPTURA_MODELO_REPOSITORY)
+        private readonly capturaModeloRepository: ICapturaModeloRepository,
+        @Inject(NOTIFICADOR_SOLICITUDES)
+        private readonly notificadorSolicitudes: INotificadorSolicitudes,
     ) {}
 
     async ejecutar(comando: RecibirLoteCommand): Promise<{ results: ResultadoSolicitudApp[] }> {
@@ -41,6 +53,14 @@ export class RecibirLoteSolicitudesService implements IRecibirLoteSolicitudesUse
         if (!productor) {
             return {
                 results: comando.solicitudes.map((entrada) => this.rechazada(entrada.idCliente, "perfil_incompleto")),
+            };
+        }
+
+        // Sin consentimiento vigente no se guardan datos del productor (RF-10): ni coordenadas ni fotos.
+        // Como en las capturas, la app lo ve como rechazo
+        if (!productor.consentimiento) {
+            return {
+                results: comando.solicitudes.map((entrada) => this.rechazada(entrada.idCliente, "sin_consentimiento")),
             };
         }
 
@@ -78,7 +98,43 @@ export class RecibirLoteSolicitudesService implements IRecibirLoteSolicitudesUse
             throw error;
         }
 
-        const guardada = await this.solicitudAppRepository.crearConFotos(creada.solicitud, creada.fotos);
+        // La captura es la fuente más fiable; si nunca se subió, vale la versión que declara la app
+        const modeloVersionId =
+            (await this.capturaModeloRepository.obtenerModeloIdPorIdCliente(entrada.capturaId, productor.id)) ??
+            (await this.capturaModeloRepository.obtenerModeloIdPorVersion(entrada.modeloVersion));
+        const solicitud = modeloVersionId
+            ? new Solicitud(
+                  creada.solicitud.id,
+                  creada.solicitud.productorId,
+                  creada.solicitud.agronomoId,
+                  creada.solicitud.estado,
+                  creada.solicitud.fecha,
+                  creada.solicitud.municipio,
+                  creada.solicitud.vereda,
+                  creada.solicitud.finca,
+                  creada.solicitud.confianzaIa,
+                  modeloVersionId,
+                  creada.solicitud.respuestaProfesional,
+                  creada.solicitud.tipoResultado,
+                  creada.solicitud.plagaIdentificada,
+                  creada.solicitud.fechaResolucion,
+                  creada.solicitud.idCliente,
+                  creada.solicitud.capturaId,
+                  creada.solicitud.cultivo,
+                  creada.solicitud.organo,
+                  creada.solicitud.nota,
+                  creada.solicitud.latitud,
+                  creada.solicitud.longitud,
+                  creada.solicitud.precisionMetros,
+                  creada.solicitud.actualizadoEn,
+                  creada.solicitud.altitudMsnm,
+                  creada.solicitud.altitudOrigen,
+                  creada.solicitud.ubicacionSimulada,
+                  creada.solicitud.ubicacionExacta,
+              )
+            : creada.solicitud;
+
+        const guardada = await this.solicitudAppRepository.crearConFotos(solicitud, creada.fotos);
         if (!guardada) {
             // Otra petición con el mismo id pudo crearla entre la consulta y el INSERT
             const ganadora = await this.solicitudAppRepository.findByIdCliente(entrada.idCliente);
@@ -87,9 +143,11 @@ export class RecibirLoteSolicitudesService implements IRecibirLoteSolicitudesUse
                 : this.rechazada(entrada.idCliente, "imagenes_repetidas");
         }
 
+        await this.notificadorSolicitudes.notificarNuevaSolicitud({ solicitudId: solicitud.id });
+
         return {
             id: entrada.idCliente,
-            serverId: creada.solicitud.id,
+            serverId: solicitud.id,
             status: "accepted",
             uploadUrl: null,
             reason: null,

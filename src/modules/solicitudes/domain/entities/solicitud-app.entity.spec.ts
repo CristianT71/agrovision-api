@@ -1,4 +1,10 @@
-import { Solicitud, SolicitudAppInvalidaError, type DatosSolicitudApp } from "./solicitud.entity";
+import {
+    Solicitud,
+    SolicitudAppInvalidaError,
+    UbicacionExactaRequeridaError,
+    type DatosSolicitudApp,
+    type UbicacionSolicitud,
+} from "./solicitud.entity";
 import { FotoSolicitud } from "./foto-solicitud.entity";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 
@@ -20,8 +26,18 @@ const datos = (cambios: Partial<DatosSolicitudApp> = {}): DatosSolicitudApp => (
     organo: "HOJA",
     nota: null,
     fecha: new Date(1_750_000_000_000),
-    ubicacion: null,
+    ubicacion: ubicacion(),
     fotos: fotos(2),
+    ...cambios,
+});
+
+const ubicacion = (cambios: Partial<UbicacionSolicitud> = {}): UbicacionSolicitud => ({
+    latitud: 1.85,
+    longitud: -76.05,
+    precisionMetros: 8,
+    exacta: true,
+    simulada: false,
+    altitudMetros: null,
     ...cambios,
 });
 
@@ -42,7 +58,7 @@ describe("Solicitud desde la app móvil", () => {
             const { solicitud, fotos: creadas } = Solicitud.crearDesdeApp(
                 datos({
                     nota: "  Manchas amarillas  ",
-                    ubicacion: { latitud: 1.85, longitud: -76.05, precisionMetros: 8 },
+                    ubicacion: ubicacion(),
                 }),
             );
 
@@ -94,13 +110,70 @@ describe("Solicitud desde la app móvil", () => {
             { latitud: 0, longitud: 180.1 },
             { latitud: 0, longitud: -181 },
         ])("rechaza coordenadas fuera de rango %o", (coordenadas) => {
-            expect(codigoDeRechazo({ ubicacion: { ...coordenadas, precisionMetros: null } })).toBe(
+            expect(codigoDeRechazo({ ubicacion: ubicacion({ ...coordenadas, precisionMetros: null }) })).toBe(
                 "ubicacion_invalida",
             );
         });
 
+        it("rechaza con ubicacion_exacta_requerida una solicitud sin ubicación", () => {
+            expect(codigoDeRechazo({ ubicacion: null })).toBe("ubicacion_exacta_requerida");
+        });
+
+        it("rechaza con ubicacion_exacta_requerida una ubicación aproximada, aunque sea válida", () => {
+            expect(codigoDeRechazo({ ubicacion: ubicacion({ exacta: false }) })).toBe("ubicacion_exacta_requerida");
+        });
+
+        it("el rechazo por ubicación es un error de regla de negocio", () => {
+            expect(() => Solicitud.crearDesdeApp(datos({ ubicacion: null }))).toThrow(UbicacionExactaRequeridaError);
+            expect(() => Solicitud.crearDesdeApp(datos({ ubicacion: null }))).toThrow(ReglaNegocioError);
+        });
+
+        it("guarda la altitud del GPS con origen gps y marca la ubicación como exacta y simulada", () => {
+            const { solicitud } = Solicitud.crearDesdeApp(
+                datos({ ubicacion: ubicacion({ altitudMetros: 1290.5, simulada: true }) }),
+            );
+
+            expect([solicitud.altitudMsnm, solicitud.altitudOrigen]).toEqual([1290.5, "gps"]);
+            expect([solicitud.ubicacionExacta, solicitud.ubicacionSimulada]).toEqual([true, true]);
+        });
+
+        it("sin altitud del GPS la deja nula y sin origen", () => {
+            const { solicitud } = Solicitud.crearDesdeApp(datos());
+
+            expect([solicitud.altitudMsnm, solicitud.altitudOrigen]).toEqual([null, null]);
+        });
+
+        it.each([-501, 9001, Number.NaN])("rechaza una altitud fuera de rango (%s)", (altitudMetros) => {
+            expect(codigoDeRechazo({ ubicacion: ubicacion({ altitudMetros }) })).toBe("ubicacion_invalida");
+        });
+
+        it("la altitud del servicio no pisa la del GPS", () => {
+            const { solicitud } = Solicitud.crearDesdeApp(datos({ ubicacion: ubicacion({ altitudMetros: 1200 }) }));
+
+            solicitud.registrarAltitudDeServicio(1500);
+
+            expect([solicitud.altitudMsnm, solicitud.altitudOrigen]).toEqual([1200, "gps"]);
+        });
+
+        it("sinUbicacion oculta coordenadas y altitud sin tocar la solicitud original", () => {
+            const { solicitud } = Solicitud.crearDesdeApp(datos({ ubicacion: ubicacion({ altitudMetros: 1200 }) }));
+
+            const vista = solicitud.sinUbicacion();
+
+            expect([vista.latitud, vista.longitud, vista.precisionMetros, vista.altitudMsnm]).toEqual([
+                null,
+                null,
+                null,
+                null,
+            ]);
+            expect(vista.id).toBe(solicitud.id);
+            expect(solicitud.latitud).toBe(1.85);
+        });
+
         it("acepta coordenadas en los límites", () => {
-            expect(codigoDeRechazo({ ubicacion: { latitud: -90, longitud: 180, precisionMetros: null } })).toBeNull();
+            expect(
+                codigoDeRechazo({ ubicacion: ubicacion({ latitud: -90, longitud: 180, precisionMetros: null }) }),
+            ).toBeNull();
         });
     });
 

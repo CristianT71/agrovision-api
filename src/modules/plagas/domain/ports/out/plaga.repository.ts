@@ -11,6 +11,9 @@ export interface IPlagaRepository {
     findAll(filtros?: FiltrosPlaga): Promise<Plaga[]>;
     existeNombreCientifico(nombre: string, excluirId?: string): Promise<boolean>;
     guardar(plaga: Plaga): Promise<Plaga>;
+    // DELETE físico: el trigger existente registra la baja y las FK borran avales y sinónimos.
+    eliminar(id: string): Promise<boolean>;
+    fotoEnUso(fotoUrl: string): Promise<boolean>;
 }
 
 // Token de inyección PARA dependencias de NestJS

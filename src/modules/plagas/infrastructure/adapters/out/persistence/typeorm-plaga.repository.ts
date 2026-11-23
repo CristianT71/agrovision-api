@@ -22,7 +22,7 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
     // Mapper: Convierte el Esquema de TypeORM a Entidad pura de Dominio
     private toDomain(entity: TypeOrmPlagaEntity): Plaga {
         const avales = (entity.avales ?? []).map(
-            (aval) => new AvalPlaga(aval.id, aval.agronomoId, aval.numeroTarjeta, aval.fechaAval),
+            (aval) => new AvalPlaga(aval.id, aval.agronomoId, aval.numeroTarjeta, aval.fechaAval, aval.nombreAgronomo),
         );
 
         return new Plaga(
@@ -40,6 +40,7 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
             entity.fotoUrl,
             (entity.sinonimos ?? []).map((sinonimo) => sinonimo.sinonimo),
             avales,
+            entity.catalogId,
         );
     }
 
@@ -96,10 +97,20 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
 
     async existeNombreCientifico(nombre: string, excluirId?: string): Promise<boolean> {
         // ILike sin comodines equivale a una comparación exacta sin distinguir mayúsculas
-        const where: FindOptionsWhere<TypeOrmPlagaEntity> = { nombreCientifico: ILike(nombre) };
+        const where: FindOptionsWhere<TypeOrmPlagaEntity> = { nombreCientifico: ILike(escaparLike(nombre)) };
         if (excluirId) where.id = Not(excluirId);
 
         return (await this.plagaRepository.countBy(where)) > 0;
+    }
+
+    async eliminar(id: string): Promise<boolean> {
+        // No insertar bajas aquí: BEFORE DELETE conserva catalog_id en plagas_catalogo_bajas.
+        const resultado = await this.plagaRepository.delete({ id });
+        return (resultado.affected ?? 0) > 0;
+    }
+
+    async fotoEnUso(fotoUrl: string): Promise<boolean> {
+        return (await this.plagaRepository.countBy({ fotoUrl })) > 0;
     }
 
     async guardar(plaga: Plaga): Promise<Plaga> {
@@ -130,6 +141,7 @@ export class TypeOrmPlagaRepository implements IPlagaRepository {
                 plagaId: plaga.id,
                 agronomoId: aval.agronomoId,
                 numeroTarjeta: aval.numeroTarjeta,
+                nombreAgronomo: previo?.nombreAgronomo ?? aval.nombreAgronomo,
                 fechaAval: aval.fechaAval,
             };
         });

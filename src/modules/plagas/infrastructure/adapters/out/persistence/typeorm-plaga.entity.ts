@@ -7,6 +7,17 @@ export class TypeOrmPlagaEntity {
     @PrimaryColumn("uuid")
     id: string;
 
+    // Identificador del contrato Android; independiente de la PK interna e inmutable.
+    @Column({ name: "catalog_id", type: "varchar", length: 100, unique: true })
+    catalogId: string;
+
+    // Los triggers también cubren cambios de sinónimos y avales y escrituras SQL directas.
+    @Column({ name: "updated_at", type: "timestamptz", precision: 3 })
+    updatedAt: Date;
+
+    @Column({ name: "catalog_version", type: "integer", default: 1 })
+    catalogVersion: number;
+
     // Indexado porque el catálogo busca y ordena por nombre común (RF-05.2)
     @Index()
     @Column({ name: "nombre_comun", type: "varchar", length: 150 })

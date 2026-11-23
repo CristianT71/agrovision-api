@@ -1,4 +1,4 @@
-import type { Cultivo, Organo } from "../../entities/solicitud.entity";
+import type { Cultivo, Organo, UbicacionSolicitud } from "../../entities/solicitud.entity";
 import type { AnguloFoto, FotoSolicitud } from "../../entities/foto-solicitud.entity";
 import type { ArchivoSubido } from "../../../../../common/almacenamiento/validar-archivo";
 
@@ -10,12 +10,14 @@ export const MAX_SOLICITUDES_POR_LOTE = 20;
 export interface SolicitudAppEntrada {
     idCliente: string;
     capturaId: string | null;
+    // Versión del modelo que hizo la lectura, tal como la declara la app
+    modeloVersion: string | null;
     cultivo: Cultivo;
     organo: Organo;
     nota: string | null;
     // Epoch en milisegundos, como lo envía la app
     creadaEn: number;
-    ubicacion: { latitud: number; longitud: number; precisionMetros: number | null } | null;
+    ubicacion: UbicacionSolicitud | null;
     fotos: { idCliente: string; angulo: AnguloFoto }[];
 }
 

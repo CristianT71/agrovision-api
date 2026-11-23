@@ -10,6 +10,8 @@ export interface FiltrosDetecciones {
     defectuosas?: boolean;
     modeloVersion?: string;
     municipio?: string;
+    // Margen de error máximo del GPS: las capturas sin precisión registrada quedan fuera
+    precisionMaxMetros?: number;
     desde?: Date;
     hasta?: Date;
 }
@@ -36,6 +38,8 @@ export interface ILecturaDetecciones {
         filtros: FiltrosDetecciones,
         pagina: { numero: number; limite: number },
     ): Promise<{ total: number; filas: DeteccionLeida[] }>;
+    // Solo las que traen coordenadas, la más reciente primero: alimenta la capa del mapa de casos
+    listarMapa(filtros: FiltrosDetecciones, limite: number): Promise<DeteccionLeida[]>;
     obtener(id: string): Promise<DeteccionLeida | null>;
     resumir(filtros: FiltrosDetecciones): Promise<ResumenCategoria[]>;
 }

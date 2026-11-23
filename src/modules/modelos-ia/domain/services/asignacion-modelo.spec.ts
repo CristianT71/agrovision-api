@@ -18,6 +18,7 @@ const modelo = (canal: "canario" | "produccion", cambios: Partial<ModeloIa> = {}
                 sha256: "x",
                 firma: "f",
                 numeroClases: 5,
+                clases: null,
             },
             "u-admin",
             new Date(),

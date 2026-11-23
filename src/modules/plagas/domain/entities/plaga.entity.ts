@@ -1,11 +1,14 @@
 import { AvalPlaga } from "./aval-plaga.entity";
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
+import { PlagaProtegidaError } from "../errors/plaga-protegida.error";
 
 // Clasificación de la ficha técnica (RF-05.1)
 export const TIPOS_PLAGA = ["enfermedad", "plaga", "deficiencia", "sano"] as const;
 export type TipoPlaga = (typeof TIPOS_PLAGA)[number];
 
 export class Plaga {
+    public readonly protegida: boolean;
+
     constructor(
         public readonly id: string,
         public nombreComun: string,
@@ -21,7 +24,14 @@ export class Plaga {
         public fotoUrl: string | null,
         public sinonimos: string[],
         public avales: AvalPlaga[],
-    ) {}
+        catalogId: string = `Pest_${id}`,
+    ) {
+        this.protegida = !catalogId.startsWith("Pest_");
+    }
+
+    public validarEliminacion(): void {
+        if (this.protegida) throw new PlagaProtegidaError();
+    }
 
     // Regla de Negocio (RF-05.4): Una ficha nueva exige los campos mínimos y nunca nace
     // avalada ni con protocolo químico

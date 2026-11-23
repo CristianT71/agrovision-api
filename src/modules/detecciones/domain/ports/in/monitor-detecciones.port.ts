@@ -21,6 +21,8 @@ export interface DeteccionVista {
     organo: Organo | null;
     latitud: number | null;
     longitud: number | null;
+    // Margen de error del GPS en metros; null si el teléfono no lo informó
+    precisionMetros: number | null;
     fecha: Date;
     recibidaEn: Date;
     // RF-07.4
@@ -46,6 +48,10 @@ export interface PaginaDetecciones {
 
 export interface IListarDeteccionesUseCase {
     ejecutar(consulta: { filtros: FiltrosDetecciones; pagina: number; limite: number }): Promise<PaginaDetecciones>;
+}
+
+export interface IListarMapaDeteccionesUseCase {
+    ejecutar(consulta: { filtros: FiltrosDetecciones; limite: number }): Promise<DeteccionVista[]>;
 }
 
 export interface IObtenerDeteccionUseCase {

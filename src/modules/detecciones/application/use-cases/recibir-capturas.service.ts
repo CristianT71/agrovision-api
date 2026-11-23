@@ -10,6 +10,7 @@ import {
     DETECCION_REPOSITORY,
     type DeteccionExistente,
     type IDeteccionRepository,
+    type RevisionProductor,
 } from "../../domain/ports/out/deteccion.repository";
 import { CONSULTA_MODELOS, type IConsultaModelos } from "../../domain/ports/out/consulta-modelos.port";
 import {
@@ -42,6 +43,11 @@ export class RecibirCapturasService implements IRecibirCapturasUseCase {
             return { results: comando.capturas.map((c) => this.rechazada(c.idCliente, "perfil_incompleto")) };
         }
 
+        // Sin consentimiento vigente no se guardan datos del productor (RF-10); la app lo ve como rechazo
+        if (!productor.consentimiento) {
+            return { results: comando.capturas.map((c) => this.rechazada(c.idCliente, "sin_consentimiento")) };
+        }
+
         // 2. Las ya recibidas no se crean otra vez: una sola consulta para todo el lote
         const existentes = new Map(
             (await this.deteccionRepository.findExistentes(comando.capturas.map((c) => c.idCliente))).map((d) => [
@@ -53,6 +59,7 @@ export class RecibirCapturasService implements IRecibirCapturasUseCase {
         // 3. Cada captura se valida por separado: un rechazo no tumba el resto del lote
         const resultados = new Map<string, ResultadoCapturaApp>();
         const nuevas: Deteccion[] = [];
+        const revisiones: RevisionProductor[] = [];
         const modelos = new Map<string, string | null>();
 
         for (const captura of comando.capturas) {
@@ -60,6 +67,14 @@ export class RecibirCapturasService implements IRecibirCapturasUseCase {
             const yaVista = existentes.get(captura.idCliente) ?? nuevas.find((d) => d.idCliente === captura.idCliente);
             if (yaVista) {
                 resultados.set(captura.idCliente, this.comoDuplicada(yaVista, captura.idCliente, productor.id));
+                // La app reenvía la captura cuando el productor la corrige o la confirma: se refleja en la guardada
+                if (existentes.has(captura.idCliente) && yaVista.productorId === productor.id) {
+                    revisiones.push({
+                        idCliente: captura.idCliente,
+                        correccionProductor: captura.correccionProductor?.trim() || null,
+                        confirmadaProductor: captura.confirmadaProductor,
+                    });
+                }
                 continue;
             }
 
@@ -83,6 +98,8 @@ export class RecibirCapturasService implements IRecibirCapturasUseCase {
                 throw error;
             }
         }
+
+        await this.deteccionRepository.actualizarRevision(productor.id, revisiones);
 
         // 4. Todas las nuevas en una sola inserción
         const insertadas = await this.deteccionRepository.insertarNuevas(nuevas);

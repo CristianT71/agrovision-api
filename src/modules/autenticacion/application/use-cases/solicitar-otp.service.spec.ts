@@ -1,5 +1,6 @@
 import { ForbiddenException, HttpStatus, NotFoundException, type HttpException } from "@nestjs/common";
-import { SolicitarOtpService } from "./solicitar-otp.service";
+import { PresupuestoRegistrosOtp } from "./presupuesto-registros-otp";
+import { MAX_CODIGOS_POR_VENTANA, SolicitarOtpService } from "./solicitar-otp.service";
 import { Usuario } from "../../domain/entities/usuario.entity";
 import { SesionOtp } from "../../domain/entities/sesion-otp.entity";
 import type { IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
@@ -14,6 +15,7 @@ const TELEFONO = "+573114528801";
 describe("SolicitarOtpService", () => {
     let usuario: Usuario | null;
     let ultimaSesion: SesionOtp | null;
+    let codigosUltimaHora: number;
     let usuarioGuardado: jest.Mock<Promise<Usuario>, [Usuario]>;
     let sesionGuardada: jest.Mock<Promise<void>, [SesionOtp]>;
     let enviarOtp: jest.Mock<Promise<boolean>, [string, string]>;
@@ -22,6 +24,7 @@ describe("SolicitarOtpService", () => {
     beforeEach(() => {
         usuario = null;
         ultimaSesion = null;
+        codigosUltimaHora = 0;
         usuarioGuardado = jest.fn((u: Usuario) => Promise.resolve(u));
         sesionGuardada = jest.fn<Promise<void>, [SesionOtp]>(() => Promise.resolve());
         enviarOtp = jest.fn<Promise<boolean>, [string, string]>(() => Promise.resolve(true));
@@ -33,8 +36,9 @@ describe("SolicitarOtpService", () => {
         };
         const sesiones: ISesionOtpRepository = {
             findUltimaPorUsuarioId: () => Promise.resolve(ultimaSesion),
+            contarDesde: () => Promise.resolve(codigosUltimaHora),
             guardar: sesionGuardada,
-            registrarIntentoFallido: jest.fn(),
+            reservarIntento: jest.fn().mockResolvedValue(true),
             consumir: jest.fn(),
         };
         const sms: ISmsService = { enviarOtp };
@@ -43,31 +47,51 @@ describe("SolicitarOtpService", () => {
     });
 
     it("registra un teléfono nuevo solo como productor", async () => {
-        await servicio.ejecutar({ telefono: TELEFONO });
+        await servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "productor" });
 
         const registrado = usuarioGuardado.mock.calls[0][0];
         expect(registrado.rol).toBe("productor");
     });
 
-    it("desde el panel no crea cuentas: un número desconocido con rol de agrónomo se rechaza", async () => {
-        await expect(servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "agronomo" })).rejects.toBeInstanceOf(
-            NotFoundException,
+    it("no registra ni envía SMS a un número nuevo cuando se agotó el cupo global de registros", async () => {
+        const sinCupo = new PresupuestoRegistrosOtp(0, 0);
+        const limitado = new SolicitarOtpService(
+            { findByTelefono: () => Promise.resolve(null), findById: jest.fn(), guardar: usuarioGuardado },
+            { findUltimaPorUsuarioId: jest.fn(), contarDesde: jest.fn(), guardar: sesionGuardada } as never,
+            { enviarOtp },
+            sinCupo,
         );
+
+        await expect(limitado.ejecutar({ telefono: TELEFONO, rolSeleccionado: "productor" })).rejects.toMatchObject({
+            status: 429,
+        });
         expect(usuarioGuardado).not.toHaveBeenCalled();
         expect(enviarOtp).not.toHaveBeenCalled();
     });
 
-    it("no envía el código si el rol elegido no es el de la cuenta", async () => {
-        usuario = Usuario.registrarProductor("u-1", TELEFONO);
-
-        await expect(servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "admin" })).rejects.toBeInstanceOf(
-            ForbiddenException,
-        );
+    it("rechaza desde el panel un número que no está registrado", async () => {
+        await expect(servicio.ejecutar({ telefono: TELEFONO })).rejects.toBeInstanceOf(NotFoundException);
+        expect(usuarioGuardado).not.toHaveBeenCalled();
         expect(enviarOtp).not.toHaveBeenCalled();
     });
 
-    it("envía un código de 6 dígitos y guarda solo su hash", async () => {
+    it("registra un número nuevo solo desde el flujo móvil de productor", async () => {
+        await servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "productor" });
+
+        expect(usuarioGuardado).toHaveBeenCalledTimes(1);
+        expect(enviarOtp).toHaveBeenCalledTimes(1);
+    });
+
+    it("envía el código usando el rol registrado en la cuenta", async () => {
+        usuario = Usuario.registrarProductor("u-1", TELEFONO);
+
         await servicio.ejecutar({ telefono: TELEFONO });
+
+        expect(enviarOtp).toHaveBeenCalledTimes(1);
+    });
+
+    it("envía un código de 6 dígitos y guarda solo su hash", async () => {
+        await servicio.ejecutar({ telefono: TELEFONO, rolSeleccionado: "productor" });
 
         const codigo = enviarOtp.mock.calls[0][1];
         const sesion = sesionGuardada.mock.calls[0][0];
@@ -86,10 +110,118 @@ describe("SolicitarOtpService", () => {
         expect(enviarOtp).not.toHaveBeenCalled();
     });
 
+    it("responde 429 al pedir el sexto código en una hora: no se puede adivinar uno a base de pedir códigos", async () => {
+        usuario = Usuario.registrarProductor("u-1", TELEFONO);
+        codigosUltimaHora = MAX_CODIGOS_POR_VENTANA;
+
+        const error = (await servicio.ejecutar({ telefono: TELEFONO }).catch((e: unknown) => e)) as HttpException;
+
+        expect(error.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+        expect(sesionGuardada).not.toHaveBeenCalled();
+        expect(enviarOtp).not.toHaveBeenCalled();
+    });
+
+    it("con el tope sin alcanzar sigue enviando el código", async () => {
+        usuario = Usuario.registrarProductor("u-1", TELEFONO);
+        codigosUltimaHora = MAX_CODIGOS_POR_VENTANA - 1;
+
+        await servicio.ejecutar({ telefono: TELEFONO });
+
+        expect(enviarOtp).toHaveBeenCalledTimes(1);
+    });
+
+    it("peticiones simultáneas de la misma cuenta no se saltan la espera ni el tope", async () => {
+        const cuenta = Usuario.registrarProductor("u-1", TELEFONO);
+        // Repositorio con estado y latencia: sin serializar, todas leerían "4 códigos, ninguno reciente"
+        const guardadas: SesionOtp[] = [];
+        const latencia = () => new Promise((resolver) => setTimeout(resolver, 5));
+        const concurrente = new SolicitarOtpService(
+            { findByTelefono: () => Promise.resolve(cuenta), findById: jest.fn(), guardar: usuarioGuardado },
+            {
+                findUltimaPorUsuarioId: async () => (await latencia(), guardadas.at(-1) ?? null),
+                contarDesde: async () => (await latencia(), MAX_CODIGOS_POR_VENTANA - 1 + guardadas.length),
+                guardar: async (sesion: SesionOtp) => {
+                    await latencia();
+                    guardadas.push(sesion);
+                },
+                reservarIntento: jest.fn().mockResolvedValue(true),
+                consumir: jest.fn(),
+            },
+            { enviarOtp },
+        );
+
+        const resultados = await Promise.allSettled(
+            Array.from({ length: 5 }, () => concurrente.ejecutar({ telefono: TELEFONO })),
+        );
+
+        expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+        expect(guardadas).toHaveLength(1);
+        expect(enviarOtp).toHaveBeenCalledTimes(1);
+    });
+
     it("no envía códigos a cuentas inactivas", async () => {
         usuario = new Usuario("u-1", TELEFONO, "agronomo", "inactivo", new Date());
 
         await expect(servicio.ejecutar({ telefono: TELEFONO })).rejects.toBeInstanceOf(ForbiddenException);
         expect(enviarOtp).not.toHaveBeenCalled();
+    });
+
+    describe("con códigos fijos (demostración)", () => {
+        const fijos = {
+            para: (rol: string) => ({ admin: "111111", agronomo: "222222", productor: "333333" })[rol] as string,
+        };
+        let conFijos: SolicitarOtpService;
+
+        beforeEach(() => {
+            const sesiones = {
+                findUltimaPorUsuarioId: () => Promise.resolve(null),
+                contarDesde: () => Promise.resolve(0),
+                guardar: sesionGuardada,
+            } as never;
+            const usuarios: IUsuarioRepository = {
+                findByTelefono: () => Promise.resolve(usuario),
+                findById: () => Promise.resolve(usuario),
+                guardar: usuarioGuardado,
+            };
+            conFijos = new SolicitarOtpService(usuarios, sesiones, { enviarOtp }, undefined, fijos);
+        });
+
+        it.each([
+            ["admin", "111111"],
+            ["agronomo", "222222"],
+            ["productor", "333333"],
+        ] as const)("una cuenta %s recibe el código fijo de su rol", async (rol, codigo) => {
+            usuario = new Usuario("u-1", TELEFONO, rol, "activo", new Date());
+
+            await conFijos.ejecutar({ telefono: TELEFONO });
+
+            expect(enviarOtp).toHaveBeenCalledWith(TELEFONO, codigo);
+        });
+
+        it("sin códigos fijos el código sigue siendo aleatorio de 6 dígitos", async () => {
+            usuario = new Usuario("u-1", TELEFONO, "admin", "activo", new Date());
+
+            await servicio.ejecutar({ telefono: TELEFONO });
+
+            expect(enviarOtp.mock.calls[0][1]).toMatch(/^\d{6}$/);
+        });
+
+        it("mantiene la espera entre solicitudes aunque el código sea fijo", async () => {
+            usuario = new Usuario("u-1", TELEFONO, "admin", "activo", new Date());
+            ultimaSesion = SesionOtp.crear({ id: "s-1", usuarioId: "u-1", codigo: "111111", minutosVigencia: 5 });
+            const limitado = new SolicitarOtpService(
+                { findByTelefono: () => Promise.resolve(usuario), findById: jest.fn(), guardar: usuarioGuardado },
+                {
+                    findUltimaPorUsuarioId: () => Promise.resolve(ultimaSesion),
+                    contarDesde: () => Promise.resolve(0),
+                    guardar: sesionGuardada,
+                } as never,
+                { enviarOtp },
+                undefined,
+                fijos,
+            );
+
+            await expect(limitado.ejecutar({ telefono: TELEFONO })).rejects.toMatchObject({ status: 429 });
+        });
     });
 });

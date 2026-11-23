@@ -1,0 +1,580 @@
+{
+  "id": "7hZXnFBsJ5d7LPwF",
+  "name": "03-informe-pdf",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "vueloId",
+              "type": "string"
+            },
+            {
+              "name": "vuelo",
+              "type": "object"
+            },
+            {
+              "name": "analisis",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "id": "6fea51b1-fdc6-52a6-aa82-0dc6f0588045",
+      "name": "Entrada (otro flujo)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "83c3800c-a737-5afc-89db-e7a6fd46a214",
+      "name": "Entrada manual (pruebas)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Datos INVENTADOS para probar el flujo sin un vuelo real. No son de ningún lote.\nreturn [{ json: {\n  vuelo: {\n    id: '00000000-0000-4000-8000-000000000000',\n    nombre: 'PRUEBA - Vuelo lote norte',\n    lote: 'La Esperanza (datos de prueba)',\n    fecha: '2026-11-12',\n    notas: null,\n    alturaRelativaM: 80,\n    rtkFijoPct: 92.5,\n    cantidadCapturas: 42,\n  },\n  analisis: {\n    generadoEn: '2026-11-14T15:30:00-05:00',\n    indices: [\n      { nombre: 'NDVI', formula: '(NIR - R) / (NIR + R)', media: 0.71, mediana: 0.74, p10: 0.42, p90: 0.85, umbral: 0.5, areaBajoUmbralPct: 12.4 },\n      { nombre: 'NDRE', formula: '(NIR - RE) / (NIR + RE)', media: 0.38, mediana: 0.4, p10: 0.21, p90: 0.51, umbral: 0.3, areaBajoUmbralPct: 18.9 },\n      { nombre: 'GNDVI', formula: '(NIR - G) / (NIR + G)', media: 0.62, mediana: 0.64, p10: 0.4, p90: 0.77, umbral: 0.45, areaBajoUmbralPct: 9.7 },\n    ],\n    zonas: [\n      { id: 'Z1', descripcion: 'Franja con vigor bajo en el borde oriental del lote', severidad: 'alta', indice: 'NDVI', valor: 0.38, ubicacion: { lat: 5.5012, lon: -75.8123 } },\n      { id: 'Z2', descripcion: 'Mancha de vigor reducido cerca del centro', severidad: 'media', indice: 'NDRE', valor: 0.24, ubicacion: { lat: 5.5008, lon: -75.813 } },\n      { id: 'Z3', descripcion: 'Zona aislada con valores algo bajos en la esquina sur', severidad: 'baja', indice: 'GNDVI', valor: 0.43, ubicacion: null },\n    ],\n    observaciones: ['Los valores bajos se concentran hacia el borde oriental.', 'La foto RGB de la zona Z2 muestra follaje más claro que el entorno.'],\n    confianza: 'media',\n    limitaciones: ['Datos de prueba inventados: no corresponden a un vuelo real.'],\n  },\n} }];"
+      },
+      "id": "57c99556-a7f3-5e2b-9c72-f0b5449c1c43",
+      "name": "Datos de prueba",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        230,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "15d16aaf",
+              "name": "config.modelo",
+              "value": "accounts/fireworks/models/glm-5p3",
+              "type": "string"
+            },
+            {
+              "id": "64c953b8",
+              "name": "config.esfuerzoRazonamiento",
+              "value": "low",
+              "type": "string"
+            },
+            {
+              "id": "c2f7744f",
+              "name": "config.maxTokens",
+              "value": 6000,
+              "type": "number"
+            },
+            {
+              "id": "f5ef026d",
+              "name": "config.urlPublica",
+              "value": "http://localhost:5679/",
+              "type": "string"
+            },
+            {
+              "id": "88e118fd",
+              "name": "config.horasVigencia",
+              "value": 24,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "7912109d-e1df-508b-af05-c84cd663d5b1",
+      "name": "Configuración",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ Array.isArray($json.analisis && $json.analisis.indices) && $json.analisis.indices.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f6afec2e-236a-5bc2-9f25-e2fb410b4525",
+      "name": "¿Trae el análisis?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        690,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "pqkNX56H4EB71jJA",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "vueloId": "={{ $json.vueloId }}",
+            "mapasInforme": "={{ true }}"
+          },
+          "matchingColumns": [
+            "vueloId"
+          ],
+          "schema": [
+            {
+              "id": "vueloId",
+              "displayName": "vueloId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "mapasInforme",
+              "displayName": "mapasInforme",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "13eaaf10-c456-5e52-939b-54e9c6679c77",
+      "name": "Analizar vuelo (flujo 02)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        920,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// El flujo 02 devuelve {vuelo, analisis}; aquí se le vuelve a pegar la configuración de este flujo.\nconst config = $('Configuración').first().json.config;\nconst r = $input.first().json;\nreturn [{ json: { vuelo: r.vuelo, analisis: r.analisis, config, mapasInforme: Array.isArray(r.mapasInforme) ? r.mapasInforme : [], mosaicos: Array.isArray(r.mosaicos) ? r.mosaicos : [] } }];"
+      },
+      "id": "3c572abc-7b0c-5268-b773-ef9b627895e1",
+      "name": "Unir configuración",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1150,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida la entrada y arma los mensajes para el modelo de redacción.\nconst entrada = $input.first().json;\nconst { vuelo, analisis, config } = entrada;\n\nconst errores = [];\nif (!vuelo || typeof vuelo !== 'object') errores.push('Falta \"vuelo\".');\nelse {\n  if (!vuelo.id) errores.push('Falta vuelo.id.');\n  if (!vuelo.nombre) errores.push('Falta vuelo.nombre.');\n}\nif (!analisis || !Array.isArray(analisis.indices) || analisis.indices.length === 0) {\n  errores.push('Falta analisis.indices (al menos un índice).');\n}\nif (errores.length) throw new Error('Entrada inválida: ' + errores.join(' '));\n\nconst sistema = [\n  'Eres un asistente que redacta informes técnicos de análisis multiespectral de cultivos de café a partir de datos ya calculados.',\n  '',\n  'Reglas obligatorias:',\n  '1. Usa SOLO las cifras que aparecen en los datos. No calcules, no redondees de otra forma y no conviertas unidades ni porcentajes (por ejemplo, no pases 0,124 a 12,4 %). Si citas una cifra, cópiala igual.',\n  '2. No diagnostiques enfermedades, plagas ni deficiencias: un índice bajo indica vigor reducido, no su causa. Di que la causa debe confirmarse en campo.',\n  '3. Las recomendaciones son verificaciones en campo que haría un agrónomo (visitar la zona, tomar muestras, comparar con zonas sanas). No menciones productos, dosis ni tratamientos.',\n  '4. Si falta un dato necesario, indícalo en \"limitaciones\" y no lo supongas.',\n  'En el título usa el nombre del vuelo (vuelo.nombre), nunca su identificador.',\n  'En \"limitaciones\" no repitas las que ya vienen en analisis.limitaciones ni en analisis.correlacionApp.limitaciones: añade solo limitaciones nuevas.',\n  '5. Escribe en español claro y profesional, sin relleno ni frases de cortesía.',\n  'Sobre plagas y enfermedades: no se te entrega el respaldo de los reportes de la app; no afirmes ni descartes plagas. El informe ya incluye una sección fitosanitaria propia, rotulada como hipótesis o como verificada por el agrónomo.',\n  'Sobre plantas: no se te entrega ningún conteo ni densidad detectada con el dron; no los menciones ni los calcules. Del marco de siembra solo existe la densidad teórica (provisional); no la presentes como densidad real ni la uses para afirmar fallas de siembra. El informe ya incluye una sección propia, rotulada como estimación experimental.',\n  '6. Responde ÚNICAMENTE con un objeto JSON con exactamente esta forma, sin texto adicional ni bloques de código:',\n  '{\"titulo\":\"...\",\"resumenEjecutivo\":\"... (hasta 120 palabras)\",\"hallazgos\":[{\"titulo\":\"...\",\"detalle\":\"...\",\"severidad\":\"alta|media|baja|informativa\",\"referencia\":\"id de zona o nombre del índice\"}],\"interpretacionIndices\":[{\"indice\":\"...\",\"lectura\":\"...\"}],\"recomendaciones\":[\"...\"],\"limitaciones\":[\"...\"]}',\n].join('\\n');\n\n// Los polígonos de las zonas no se envían al modelo: gastan tokens y el PDF no los muestra\n// El conteo de copas y la densidad detectada NO se envían al modelo: son estimaciones sin validar y el modelo las presentaba\n// como densidad real. El PDF las imprime directamente, con su etiqueta de estimación experimental.\nconst { huellas: _huellas, plantas: _plantas, respaldoApp: _respaldo, ...analisisBase } = analisis; // el respaldo de la app y la sección fitosanitaria se pintan aparte, sin el modelo\nif (analisisBase.siembra) { const { plantasPorHaDetectada: _a, diferenciaPct: _b, ...siembraTeorica } = analisisBase.siembra; analisisBase.siembra = siembraTeorica; }\nconst correlacionSinCeldas = analisis.correlacionApp ? (({ celdas, ...c }) => c)(analisis.correlacionApp) : analisis.correlacionApp;\nconst sinPoligonos = { ...analisisBase, correlacionApp: correlacionSinCeldas, zonas: Array.isArray(analisis.zonas) ? analisis.zonas.map(({ poligono, ...z }) => z) : analisis.zonas };\nconst datos = { vuelo, analisis: sinPoligonos };\nconst usuario = 'Datos del vuelo y del análisis (JSON):\\n' + JSON.stringify(datos, null, 1) + '\\n\\nRedacta el informe.';\n\nreturn [{ json: { config, datos, completo: { vuelo, analisis }, sistema, usuario } }];"
+      },
+      "id": "13b7589c-eccc-5191-946f-8d95125d237f",
+      "name": "Validar y preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1150,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fireworks.ai/inference/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.config.modelo, reasoning_effort: $json.config.esfuerzoRazonamiento, max_tokens: $json.config.maxTokens, temperature: 0.2, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: $json.sistema }, { role: 'user', content: $json.usuario }] }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 180000
+        }
+      },
+      "id": "2b9d354e-238a-51e1-8385-c815e172d638",
+      "name": "Redactar informe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        60
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "Cryg3T7vb1XycwP3",
+          "name": "Fireworks AI"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Interpreta la respuesta del modelo, valida su forma y revisa que las cifras salgan de los datos.\n// Si el modelo no está disponible (límite de uso, error, respuesta inválida) se arma el informe solo con las cifras calculadas.\nconst interpretar = () => {\nconst resp = $input.first().json;\nif (resp.statusCode !== 200) {\n  const detalle = resp.error ? (resp.error.message || JSON.stringify(resp.error)) : (resp.body && resp.body.error && resp.body.error.message ? resp.body.error.message : JSON.stringify(resp.body));\n  throw new Error('El modelo respondió ' + (resp.statusCode ?? 'con error') + ': ' + String(detalle).slice(0, 300));\n}\n\nconst previo = $('Validar y preparar').first().json;\nconst eleccion = resp.body.choices && resp.body.choices[0] ? resp.body.choices[0] : {};\nlet texto = eleccion.message && typeof eleccion.message.content === 'string' ? eleccion.message.content : '';\ntexto = texto.replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\nif (!texto) {\n  throw new Error('El modelo no devolvió texto (finish_reason: ' + (eleccion.finish_reason || '?') + '). Sube max_tokens o baja el razonamiento.');\n}\n\nconst ini = texto.indexOf('{');\nconst fin = texto.lastIndexOf('}');\nif (ini < 0 || fin < ini) throw new Error('La respuesta del modelo no contiene un JSON.');\nlet crudo;\ntry {\n  crudo = JSON.parse(texto.slice(ini, fin + 1));\n} catch (e) {\n  throw new Error('El JSON del modelo no es válido: ' + e.message);\n}\n\nconst SEVERIDADES = ['alta', 'media', 'baja', 'informativa'];\nconst txt = (v) => (typeof v === 'string' ? v.trim() : '');\nconst lista = (v) => (Array.isArray(v) ? v : []);\nconst informe = {\n  titulo: txt(crudo.titulo) || 'Informe de análisis multiespectral',\n  resumenEjecutivo: txt(crudo.resumenEjecutivo),\n  hallazgos: lista(crudo.hallazgos)\n    .map((h) => ({ titulo: txt(h && h.titulo), detalle: txt(h && h.detalle), severidad: h && SEVERIDADES.includes(h.severidad) ? h.severidad : 'informativa', referencia: txt(h && h.referencia) }))\n    .filter((h) => h.titulo || h.detalle),\n  interpretacionIndices: lista(crudo.interpretacionIndices)\n    .map((i) => ({ indice: txt(i && i.indice), lectura: txt(i && i.lectura) }))\n    .filter((i) => i.indice && i.lectura),\n  recomendaciones: lista(crudo.recomendaciones).map(txt).filter(Boolean),\n  limitaciones: lista(crudo.limitaciones).map(txt).filter(Boolean),\n};\nif (!informe.resumenEjecutivo) throw new Error('El informe del modelo no trae resumen ejecutivo.');\n\n// Comprobación de cifras: todo número del texto debe existir en los datos de entrada\nconst redondeo = (n) => Number(n.toFixed(2));\nconst permitidos = new Set();\nconst permitir = (n) => {\n  if (!Number.isFinite(n)) return;\n  permitidos.add(redondeo(n));\n  permitidos.add(redondeo(n * 100));\n  permitidos.add(redondeo(n / 100));\n};\nfor (const m of JSON.stringify(previo.datos).matchAll(/\\d+(?:\\.\\d+)?/g)) permitir(parseFloat(m[0]));\n\nconst desconocidos = new Set();\nfor (const m of JSON.stringify(informe).matchAll(/\\d+(?:[.,]\\d+)?/g)) {\n  const n = parseFloat(m[0].replace(',', '.'));\n  if (!Number.isFinite(n)) continue;\n  if (Number.isInteger(n) && n <= 10) continue;\n  if (Number.isInteger(n) && n >= 1900 && n <= 2100) continue;\n  if (!permitidos.has(redondeo(n))) desconocidos.add(m[0]);\n}\nconst advertencias = desconocidos.size ? ['Cifras del texto que no aparecen en los datos: ' + [...desconocidos].join(', ')] : [];\n\nconst uso = resp.body.usage || {};\nconst consumo = {\n  entrada: uso.prompt_tokens || 0,\n  salida: uso.completion_tokens || 0,\n  razonamiento: (uso.completion_tokens_details && uso.completion_tokens_details.reasoning_tokens) || 0,\n};\n\nreturn [{ json: { config: previo.config, datos: previo.datos, informe, advertencias, consumo } }];\n};\n\nconst informeSinModelo = (motivo) => {\n  const previo = $('Validar y preparar').first().json;\n  const { vuelo, analisis } = previo.datos;\n  const idx = Array.isArray(analisis.indices) ? analisis.indices : [];\n  const zonas = Array.isArray(analisis.zonas) ? analisis.zonas : [];\n  const informe = {\n    titulo: 'Informe de análisis multiespectral — ' + vuelo.nombre,\n    resumenEjecutivo: 'Informe preparado solo con las cifras calculadas del vuelo «' + vuelo.nombre + '»: el modelo de IA que redacta el análisis no estuvo disponible en este momento, por lo que no incluye interpretación redactada. ' +\n      idx.map((i) => i.nombre + ' medio ' + i.media).join('; ') + '. ' +\n      (zonas.length ? 'Se identificaron ' + zonas.length + ' zonas con vigor reducido; su ubicación y valores están en las tablas y mapas.' : 'No se identificaron zonas con vigor reducido.'),\n    hallazgos: [],\n    interpretacionIndices: idx.map((i) => ({ indice: i.nombre, lectura: 'Media ' + i.media + ', mediana ' + i.mediana + '; ' + i.areaBajoUmbralPct + ' % del área de las capturas bajo el umbral ' + i.umbral + '.' })),\n    recomendaciones: [\n      'Visitar en campo las zonas señaladas y compararlas con zonas de vigor alto del mismo lote.',\n      'Confirmar en campo la causa de cualquier vigor reducido: los índices no identifican enfermedades, plagas ni deficiencias.',\n    ],\n    limitaciones: ['Este informe no incluye la redacción del modelo de IA porque no estuvo disponible (' + String(motivo).slice(0, 120) + ').'],\n  };\n  return [{ json: { config: previo.config, datos: previo.datos, informe, advertencias: ['El modelo de redacción no estuvo disponible: el informe usa solo cifras calculadas. Vuelve a generarlo más tarde para obtener la redacción completa.'], consumo: { entrada: 0, salida: 0, razonamiento: 0 } } }];\n};\n\ntry {\n  return interpretar();\n} catch (error) {\n  return informeSinModelo(error && error.message ? error.message.replace(/\\s+/g, ' ') : 'error desconocido');\n}\n"
+      },
+      "id": "ce71bbf5-b073-567c-ae2a-16ee113751f4",
+      "name": "Interpretar respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1610,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma el HTML del informe (todo el texto se escapa) y le pone un nombre de archivo imposible de adivinar.\nconst d = $input.first().json;\nconst { config, datos, informe, advertencias, consumo } = d;\nconst { vuelo, analisis } = datos;\n// `datos` va sin conteo de copas ni celdas (no se envían al modelo); el PDF lee la copia completa.\nconst completo = (() => { try { return $('Validar y preparar').first().json.completo || null; } catch (e) { return null; } })();\n\nconst esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\nconst MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];\nconst fechaLarga = (iso) => {\n  const m = /^(\\d{4})-(\\d{2})-(\\d{2})/.exec(String(iso || ''));\n  return m ? `${Number(m[3])} de ${MESES[Number(m[2]) - 1]} de ${m[1]}` : String(iso || '');\n};\nconst num = (v, dec = 2) => (typeof v === 'number' && Number.isFinite(v) ? String(Number(v.toFixed(dec))).replace('.', ',') : '');\n\n// Unifica decimales en los textos redactados: coma decimal; los valores 0,xxx (índices) a dos decimales.\n// No toca coordenadas (4+ decimales) ni miles escritos con punto (3,909 plantas) porque solo actúa si la parte entera es 0 o si hay 1-2 decimales.\nconst decimales = (t) => String(t ?? '')\n  .replace(/(?<![\\d.,])(-|−)?0[.,](\\d{3,4})(?!\\d)/g, (m, s, f) => `${s || ''}${(Math.round(Number('0.' + f) * 100) / 100).toFixed(2).replace('.', ',')}`)\n  .replace(/(?<![\\d.,])(\\d+)\\.(\\d{8,})(?!\\d)/g, (m, e, f) => Number(e + '.' + f).toFixed(1).replace('.', ','))\n  .replace(/(?<![\\d.,])(\\d+)\\.(\\d{1,2})(?!\\d|\\.\\d)/g, '$1,$2');\nconst TIPO = {\n  med: '<span class=\"tipo tipo-med\">Medición</span>',\n  est: '<span class=\"tipo tipo-est\">Estimación</span>',\n  pen: '<span class=\"tipo tipo-pen\">Pendiente</span>',\n};\n\n// Identificador aleatorio de 48 caracteres hexadecimales: es la \"llave\" del enlace de descarga\nlet secreto;\nif (globalThis.crypto && typeof globalThis.crypto.getRandomValues === 'function') {\n  const bytes = new Uint8Array(24);\n  globalThis.crypto.getRandomValues(bytes);\n  secreto = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');\n} else {\n  secreto = require('crypto').randomBytes(24).toString('hex'); // necesita NODE_FUNCTION_ALLOW_BUILTIN=crypto (ya está en el docker-compose)\n}\nconst expira = new Date(Date.now() + config.horasVigencia * 3600 * 1000);\n// La fecha de vencimiento va dentro del nombre: así el flujo de descarga puede comprobarla sin guardar nada más\nconst informeId = `${Math.floor(expira.getTime() / 1000)}-${secreto}`;\nconst archivo = informeId + '.pdf';\nconst base = String(config.urlPublica).replace(/\\/+$/, '');\nconst enlace = `${base}/webhook/informe?t=${informeId}`;\n\nconst filaMeta = (k, v) => (v === null || v === undefined || v === '' ? '' : `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`);\nconst meta = [\n  filaMeta('Vuelo', vuelo.nombre),\n  filaMeta('Lote', vuelo.lote),\n  filaMeta('Fecha del vuelo', vuelo.fecha ? fechaLarga(vuelo.fecha) : ''),\n  filaMeta('Altura relativa', typeof vuelo.alturaRelativaM === 'number' ? `${num(vuelo.alturaRelativaM, 1)} m` : ''),\n  filaMeta('RTK fijo', typeof vuelo.rtkFijoPct === 'number' ? `${num(vuelo.rtkFijoPct, 1)} %` : ''),\n  filaMeta('Capturas analizadas', typeof vuelo.cantidadCapturas === 'number' ? vuelo.cantidadCapturas : ''),\n  filaMeta('Confianza del análisis', analisis.confianza),\n  filaMeta('Notas', vuelo.notas),\n].join('');\n\nconst filasIndices = analisis.indices.map((i) => `<tr>\n  <td><strong>${esc(i.nombre)}</strong><br><span class=\"peq\">${esc(i.formula)}</span></td>\n  <td class=\"n\">${num(i.media)}</td><td class=\"n\">${num(i.mediana)}</td><td class=\"n\">${num(i.p10)}</td><td class=\"n\">${num(i.p90)}</td>\n  <td class=\"n\">${esc(i.desviacion == null ? \"no disponible\" : num(i.desviacion))}</td><td class=\"n\">${esc(i.cv == null ? \"no disponible\" : num(i.cv))}</td>\n  <td class=\"n\">${num(i.umbral)}</td><td class=\"n\">${num(i.areaBajoUmbralPct, 1)}${typeof i.areaBajoUmbralPct === 'number' ? ' %' : ''}</td></tr>`).join('');\n\nconst zonas = Array.isArray(analisis.zonas) ? analisis.zonas : [];\nconst filasZonas = zonas.map((z) => {\n  // Centroide del polígono de la zona (no el centro de la captura, que se repetía en todas las zonas de una misma captura)\n  const uz = z.ubicacionZona;\n  const ub = uz && typeof uz.lat === 'number' && typeof uz.lon === 'number' ? `${uz.lat.toFixed(5)}, ${uz.lon.toFixed(5)}` : 'sin ubicación (captura no cenital)';\n  return `<tr><td><strong>${esc(z.id)}</strong></td><td>${esc(z.descripcion)}</td><td><span class=\"sev sev-${esc(z.severidad)}\">${esc(z.severidad)}</span></td><td>${Array.isArray(z.indicesAfectados) && z.indicesAfectados.length ? z.indicesAfectados.map((i) => esc(i.indice)).join('<br>') : esc(z.indice)}${(z.detecciones || 1) > 1 ? `<br><span class=\"peq\">${esc(z.detecciones)} detecciones fusionadas</span>` : ''}</td><td class=\"n\">${Array.isArray(z.indicesAfectados) && z.indicesAfectados.length ? z.indicesAfectados.map((i) => num(i.valor)).join('<br>') : num(z.valor)}</td><td class=\"peq\">${esc(ub)}</td><td class=\"n\">${num(z.areaM2, 0) || '—'}</td></tr>`;\n}).join('');\n\nconst hallazgos = informe.hallazgos.map((h) => `<div class=\"hallazgo\">\n  <div class=\"hh\"><span class=\"sev sev-${esc(h.severidad)}\">${esc(h.severidad)}</span> <strong>${esc(h.titulo)}</strong>${h.referencia ? ` <span class=\"peq\">(${esc(h.referencia)})</span>` : ''}</div>\n  <p>${esc(decimales(h.detalle))}</p></div>`).join('');\n\nconst lecturas = informe.interpretacionIndices.map((i) => `<p><strong>${esc(i.indice)}.</strong> ${esc(decimales(i.lectura))}</p>`).join('');\nconst li = (arr) => arr.map((t) => `<li>${esc(decimales(t))}</li>`).join('');\nconst observaciones = Array.isArray(analisis.observaciones) ? analisis.observaciones.filter((t) => typeof t === 'string' && t.trim()) : [];\nconst limitaciones = [...new Set([...(Array.isArray(analisis.limitaciones) ? analisis.limitaciones : []), ...informe.limitaciones].filter((t) => typeof t === 'string' && t.trim()))];\n\nconst aviso = advertencias.length\n  ? `<div class=\"revisar\"><strong>Revisar antes de usar este informe:</strong><ul>${li(advertencias)}</ul></div>`\n  : '';\n\nconst pct = (v) => (typeof v === 'number' && Number.isFinite(v) ? `${num(v, 1)} %` : 'no disponible');\nconst vg = analisis.vigor;\nconst bloqueVigor = vg ? `<h2>Distribución del vigor (NDVI) ${TIPO.med}</h2>\n<table><thead><tr><th>Clase</th><th>Criterio</th><th>Porcentaje</th></tr></thead><tbody>\n<tr><td>Vigor alto</td><td>NDVI desde ${num(vg.umbralAlto)}</td><td class=\"n\">${pct(vg.altoPct)}</td></tr>\n<tr><td>Vigor intermedio</td><td>NDVI entre ${num(vg.umbralBajo)} y ${num(vg.umbralAlto)}</td><td class=\"n\">${pct(vg.medioPct)}</td></tr>\n<tr><td>Vigor bajo</td><td>NDVI bajo ${num(vg.umbralBajo)}</td><td class=\"n\">${pct(vg.bajoPct)}</td></tr></tbody></table>\n<p class=\"peq\">Es el porcentaje de píxeles de las capturas analizadas, no el porcentaje de plantas afectadas. Los cortes de NDVI son provisionales y deben calibrarse con el cultivo y su etapa.</p>` : '';\nconst cv = analisis.cobertura;\nconst sb = (completo && completo.analisis && completo.analisis.siembra) || analisis.siembra;\nconst filasLote = [\n  cv ? `<tr><th>Cobertura vegetal (NDVI desde ${num(cv.umbralNdvi)})</th><td>${pct(cv.pct)}</td></tr>` : '',\n  sb ? `<tr><th>Marco de siembra</th><td>${num(sb.distSurcoM, 1)} m entre surcos × ${num(sb.distPlantaM, 1)} m entre plantas${sb.provisional ? ' (valor provisional)' : ''}</td></tr>` : '',\n  sb && sb.variedad ? `<tr><th>Variedad</th><td>${esc(sb.variedad)}</td></tr>` : '',\n  sb && typeof sb.alturaPlantaM === 'number' ? `<tr><th>Altura de planta</th><td>${num(sb.alturaPlantaM, 1)} m</td></tr>` : '',\n  sb ? `<tr><th>Densidad teórica</th><td>${num(sb.plantasPorHaTeorica, 0)} plantas por hectárea</td></tr>` : '',\n  sb ? `<tr><th>Densidad detectada con el dron</th><td>${typeof sb.plantasPorHaDetectada === 'number' ? `${num(sb.plantasPorHaDetectada, 0)} copas por hectárea${typeof sb.diferenciaPct === 'number' ? ` (${num(sb.diferenciaPct, 1)} % frente a la teórica)` : ''} — estimación experimental sin validar, ver «Conteo de copas»` : 'No calculada (sin capturas cenitales con GSD)'}</td></tr>` : '',\n  `<tr><th>Diagnóstico fitosanitario</th><td>Pendiente: requiere inspección en campo</td></tr>`,\n  `<tr><th>Proyección de propagación</th><td>No calculable con una sola captura o fecha. Requiere al menos dos vuelos comparables, confirmación de la causa en campo y un modelo validado.</td></tr>`,\n].join('');\nconst bloqueLote = `<h2>Cobertura, siembra y estado del diagnóstico ${TIPO.med} ${TIPO.est} ${TIPO.pen}</h2><table class=\"meta\">${filasLote}</table>`;\n\n// Los datos nuevos se presentan directamente; ningún valor procede del modelo.\nconst disponible = (v) => v == null ? 'no disponible' : v;\nconst filaDato = (k, v) => filaMeta(k, disponible(v));\nconst rango = (v) => v == null ? null : `${disponible(v.min)} — ${disponible(v.max)}`;\nconst ficha = analisis.ficha;\nconst bloqueFicha = `<h2>Ficha técnica del vuelo ${TIPO.med}</h2><table class=\"meta\">${[\n  filaDato('Sensores', ficha?.sensores?.join(', ')),\n  filaDato('Resoluciones (ancho × alto, píxeles)', ficha?.resolucionesPx?.map((r) => `${disponible(r.ancho)} × ${disponible(r.alto)}`).join('; ')),\n  filaDato('Bandas disponibles', ficha?.bandasDisponibles?.join(', ')),\n  filaDato('Altura relativa (mínima — máxima, m)', rango(ficha?.alturaRelativaM)),\n  filaDato('Capturas usadas', ficha?.capturasUsadas),\n  filaDato('Capturas con georreferencia', ficha?.capturasConGeorreferencia),\n  filaDato('Capturas calibradas', ficha?.calibracion?.calibradas),\n  filaDato('Capturas sin calibrar', ficha?.calibracion?.sinCalibrar),\n  filaDato('Fecha de captura (mínima — máxima)', rango(ficha?.fechaCaptura)),\n  filaDato('GSD usado (cm/píxel, mín — máx)', ficha?.gsdCmPx ? `${num(ficha.gsdCmPx.min, 2)} — ${num(ficha.gsdCmPx.max, 2)}` : null),\n  filaDato('GSD nominal (altura ÷ focal)', ficha?.gsdNominalCmPx ? `${num(ficha.gsdNominalCmPx.min, 2)} — ${num(ficha.gsdNominalCmPx.max, 2)}` : null),\n  filaDato('GSD efectivo medido', ficha?.gsdEfectivoCmPx ? `${num(ficha.gsdEfectivoCmPx.min, 2)} — ${num(ficha.gsdEfectivoCmPx.max, 2)} (${ficha.gsdEfectivoCmPx.capturasConEfectivo} capturas con medida)` : null),\n  filaDato('Razón efectivo / nominal', ficha?.razonEfectivoNominal ? `mediana ${num(ficha.razonEfectivoNominal.mediana, 2)} (${num(ficha.razonEfectivoNominal.min, 2)} — ${num(ficha.razonEfectivoNominal.max, 2)})` : null),\n  filaDato('Pares de capturas válidos para medir el GSD', typeof ficha?.paresValidos === 'number' ? `${ficha.paresValidos} de ${ficha.paresTotales}` : null),\n].join('')}</table>`;\nconst pl = (completo && completo.analisis && completo.analisis.plantas) || analisis.plantas;\nconst bloqueCopas = pl && Array.isArray(pl.porCaptura) && pl.porCaptura.length ? `<h2>Conteo de copas (experimental) ${TIPO.est}</h2>\n<p class=\"peq\">${esc(pl.notaValidacion || 'Estimación experimental sin validar.')}</p>\n<table class=\"meta\">${[\n  filaDato('Densidad media detectada', typeof pl.densidadMediaPlantasHa === 'number' ? `${num(pl.densidadMediaPlantasHa, 0)} copas por hectárea (promedio entre capturas, no la suma)` : null),\n  filaDato('Diferencia frente a la densidad teórica', typeof pl.diferenciaVsTeoricaPct === 'number' ? `${num(pl.diferenciaVsTeoricaPct, 1)} %` : null),\n].join('')}</table>\n<table><thead><tr><th>Captura</th><th>Copas</th><th>Área analizada (m²)</th><th>Densidad (copas/ha)</th><th>Diámetro mediano (m)</th><th>GSD</th></tr></thead><tbody>${pl.porCaptura.map((c) => `<tr><td class=\"peq\">${esc(c.capturaId)}</td><td class=\"n\">${c.conteo == null ? '—' : esc(c.conteo)}</td><td class=\"n\">${num(c.areaAnalizadaM2, 0) || '—'}</td><td class=\"n\">${num(c.densidadPlantasHa, 0) || '—'}</td><td class=\"n\">${num(c.diametroCopaM?.mediana, 2) || '—'}</td><td class=\"peq\">${esc(c.gsdOrigen || '—')}</td></tr>`).join('')}</tbody></table>\n${Array.isArray(pl.advertencias) && pl.advertencias.length ? `<ul>${li(pl.advertencias)}</ul>` : ''}` : '';\nconst ve = analisis.variabilidadEspacial;\nconst bloqueVariabilidad = `<h2>Variabilidad espacial ${TIPO.med}</h2><table class=\"meta\">${[\n  filaDato('Desviación espacial (del NDVI entre celdas)', typeof ve?.desviacion === 'number' ? num(ve.desviacion, 2) : ve?.desviacion),\n  filaDato('Celdas válidas', ve?.celdasValidas),\n  filaDato('Nivel (umbrales provisionales)', ve?.nivel),\n].join('')}</table>`;\nconst ca = analisis.correlacionApp;\nconst bloqueCorrelacion = `<h2>Correlación con la app ${TIPO.med}</h2>${ca ? `<table class=\"meta\">${[\n  filaDato('Radio de cercanía (m)', ca.radioM),\n  filaDato('Registros a esa distancia de alguna captura', ca.registrosCercanos),\n  filaDato(ca.areaVueloBase === 'huellas' ? 'Registros dentro de la huella de las capturas' : 'Registros dentro de la caja del vuelo (aproximada)', ca.registrosEnAreaVuelo),\n  filaDato('Registros dentro de la huella, por clase', ca.clasesEnHuella ? (Object.entries(ca.clasesEnHuella).map(([c, t]) => `${c}: ${t}`).join('; ') || 'ninguno') : null),\n  filaDato('Fecha mínima de la app', ca.fechaMin ? fechaLarga(ca.fechaMin) : ca.fechaMin),\n  filaDato('Fecha máxima de la app', ca.fechaMax ? fechaLarga(ca.fechaMax) : ca.fechaMax),\n  filaDato('Días desde el vuelo (mínimo)', typeof ca.diasMinDesdeVuelo === 'number' ? num(ca.diasMinDesdeVuelo, 1) : ca.diasMinDesdeVuelo),\n  filaDato('Días desde el vuelo (máximo)', typeof ca.diasMaxDesdeVuelo === 'number' ? num(ca.diasMaxDesdeVuelo, 1) : ca.diasMaxDesdeVuelo),\n].join('')}</table><table><thead><tr><th>Captura</th><th>Zonas dentro de esa captura</th><th>Registros cercanos al centro de la captura</th><th>Conteos por clase</th></tr></thead><tbody>${(ca.porCaptura || []).map((z) => `<tr><td class=\"peq\">${esc(z.capturaId)}</td><td>${esc((z.zonas || []).join(', ') || '—')}</td><td>${esc(disponible(z.cercanos))}</td><td>${esc(Object.entries(z.clases || {}).map(([clase, total]) => `${clase}: ${total}`).join('; '))}</td></tr>`).join('')}</tbody></table><ul>${li(ca.limitaciones || [])}</ul>` : `<p>${esc('no disponible')}</p>`}`;\n\n// ---- Respaldo de la app y sección fitosanitaria (siempre presente; hipótesis hasta que el agrónomo la verifique) ----\nconst ra = (completo && completo.analisis && completo.analisis.respaldoApp) || analisis.respaldoApp || null;\nconst fito = ra && ra.fitosanitario;\nconst AVISOS_FITO = ['Diagnóstico fitosanitario pendiente: lo hacen el modelo del celular y un agrónomo en campo; el dron solo aporta evidencia indirecta (vigor del dosel) y nunca confirma ni identifica la plaga.',\n  'No es posible calcular la propagación con un único vuelo: se necesitan vuelos repetidos sobre la misma zona.'];\nconst VEREDICTO = { consistente: 'Coherente con lo reportado', no_consistente: 'No coherente con lo reportado', no_concluyente: 'No concluyente' };\nconst ESTADO_FITO = { hipotesis_sin_verificar: 'Hipótesis sin verificar (no es un diagnóstico)', verificado_por_agronomo: 'Verificado por agrónomo', parcialmente_verificado: 'Parcialmente verificado por agrónomo', sin_reportes: 'Sin reportes de la app cerca del vuelo' };\nconst avisosFito = fito && Array.isArray(fito.avisos) ? fito.avisos : AVISOS_FITO;\nconst revisionTexto = (f) => f && f.estado === 'verificado_por_agronomo'\n  ? `${f.tipoResultado}${f.plagaIdentificada ? ' (' + f.plagaIdentificada + ')' : ''}${f.agronomo ? ', ' + f.agronomo : ''}${f.fecha ? ', ' + f.fecha : ''}`\n  : 'Pendiente' + (f && f.solicitud ? ` (solicitud: ${f.solicitud})` : '');\nconst filaGrupo = (g) => `<tr><td>${esc(g.clase || 'sin clase')}${g.regla ? `<br><span class=\"peq\">Regla: ${esc(g.regla)}</span>` : ''}</td><td>${esc(g.reportes)}</td><td>${esc(VEREDICTO[g.veredicto] || g.veredicto)}</td><td class=\"peq\">${esc(g.razon || g.motivo || '—')}${g.distanciaCapturaM != null ? esc(` (a ~${g.distanciaCapturaM} m de la captura más cercana)`) : ''}</td><td class=\"peq\">${esc(revisionTexto(g.fitosanitario))}</td></tr>`;\nconst bloqueFitosanitario = `<h2>Sección fitosanitaria: celular frente a dron ${fito && fito.estado === 'verificado_por_agronomo' ? TIPO.med : TIPO.pen}</h2>${ra ? `<table class=\"meta\">${[\n  filaDato('Estado', ESTADO_FITO[fito && fito.estado] || 'Hipótesis sin verificar (no es un diagnóstico)'),\n  filaDato('Resumen', fito && fito.texto),\n  filaDato('Reportes evaluados', ra.total),\n  filaDato('Veredictos del dron', ra.resumen ? Object.entries(ra.resumen).map(([k, n]) => `${VEREDICTO[k] || k}: ${n}`).join('; ') : null),\n  filaDato('Entorno comparado', ra.radioEntornoM != null ? `radio ${num(ra.radioEntornoM, 1)} m (${ra.radioOrigen || ''})` : null),\n  filaDato('Motivos de lo no concluyente', ra.motivosNoConcluyente ? (Object.entries(ra.motivosNoConcluyente).map(([k, n]) => `${k}: ${n}`).join('; ') || 'ninguno') : null),\n].join('')}</table>${(ra.grupos || []).length ? `<table><thead><tr><th>Clase reportada</th><th>Reportes</th><th>Dron</th><th>Razón o motivo</th><th>Revisión del agrónomo</th></tr></thead><tbody>${ra.grupos.map(filaGrupo).join('')}</tbody></table>` : ''}${(ra.reglas || []).length ? `<p class=\"peq\">${esc(ra.reglas.map((r) => `Regla de zona ${r.tipo} v${r.version} (${r.estado}${r.calibrada ? '' : ', sin calibrar'})${r.fuente ? ': fuente ' + r.fuente : ': sin fuente citada'}`).join(' · '))}. ${esc(ra.notaReglas || '')}</p>` : ''}<ul>${li([...new Set([...avisosFito, ...(ra.avisos || [])])])}</ul>` : `<p>${esc('No se evaluó el respaldo de los reportes de la app en este análisis.')}</p><ul>${li(AVISOS_FITO)}</ul>`}`;\n\n// ---- Mapas y mapa esquemático ----\nconst mapasInforme = (() => { try { return $('Unir configuración').first().json.mapasInforme || []; } catch (e) { return []; } })();\nconst zonasGeo = ((completo && completo.analisis && completo.analisis.zonas) || zonas).filter((z) => Array.isArray(z.poligono) && z.poligono.length >= 3);\nconst huellas = Array.isArray(analisis.huellas) ? analisis.huellas : ((completo && completo.analisis && completo.analisis.huellas) || []);\nconst celdasCompletas = completo && completo.analisis && completo.analisis.correlacionApp && completo.analisis.correlacionApp.celdas; // `datos` va sin celdas (no se envían al modelo)\nconst celdasApp = Array.isArray(celdasCompletas) ? celdasCompletas : (ca && Array.isArray(ca.celdas) ? ca.celdas : []);\n\nconst imagenMapa = (m) => `<figure><img src=\"data:${esc(m.mime)};base64,${m.base64}\" alt=\"${esc(m.titulo)}\"><figcaption>${esc(m.titulo)}</figcaption></figure>`;\nconst leyendaIndice = '<div class=\"leyenda\"><span>−0,2</span><div class=\"barra\"></div><span>1,0</span><span class=\"peq\">&nbsp;Rojo: valor bajo · amarillo: intermedio (≈0,4) · verde: alto · gris: sin dato</span></div>';\nconst porCapturaMapas = new Map();\nfor (const m of mapasInforme) if (['NDVI', 'NDRE', 'GNDVI'].includes(m.indice)) { const n = m.titulo.split('captura')[1] || m.capturaId; porCapturaMapas.set(n, [...(porCapturaMapas.get(n) || []), m]); }\nconst ordenIdx = { NDVI: 0, NDRE: 1, GNDVI: 2 };\nconst bloqueMapasIndices = porCapturaMapas.size\n  ? `<h2>Mapas de vegetación por captura ${TIPO.med}</h2>${leyendaIndice}${[...porCapturaMapas.entries()].map(([n, ms]) => `<div class=\"fila-mapas\">${ms.sort((a, b) => ordenIdx[a.indice] - ordenIdx[b.indice]).map(imagenMapa).join('')}</div>`).join('')}\n<p class=\"peq\">NDVI: distribución del vigor. NDRE: sensible a cambios de clorofila (posibles alteraciones, sin causa). GNDVI: actividad vegetal. Cada mapa es <strong>una sola captura</strong>, no un mosaico del lote, y solo se muestran capturas cenitales. La escala de color es la misma para los tres índices.</p>`\n  : '';\n\nconst mosaicos = (() => { try { return $('Unir configuración').first().json.mosaicos || []; } catch (e) { return []; } })();\nconst svgMosaico = (m) => {\n  const px = (lat, lon) => [((lon - m.origenLon) * m.kx) / m.resM, ((m.origenLat - lat) * m.ky) / m.resM];\n  const zonasSvgM = zonasGeo.map((z) => { const q = z.poligono.map((v) => px(v[0], v[1])); const cx = q.reduce((s, v) => s + v[0], 0) / q.length; const cy = q.reduce((s, v) => s + v[1], 0) / q.length;\n    return `<polygon points=\"${q.map((v) => v.map((n) => n.toFixed(1)).join(',')).join(' ')}\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"5\"/><polygon points=\"${q.map((v) => v.map((n) => n.toFixed(1)).join(',')).join(' ')}\" fill=\"#b91c1c\" fill-opacity=\".18\" stroke=\"#b91c1c\" stroke-width=\"2.5\"/><text x=\"${cx.toFixed(1)}\" y=\"${(cy + 10).toFixed(1)}\" font-size=\"30\" font-weight=\"bold\" text-anchor=\"middle\" fill=\"#fff\" stroke=\"#7f1010\" stroke-width=\"1\">${esc(z.id)}</text>`; }).join('');\n  const candidatos = [5, 10, 20, 25, 50, 100, 200]; const barra = candidatos.filter((v) => v / m.resM < m.ancho * 0.28).pop() || 5; const largo = barra / m.resM; const bx = 40; const by = m.alto - 40;\n  return `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${m.ancho} ${m.alto}\" width=\"100%\" style=\"display:block;border:1px solid #d5e2da\"><image href=\"data:${esc(m.mime)};base64,${m.base64}\" width=\"${m.ancho}\" height=\"${m.alto}\"/>${zonasSvgM}\n<rect x=\"${bx - 14}\" y=\"${by - 46}\" width=\"${(largo + 28).toFixed(1)}\" height=\"68\" fill=\"#000\" fill-opacity=\".55\" rx=\"6\"/><line x1=\"${bx}\" y1=\"${by}\" x2=\"${(bx + largo).toFixed(1)}\" y2=\"${by}\" stroke=\"#fff\" stroke-width=\"5\"/><text x=\"${bx}\" y=\"${by - 12}\" font-size=\"28\" fill=\"#fff\">${barra} m</text>\n<g transform=\"translate(${m.ancho - 60},70)\"><circle r=\"42\" fill=\"#000\" fill-opacity=\".55\"/><path d=\"M0,-30 L12,14 L0,6 L-12,14 Z\" fill=\"#fff\"/><text y=\"34\" font-size=\"22\" text-anchor=\"middle\" fill=\"#fff\">N</text></g></svg>`;\n};\nconst bloqueMosaico = mosaicos.length\n  ? `<h2>Mosaico aproximado del vuelo ${TIPO.est}</h2>${leyendaIndice}${mosaicos.map((m) => `<div style=\"margin:8px 0;page-break-inside:avoid\"><div class=\"peq\"><strong>${esc(m.indice)}</strong> · ${esc(m.capturasUsadas)} capturas cenitales · ${esc(num(m.resM * 100, 1))} cm/píxel · el mosaico cubre ${esc(num(m.coberturaPct, 0))} % del rectángulo${m.capturasConGsdNominal ? ` · ${esc(m.capturasConGsdNominal)} capturas con GSD nominal` : ''}</div>${svgMosaico(m)}</div>`).join('')}\n<p class=\"peq\"><strong>Es un mosaico aproximado, no un ortomosaico:</strong> pega las capturas cenitales según el GPS RTK, la orientación y el tamaño de píxel, suponiendo terreno plano y sin corregir el relieve ni la lente, por lo que puede tener costuras y desplazamientos (más donde el terreno sube). Las capturas inclinadas no se usan. Las zonas críticas (rojo) se dibujan encima con la misma proyección; las zonas de capturas inclinadas no tienen ubicación. No hay polígono del lote: el borde del mosaico es la unión de las capturas, no el lindero.</p>`\n  : '';\nconst mapasCopas = mapasInforme.filter((m) => m.indice === 'COPAS');\nconst bloqueMapasCopas = mapasCopas.length\n  ? `<h2>Mapa de copas detectadas ${TIPO.est}</h2><div class=\"fila-mapas\">${mapasCopas.slice(0, 3).map(imagenMapa).join('')}</div>\n<p class=\"peq\">Sobre la banda NIR: círculo verde = copa detectada; naranja = copa marcada como fusionada. Sirve para revisar a simple vista el conteo experimental, que no está validado: puede marcar pasto brillante o follaje de otros árboles, y no distingue café de otras plantas.</p>`\n  : '';\n\nconst zonasSinMapa = (((completo && completo.analisis && completo.analisis.zonas) || zonas)).filter((z) => !(Array.isArray(z.poligono) && z.poligono.length >= 3));\nconst svgMapa = (() => {\n  if (!huellas.length && !zonasGeo.length) return '';\n  const pts = [...huellas.flatMap((h) => h.poligono), ...zonasGeo.flatMap((z) => z.poligono), ...celdasApp.map((c) => [c.lat, c.lon])];\n  if (!pts.length) return '';\n  const lat0 = pts.reduce((s, q) => s + q[0], 0) / pts.length;\n  const kx = 111320 * Math.cos(lat0 * Math.PI / 180); const ky = 111320;\n  const lonMin = Math.min(...pts.map((q) => q[1])); const latMax = Math.max(...pts.map((q) => q[0]));\n  let ox = 0; let oy = 0;\n  const xy = (q) => [(q[1] - lonMin) * kx - ox, (latMax - q[0]) * ky - oy];\n  const mitadCelda = (((ca && ca.ladoCeldaM) || 25) / 2);\n  const todos = [...pts.map(xy), ...celdasApp.flatMap((c) => { const [x, y] = xy([c.lat, c.lon]); return [[x - mitadCelda, y - mitadCelda], [x + mitadCelda, y + mitadCelda]]; })];\n  ox = Math.min(...todos.map((q) => q[0])); oy = Math.min(...todos.map((q) => q[1]));\n  const ancho = Math.max(Math.max(...todos.map((q) => q[0])) - ox, 30); const alto = Math.max(Math.max(...todos.map((q) => q[1])) - oy, 30);\n  const W = 640; const margen = 40; const esc2 = (W - 2 * margen) / ancho; const H = Math.min(520, Math.round(alto * esc2 + 2 * margen));\n  const f = Math.min(esc2, (H - 2 * margen) / alto);\n  const P = (q) => { const [x, y] = xy(q); return `${(margen + x * f).toFixed(1)},${(margen + y * f).toFixed(1)}`; };\n  const poli = (poligono, atrib) => `<polygon points=\"${poligono.map(P).join(' ')}\" ${atrib}/>`;\n  const lado = (celdasApp[0] && celdasApp[0].lado) || (ca && ca.ladoCeldaM) || 25;\n  const maxN = Math.max(1, ...celdasApp.map((c) => c.n));\n  const cuadros = celdasApp.map((c) => { const [x, y] = xy([c.lat, c.lon]); const s = lado * f; const op = (0.25 + 0.6 * c.n / maxN).toFixed(2);\n    return `<rect x=\"${(margen + x * f - s / 2).toFixed(1)}\" y=\"${(margen + y * f - s / 2).toFixed(1)}\" width=\"${s.toFixed(1)}\" height=\"${s.toFixed(1)}\" fill=\"#e07b00\" fill-opacity=\"${op}\" stroke=\"#a85a00\" stroke-width=\".6\"/><text x=\"${(margen + x * f).toFixed(1)}\" y=\"${(margen + y * f + 3).toFixed(1)}\" font-size=\"8\" text-anchor=\"middle\" fill=\"#3b2500\">${c.n}</text>`; }).join('');\n  const huellasSvg = huellas.map((h) => poli(h.poligono, h.analizada ? 'fill=\"#1f5f3f\" fill-opacity=\".14\" stroke=\"#1f5f3f\" stroke-width=\"1\"' : 'fill=\"#8a9a90\" fill-opacity=\".06\" stroke=\"#8a9a90\" stroke-width=\".6\"')).join('');\n  const zonasSvg = zonasGeo.map((z) => { const q = z.poligono.map(xy); const cx = q.reduce((s, v) => s + v[0], 0) / q.length; const cy = q.reduce((s, v) => s + v[1], 0) / q.length;\n    return poli(z.poligono, 'fill=\"#b91c1c\" fill-opacity=\".28\" stroke=\"#b91c1c\" stroke-width=\"1.6\"') + `<text x=\"${(margen + cx * f).toFixed(1)}\" y=\"${(margen + cy * f + 4).toFixed(1)}\" font-size=\"11\" font-weight=\"bold\" text-anchor=\"middle\" fill=\"#7f1010\">${esc(z.id)}</text>`; }).join('');\n  const candidatos = [10, 20, 25, 50, 100, 200, 500]; const barra = candidatos.filter((m) => m * f < W * 0.3).pop() || 10;\n  const bx = margen; const by = H - 10;\n  return `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${W} ${H}\" width=\"100%\" style=\"background:#f6f9f7;border:1px solid #d5e2da;border-radius:6px\">${huellasSvg}${cuadros}${zonasSvg}\n<g transform=\"translate(${W - 24},26)\"><path d=\"M0,-14 L6,6 L0,2 L-6,6 Z\" fill=\"#1d2a22\"/><text y=\"18\" font-size=\"10\" text-anchor=\"middle\" fill=\"#1d2a22\">N</text></g>\n<line x1=\"${bx}\" y1=\"${by}\" x2=\"${(bx + barra * f).toFixed(1)}\" y2=\"${by}\" stroke=\"#1d2a22\" stroke-width=\"2\"/><text x=\"${bx}\" y=\"${by - 4}\" font-size=\"9\" fill=\"#1d2a22\">${barra} m</text></svg>`;\n})();\nconst bloqueMapaEsquema = svgMapa\n  ? `<h2>Mapa esquemático: capturas, zonas críticas y registros de la app ${TIPO.est}</h2>${svgMapa}\n<p class=\"peq\">Contorno verde: huella de las capturas analizadas; gris: otras capturas del vuelo. Rojo: zonas críticas (Z1, Z2…). Naranja: registros de la app agrupados en celdas de ~25 m (el número es la cantidad; no se muestran puntos exactos). <strong>No hay mapa base ni mosaico:</strong> las huellas se calculan con el GPS RTK, la orientación y el tamaño de píxel suponiendo terreno plano, y no son el lindero del lote. Los registros de la app no se asocian a las zonas.${zonasSinMapa.length ? ` Sin ubicación en el mapa (captura no cenital o sin georreferencia): ${zonasSinMapa.map((z) => esc(z.id)).join(', ')}.` : ''}</p>`\n  : '';\n\nconst bloqueEstado = `<h2>Qué es cada resultado</h2><table><thead><tr><th>${TIPO.med}</th><th>${TIPO.est}</th><th>${TIPO.pen}</th></tr></thead><tbody><tr>\n<td class=\"peq\">Índices NDVI, NDRE y GNDVI y sus porcentajes por clase de vigor; cobertura vegetal; ficha del vuelo; variabilidad espacial; cercanía de registros de la app.</td>\n<td class=\"peq\">Conteo y densidad de copas (sin validar, error observado de −19 % a +46 %); ubicación y área de las zonas y huellas (terreno plano); densidad teórica según un marco de siembra provisional.</td>\n<td class=\"peq\">Diagnóstico de enfermedades, plagas o deficiencias (requiere campo); incidencia registrada en la app (no se guarda en el servidor); evolución entre fechas; proyección.</td></tr></tbody></table>`;\n\nconst html = `<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>${esc(informe.titulo)}</title><style>\n  @page { size: A4; margin: 16mm 14mm; }\n  * { box-sizing: border-box; }\n  body { font-family: \"Liberation Sans\", Arial, Helvetica, sans-serif; color: #1d2a22; font-size: 10.5pt; line-height: 1.45; margin: 0; }\n  header { background: #1f5f3f; color: #fff; padding: 14px 18px; border-radius: 8px; }\n  header .marca { font-size: 9pt; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }\n  header h1 { margin: 4px 0 0; font-size: 18pt; }\n  h2 { break-after: avoid; font-size: 12.5pt; color: #1f5f3f; border-bottom: 1px solid #cfe0d5; padding-bottom: 3px; margin: 20px 0 8px; }\n  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }\n  th, td { border: 1px solid #d5e2da; padding: 5px 7px; text-align: left; vertical-align: top; }\n  thead th { background: #eef5f0; }\n  table.meta th { width: 30%; background: #eef5f0; }\n  .n { text-align: right; white-space: nowrap; }\n  .peq { font-size: 8.5pt; color: #5b6b61; }\n  .sev { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 8.5pt; font-weight: bold; color: #fff; background: #6b7280; }\n  .sev-alta { background: #b91c1c; } .sev-media { background: #c2620a; } .sev-baja { background: #a16207; } .sev-informativa { background: #2563eb; }\n  .hallazgo { border-left: 3px solid #1f5f3f; padding: 2px 0 2px 10px; margin: 8px 0; page-break-inside: avoid; }\n  .hallazgo p { margin: 3px 0 0; }\n  .revisar { border: 1px solid #c2620a; background: #fff4e5; border-radius: 6px; padding: 8px 12px; margin: 14px 0; }\n  .revisar ul { margin: 4px 0 0 18px; padding: 0; }\n  ul { margin: 4px 0 0 18px; padding: 0; }\n  .tipo { display: inline-block; font-size: 7.5pt; font-weight: bold; padding: 1px 7px; border-radius: 999px; vertical-align: middle; color: #fff; }\n  .tipo-med { background: #1f5f3f; } .tipo-est { background: #c2620a; } .tipo-pen { background: #6b7280; }\n  .fila-mapas { display: flex; gap: 6px; margin: 6px 0; page-break-inside: avoid; }\n  .fila-mapas figure { flex: 1; margin: 0; min-width: 0; } .fila-mapas img { width: 100%; display: block; border: 1px solid #d5e2da; }\n  figcaption { font-size: 8pt; color: #5b6b61; text-align: center; }\n  .leyenda { display: flex; align-items: center; gap: 6px; font-size: 8.5pt; margin: 4px 0; } .leyenda .barra { width: 120px; height: 9px; background: linear-gradient(90deg,#a50026,#ffffbf,#006837); border: 1px solid #cfe0d5; }\n  footer { margin-top: 22px; padding-top: 8px; border-top: 1px solid #cfe0d5; font-size: 8.5pt; color: #5b6b61; }\n</style></head><body>\n<header><div class=\"marca\">AgroVisión · Análisis multiespectral</div><h1>${esc(informe.titulo)}</h1></header>\n${aviso}\n<h2>Datos del vuelo</h2><table class=\"meta\">${meta}</table>\n<h2>Resumen ejecutivo</h2><p>${esc(decimales(informe.resumenEjecutivo))}</p>\n${bloqueEstado}\n<h2>Índices de vegetación</h2>\n<table><thead><tr><th>Índice</th><th>Media</th><th>Mediana</th><th>P10</th><th>P90</th><th>Desviación</th><th>CV</th><th>Umbral</th><th>Área bajo el umbral</th></tr></thead><tbody>${filasIndices}</tbody></table>\n<p class=\"peq\">El «área bajo el umbral» es el porcentaje de píxeles de las capturas con valor bajo el umbral: no es el porcentaje de plantas afectadas ni enfermas.</p>\n${lecturas ? `<div style=\"margin-top:8px\">${lecturas}</div>` : ''}\n${bloqueVigor}\n${bloqueMosaico}\n${bloqueMapasIndices}\n${bloqueLote}\n${bloqueFicha}\n${bloqueCopas}\n${bloqueMapasCopas}\n${bloqueVariabilidad}\n${bloqueCorrelacion}\n${bloqueFitosanitario}\n${filasZonas ? `<h2>Zonas identificadas ${TIPO.est}</h2><table><thead><tr><th>Zona</th><th>Descripción</th><th>Severidad</th><th>Índices bajo el umbral</th><th>Valor mínimo</th><th>Centroide de la zona</th><th>Área (m²)</th></tr></thead><tbody>${filasZonas}</tbody></table>` : ''}\n${bloqueMapaEsquema}\n${hallazgos ? `<h2>Hallazgos</h2>${hallazgos}` : ''}\n${observaciones.length ? `<h2>Observaciones del análisis de imágenes</h2><ul>${li(observaciones)}</ul>` : ''}\n${informe.recomendaciones.length ? `<h2>Verificaciones recomendadas en campo</h2><ul>${li(informe.recomendaciones)}</ul>` : ''}\n${limitaciones.length ? `<h2>Limitaciones</h2><ul>${li(limitaciones)}</ul>` : ''}\n<footer>Informe generado automáticamente con apoyo de inteligencia artificial a partir de imágenes multiespectrales. Es información de apoyo: un agrónomo debe revisarla antes de tomar decisiones de manejo. Los índices indican vigor de la vegetación y no identifican por sí solos una causa. · Generado el ${esc(fechaLarga(new Date().toISOString()))} · Ref. ${esc(secreto.slice(0, 8))}</footer>\n</body></html>`;\n\nconst binario = await this.helpers.prepareBinaryData(Buffer.from(html, 'utf8'), 'index.html', 'text/html');\n\nreturn [{\n  json: { informeId, archivo, enlace, expiraEn: expira.toISOString(), advertencias, consumo },\n  binary: { data: binario },\n}];"
+      },
+      "id": "edcbbb29-d7ab-5748-b012-28d581d14449",
+      "name": "Armar HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://gotenberg:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "paperWidth",
+              "value": "8.27"
+            },
+            {
+              "name": "paperHeight",
+              "value": "11.7"
+            },
+            {
+              "name": "marginTop",
+              "value": "0.4"
+            },
+            {
+              "name": "marginBottom",
+              "value": "0.4"
+            },
+            {
+              "name": "marginLeft",
+              "value": "0.4"
+            },
+            {
+              "name": "marginRight",
+              "value": "0.4"
+            },
+            {
+              "name": "printBackground",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "pdf"
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "id": "d19ac3a8-e835-521f-ac40-116ff6c92fa0",
+      "name": "HTML a PDF (Gotenberg)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2070,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/informes/{{ $('Armar HTML').item.json.archivo }}",
+        "dataPropertyName": "pdf",
+        "options": {}
+      },
+      "id": "d455bb39-02dd-52c6-bb9c-bbb78c4b7d83",
+      "name": "Guardar PDF",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        2300,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $('Armar HTML').first().json;\nreturn [{ json: { ok: true, informeId: a.informeId, archivo: a.archivo, enlace: a.enlace, expiraEn: a.expiraEn, advertencias: a.advertencias, consumo: a.consumo } }];"
+      },
+      "id": "35b666c6-ff08-53c1-9755-029c29e8c7d7",
+      "name": "Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2530,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Flujo 03 · Informe PDF (modelo 3: redacción)\n\n**Dos formas de entrar:** desde otro flujo (con `vueloId`, o con `vuelo` y `analisis` ya hechos) o a mano con **Execute workflow**, que usa los *Datos de prueba* inventados.\n\n**Configuración**: aquí cambias el modelo, el esfuerzo de razonamiento, el máximo de tokens y la URL pública de los enlaces. Para pruebas usa el modelo barato (`glm-5p3-flash`); para el informe final cambia a `accounts/fireworks/models/glm-5p3`.",
+        "height": 190,
+        "width": 760,
+        "color": 4
+      },
+      "id": "e220b86f-cd3c-5576-a6ed-9f8fcf25c8a4",
+      "name": "Nota 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -330
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**¿Trae el análisis?** Si no, llama al flujo 02 para calcularlo y vuelve.\n\n**Validar y preparar**: comprueba la entrada y arma las instrucciones para el modelo (sin productos ni dosis, sin inventar cifras).",
+        "height": 170,
+        "width": 420,
+        "color": 4
+      },
+      "id": "2dfb338d-5d85-5386-821a-2fe089b335eb",
+      "name": "Nota 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        700,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Redactar informe**: llama a Fireworks y pide un JSON. **Interpretar respuesta** valida ese JSON y **revisa que cada cifra del texto exista en los datos**; si no, lo anota en `advertencias`.\n\n**Armar HTML → Gotenberg → Guardar PDF**: el HTML se convierte en PDF y se guarda en `/informes` con un nombre imposible de adivinar. **Resultado** devuelve el enlace (lo atiende el flujo 04).",
+        "height": 210,
+        "width": 640,
+        "color": 4
+      },
+      "id": "a36f93b6-a58b-5969-bdef-40deed643a5d",
+      "name": "Nota 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        -190
+      ]
+    }
+  ],
+  "connections": {
+    "Entrada (otro flujo)": {
+      "main": [
+        [
+          {
+            "node": "Configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrada manual (pruebas)": {
+      "main": [
+        [
+          {
+            "node": "Datos de prueba",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos de prueba": {
+      "main": [
+        [
+          {
+            "node": "Configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuración": {
+      "main": [
+        [
+          {
+            "node": "¿Trae el análisis?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Trae el análisis?": {
+      "main": [
+        [
+          {
+            "node": "Validar y preparar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analizar vuelo (flujo 02)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analizar vuelo (flujo 02)": {
+      "main": [
+        [
+          {
+            "node": "Unir configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unir configuración": {
+      "main": [
+        [
+          {
+            "node": "Validar y preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar y preparar": {
+      "main": [
+        [
+          {
+            "node": "Redactar informe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar informe": {
+      "main": [
+        [
+          {
+            "node": "Interpretar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Armar HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar HTML": {
+      "main": [
+        [
+          {
+            "node": "HTML a PDF (Gotenberg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML a PDF (Gotenberg)": {
+      "main": [
+        [
+          {
+            "node": "Guardar PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar PDF": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "errorWorkflow": "VkqK2eaZLtDW7QYz"
+  }
+}

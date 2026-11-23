@@ -62,6 +62,8 @@ describe("Plagas - casos de uso", () => {
             findAll: () => Promise.resolve([]),
             existeNombreCientifico: () => Promise.resolve(existeNombre),
             guardar,
+            eliminar: jest.fn(),
+            fotoEnUso: jest.fn(),
         };
         agronomos = { findByUsuarioId: () => Promise.resolve(agronomo) } as unknown as IAgronomoRepository;
         almacenamiento = {
@@ -69,6 +71,7 @@ describe("Plagas - casos de uso", () => {
             eliminarPublico,
             guardarPrivado: jest.fn(),
             leerPrivado: jest.fn(),
+            abrirLecturaPrivada: jest.fn(),
             eliminarPrivado: jest.fn(),
         };
         obtener = new ObtenerPlagaService(repositorio);

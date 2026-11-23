@@ -2,7 +2,7 @@ import type { RolUsuario } from "../../entities/usuario.entity";
 
 export interface SolicitarOtpCommand {
     telefono: string;
-    // Opcional: el panel lo envía (agrónomo/admin); la app móvil de productores puede omitirlo
+    // Solo la app móvil envía productor para permitir el registro inicial.
     rolSeleccionado?: RolUsuario;
 }
 

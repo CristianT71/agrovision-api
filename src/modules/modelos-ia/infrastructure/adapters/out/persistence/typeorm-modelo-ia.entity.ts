@@ -55,6 +55,9 @@ export class TypeOrmModeloIaEntity {
     @Column({ name: "numero_clases", type: "int", nullable: true })
     numeroClases: number | null;
 
+    @Column({ type: "jsonb", nullable: true })
+    clases: string[] | null;
+
     // Copia de la regla del dominio (publicado y sin kill-switch) para poder filtrar en SQL
     @Column({ type: "boolean", default: false })
     activo: boolean;

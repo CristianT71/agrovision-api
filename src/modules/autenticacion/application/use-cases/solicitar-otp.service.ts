@@ -1,18 +1,35 @@
-import { Inject, Injectable, ForbiddenException, HttpException, HttpStatus, NotFoundException } from "@nestjs/common";
+import {
+    Inject,
+    Injectable,
+    Optional,
+    ForbiddenException,
+    HttpException,
+    HttpStatus,
+    NotFoundException,
+} from "@nestjs/common";
 import { randomInt } from "node:crypto";
 import { ISolicitarOtpUseCase, SolicitarOtpCommand } from "../../domain/ports/in/solicitar-otp.port";
 import { USUARIO_REPOSITORY, type IUsuarioRepository } from "../../domain/ports/out/usuario.repository";
 import { SESION_OTP_REPOSITORY, type ISesionOtpRepository } from "../../domain/ports/out/sesion-otp.repository";
 import { SMS_SERVICE, type ISmsService } from "../../domain/ports/out/sms.service";
-import { Usuario } from "../../domain/entities/usuario.entity";
+import { Usuario, type RolUsuario } from "../../domain/entities/usuario.entity";
 import { SesionOtp } from "../../domain/entities/sesion-otp.entity";
 import { v4 as uuidv4 } from "uuid";
+import { PresupuestoRegistrosOtp } from "./presupuesto-registros-otp";
+import { ColaPorClave } from "../../../../common/utils/cola-por-clave";
+import { CODIGOS_FIJOS, type CodigosFijos } from "./codigos-fijos";
 
 const SEGUNDOS_ENTRE_SOLICITUDES = 30;
 const MINUTOS_VIGENCIA_OTP = 5;
+export const MAX_CODIGOS_POR_VENTANA = 5;
+export const MINUTOS_VENTANA_CODIGOS = 60;
 
 @Injectable()
 export class SolicitarOtpService implements ISolicitarOtpUseCase {
+    // Las comprobaciones de espera y tope, y el guardado del código, van en serie por cuenta: en paralelo
+    // todas verían el mismo estado y pasarían (más códigos y SMS de los permitidos)
+    private readonly porCuenta = new ColaPorClave();
+
     constructor(
         @Inject(USUARIO_REPOSITORY)
         private readonly usuarioRepository: IUsuarioRepository,
@@ -20,6 +37,13 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         private readonly sesionOtpRepository: ISesionOtpRepository,
         @Inject(SMS_SERVICE)
         private readonly smsService: ISmsService,
+        // Instancia propia por servicio: el cupo se comparte entre todas las peticiones del proceso
+        @Optional()
+        private readonly presupuestoRegistros = new PresupuestoRegistrosOtp(),
+        // Solo existe con SMS_PROVIDER=fijo (demostración): el código sale del rol de la cuenta, no del azar
+        @Optional()
+        @Inject(CODIGOS_FIJOS)
+        private readonly codigosFijos?: CodigosFijos | null,
     ) {}
 
     async ejecutar(comando: SolicitarOtpCommand): Promise<{ mensaje: string; esperaSegundos: number }> {
@@ -29,16 +53,18 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
         //    las cuentas de agrónomo y administrador nacen por su propio flujo (RF-01.6)
         let usuario = await this.usuarioRepository.findByTelefono(telefono);
         if (!usuario) {
-            if (rolSeleccionado && rolSeleccionado !== "productor") {
+            if (rolSeleccionado !== "productor") {
                 throw new NotFoundException(
-                    "No hay una cuenta registrada con este número. Si eres agrónomo, solicita acceso.",
+                    "No hay una cuenta registrada con este número. Si eres agricultor, ingresa desde la app móvil.",
                 );
             }
+
+            // Antes de crear la cuenta (y gastar un SMS en un número desconocido): tope global por hora
+            this.presupuestoRegistros.consumir(telefono);
 
             usuario = Usuario.registrarProductor(uuidv4(), telefono);
             await this.usuarioRepository.guardar(usuario);
         } else if (rolSeleccionado && !usuario.tieneRol(rolSeleccionado)) {
-            // RF-01.2: se avisa antes de enviar un código que de todos modos sería rechazado
             throw new ForbiddenException("El rol seleccionado no corresponde a esta cuenta.");
         } else if (usuario.estado === "pendiente") {
             throw new ForbiddenException("Tu cuenta está pendiente de validación por un administrador.");
@@ -46,8 +72,20 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
             throw new ForbiddenException("La cuenta asociada a este número no está activa.");
         }
 
+        const usuarioId = usuario.id;
+        const rol = usuario.rol;
+        const codigoOtp = await this.porCuenta.ejecutar(usuarioId, () => this.reservarCodigo(usuarioId, rol));
+
+        // 4. Enviar mediante el puerto SMS (Twilio/Zavu/Logger), ya con el código guardado
+        await this.smsService.enviarOtp(telefono, codigoOtp);
+
+        return { mensaje: "Código OTP enviado exitosamente.", esperaSegundos: SEGUNDOS_ENTRE_SOLICITUDES };
+    }
+
+    // Comprueba la espera y el tope de la cuenta y guarda un código nuevo. Devuelve el código.
+    private async reservarCodigo(usuarioId: string, rol: RolUsuario): Promise<string> {
         // 2. Verificar la regla de los 30 segundos (RF-01.5)
-        const ultimaSesion = await this.sesionOtpRepository.findUltimaPorUsuarioId(usuario.id);
+        const ultimaSesion = await this.sesionOtpRepository.findUltimaPorUsuarioId(usuarioId);
         if (ultimaSesion && !ultimaSesion.puedeSolicitarNuevoOtp(SEGUNDOS_ENTRE_SOLICITUDES)) {
             const restantes = ultimaSesion.segundosRestantesParaNuevoOtp(SEGUNDOS_ENTRE_SOLICITUDES);
             throw new HttpException(
@@ -56,20 +94,28 @@ export class SolicitarOtpService implements ISolicitarOtpUseCase {
             );
         }
 
+        // 2b. Tope por cuenta: cada código nuevo reinicia sus 5 intentos, así que sin esto se podría
+        //     adivinar uno a base de pedir códigos. Con 5 por hora quedan como mucho 25 intentos por hora.
+        const hace1Hora = new Date(Date.now() - MINUTOS_VENTANA_CODIGOS * 60 * 1000);
+        if ((await this.sesionOtpRepository.contarDesde(usuarioId, hace1Hora)) >= MAX_CODIGOS_POR_VENTANA) {
+            throw new HttpException(
+                "Se pidieron demasiados códigos para este número. Intenta de nuevo en una hora.",
+                HttpStatus.TOO_MANY_REQUESTS,
+            );
+        }
+
         // 3. Generar código numérico de 6 dígitos con un generador criptográfico
-        const codigoOtp = randomInt(0, 1_000_000).toString().padStart(6, "0");
+        //    (en demostración, con SMS_PROVIDER=fijo, es el código fijo del rol de la cuenta)
+        const codigoOtp = this.codigosFijos?.para(rol) ?? randomInt(0, 1_000_000).toString().padStart(6, "0");
 
         const nuevaSesion = SesionOtp.crear({
             id: uuidv4(),
-            usuarioId: usuario.id,
+            usuarioId,
             codigo: codigoOtp,
             minutosVigencia: MINUTOS_VIGENCIA_OTP,
         });
         await this.sesionOtpRepository.guardar(nuevaSesion);
 
-        // 4. Enviar mediante el puerto SMS (Twilio/Zavu/Logger)
-        await this.smsService.enviarOtp(telefono, codigoOtp);
-
-        return { mensaje: "Código OTP enviado exitosamente.", esperaSegundos: SEGUNDOS_ENTRE_SOLICITUDES };
+        return codigoOtp;
     }
 }

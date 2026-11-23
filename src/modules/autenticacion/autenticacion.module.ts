@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Logger, Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { JwtModule } from "@nestjs/jwt";
@@ -10,19 +10,28 @@ import { TypeOrmUsuarioRepository } from "./infrastructure/adapters/out/persiste
 import { TypeOrmSesionOtpRepository } from "./infrastructure/adapters/out/persistence/typeorm-sesion-otp.repository";
 import { TypeOrmSesionUsuarioEntity } from "./infrastructure/adapters/out/persistence/typeorm-sesion-usuario.entity";
 import { TypeOrmSesionUsuarioRepository } from "./infrastructure/adapters/out/persistence/typeorm-sesion-usuario.repository";
-//import { ZavuSmsAdapter } from "./infrastructure/adapters/out/sms/zavu-sms.adapter";
+import { ZavuSmsAdapter } from "./infrastructure/adapters/out/sms/zavu-sms.adapter";
+import { elegirProveedorSms } from "./infrastructure/adapters/out/sms/proveedor-sms";
 import { LoggerSmsAdapter } from "./infrastructure/adapters/out/sms/logger-sms.adapter";
+import { FijoSmsAdapter } from "./infrastructure/adapters/out/sms/fijo-sms.adapter";
+import { CODIGOS_FIJOS, leerCodigosFijos, type CodigosFijos } from "./application/use-cases/codigos-fijos";
 import { AuthController } from "./infrastructure/adapters/in/http/auth.controller";
 import { JwtStrategy } from "./infrastructure/adapters/in/http/strategies/jwt.strategy";
 import { USUARIO_REPOSITORY } from "./domain/ports/out/usuario.repository";
 import { SESION_OTP_REPOSITORY } from "./domain/ports/out/sesion-otp.repository";
 import { SESION_USUARIO_REPOSITORY } from "./domain/ports/out/sesion-usuario.repository";
 import { SMS_SERVICE } from "./domain/ports/out/sms.service";
+import { POLITICA_DATOS_REPOSITORY } from "./domain/ports/out/politica-datos.repository";
+import { TypeOrmPoliticaDatosRepository } from "./infrastructure/adapters/out/persistence/typeorm-politica-datos.repository";
 
 import { SolicitarOtpService } from "./application/use-cases/solicitar-otp.service";
 import { ValidarOtpService } from "./application/use-cases/validar-otp.service";
 import { SesionesService } from "./application/use-cases/sesiones.service";
+import { PoliticaDatosService } from "./application/use-cases/politica-datos.service";
 import { AgronomosModule } from "../agronomos/agronomos.module";
+import { AjustesModule } from "../ajustes/ajustes.module";
+import { POLITICA_SESION } from "./domain/ports/out/politica-sesion.port";
+import { AjustesPoliticaSesionAdapter } from "./infrastructure/adapters/out/ajustes/ajustes-politica-sesion.adapter";
 
 @Module({
     imports: [
@@ -31,6 +40,8 @@ import { AgronomosModule } from "../agronomos/agronomos.module";
         TypeOrmModule.forFeature([TypeOrmUsuarioEntity, TypeOrmSesionOtpEntity, TypeOrmSesionUsuarioEntity]),
         // El login consulta el estado del agrónomo (RF-10.5)
         AgronomosModule,
+        // La inactividad permitida en el panel sale de los ajustes del sistema
+        AjustesModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
@@ -46,10 +57,19 @@ import { AgronomosModule } from "../agronomos/agronomos.module";
         SolicitarOtpService,
         ValidarOtpService,
         SesionesService,
+        PoliticaDatosService,
         JwtStrategy,
+        {
+            provide: POLITICA_SESION,
+            useClass: AjustesPoliticaSesionAdapter,
+        },
         {
             provide: USUARIO_REPOSITORY,
             useClass: TypeOrmUsuarioRepository,
+        },
+        {
+            provide: POLITICA_DATOS_REPOSITORY,
+            useClass: TypeOrmPoliticaDatosRepository,
         },
         {
             provide: SESION_OTP_REPOSITORY,
@@ -61,7 +81,43 @@ import { AgronomosModule } from "../agronomos/agronomos.module";
         },
         {
             provide: SMS_SERVICE,
-            useClass: LoggerSmsAdapter,
+            inject: [ConfigService],
+            // SMS_PROVIDER=log escribe el código en la consola (desarrollo); SMS_PROVIDER=zavu lo envía de verdad.
+            // Una configuración inválida tumba el arranque, no el primer intento de login.
+            useFactory: (configService: ConfigService) => {
+                const proveedor = elegirProveedorSms({
+                    proveedor: configService.get<string>("SMS_PROVIDER"),
+                    nodeEnv: process.env.NODE_ENV,
+                    zavuApiKey: configService.get<string>("ZAVU_API_KEY"),
+                });
+
+                if (proveedor === "zavu") return new ZavuSmsAdapter(configService);
+
+                if (proveedor === "fijo") {
+                    new Logger("AutenticacionModule").warn(
+                        "SMS_PROVIDER=fijo: el acceso usa un código fijo por rol (demostración). Úsalo solo con datos de prueba.",
+                    );
+                    return new FijoSmsAdapter();
+                }
+
+                new Logger("AutenticacionModule").warn(
+                    "SMS_PROVIDER=log: los códigos OTP se escriben en la consola. Úsalo solo en desarrollo.",
+                );
+                return new LoggerSmsAdapter();
+            },
+        },
+        {
+            // null salvo con SMS_PROVIDER=fijo; leerCodigosFijos falla al arrancar si falta un código
+            provide: CODIGOS_FIJOS,
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService): CodigosFijos | null =>
+                configService.get<string>("SMS_PROVIDER")?.trim().toLowerCase() === "fijo"
+                    ? leerCodigosFijos({
+                          admin: configService.get<string>("OTP_FIJO_ADMIN"),
+                          agronomo: configService.get<string>("OTP_FIJO_AGRONOMO"),
+                          productor: configService.get<string>("OTP_FIJO_PRODUCTOR"),
+                      })
+                    : null,
         },
     ],
     exports: [SolicitarOtpService, ValidarOtpService, JwtModule, PassportModule],

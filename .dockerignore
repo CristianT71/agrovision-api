@@ -1,0 +1,12 @@
+node_modules
+dist
+uploads
+postgres
+.env
+.env.*
+!.env.example
+.git
+n8n/data
+test
+docs
+*.log

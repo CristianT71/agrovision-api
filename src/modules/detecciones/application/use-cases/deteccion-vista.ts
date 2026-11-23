@@ -23,6 +23,7 @@ export function aDeteccionVista(leida: DeteccionLeida): DeteccionVista {
         organo: d.organo,
         latitud: d.latitud,
         longitud: d.longitud,
+        precisionMetros: d.precisionMetros,
         fecha: d.fecha,
         recibidaEn: d.recibidaEn,
         defectuosa: d.defectuosa,

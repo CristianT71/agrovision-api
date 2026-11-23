@@ -42,13 +42,18 @@ export class SesionUsuario {
         return Math.round((this.expiraEn.getTime() - this.creadaEn.getTime()) / 1000);
     }
 
-    // Devuelve por qué la sesión ya no sirve, o null si sigue vigente
-    public motivoInvalida(ahora = new Date()): MotivoSesionInvalida | null {
+    // Devuelve por qué la sesión ya no sirve, o null si sigue vigente.
+    // minutosInactividadPanel es lo que configuró el administrador para el panel; la app del productor no lo usa.
+    public motivoInvalida(ahora = new Date(), minutosInactividadPanel?: number): MotivoSesionInvalida | null {
         if (this.revocadaEn) return "cerrada";
         if (ahora >= this.expiraEn) return "vencida";
 
         const inactivoMs = ahora.getTime() - this.ultimaActividad.getTime();
-        if (inactivoMs > MINUTOS_INACTIVIDAD[this.rol] * 60 * 1000) return "inactividad";
+        const minutos =
+            this.rol === "productor" || minutosInactividadPanel === undefined
+                ? MINUTOS_INACTIVIDAD[this.rol]
+                : minutosInactividadPanel;
+        if (inactivoMs > minutos * 60 * 1000) return "inactividad";
 
         return null;
     }

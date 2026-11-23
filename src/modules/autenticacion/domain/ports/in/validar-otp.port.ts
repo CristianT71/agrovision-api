@@ -1,9 +1,10 @@
-import { RolUsuario } from "../../entities/usuario.entity";
+import type { RolUsuario } from "../../entities/usuario.entity";
 
 export interface ValidarOtpCommand {
     telefono: string;
     codigo: string;
-    rolSeleccionado: RolUsuario;
+    // El panel lo omite; la app móvil lo usa para confirmar el flujo de productor.
+    rolSeleccionado?: RolUsuario;
 }
 
 export interface RespuestaAutenticacion {

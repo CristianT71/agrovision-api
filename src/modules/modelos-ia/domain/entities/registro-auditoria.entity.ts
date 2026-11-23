@@ -1,7 +1,7 @@
 import { ReglaNegocioError } from "../../../../common/errors/regla-negocio.error";
 
 // Eventos que dejan rastro en la vida de un modelo (RF-09.4)
-export const ACCIONES_AUDITORIA = ["subida", "metricas", "cambio_canal", "kill_switch"] as const;
+export const ACCIONES_AUDITORIA = ["subida", "artefactos", "metricas", "cambio_canal", "kill_switch"] as const;
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];
 
 // Entrada inmutable del log de auditoría de modelos (RF-09.4, RNF-01.2): operador, estampa de tiempo

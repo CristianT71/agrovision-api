@@ -68,6 +68,7 @@ describe("Tablero de resoluciones (RF-06.5 a RF-06.7)", () => {
         let contarResueltasPorTipo: jest.Mock<Promise<{ tipo: string | null; casos: number }[]>, [VentanaTiempo]>;
         let contarPlagaNuevaDesde: jest.Mock<Promise<number>, [Date]>;
         let servicio: ResumirResolucionesService;
+        let umbralConfigurado = 5;
 
         beforeEach(() => {
             jest.useFakeTimers({ now: AHORA });
@@ -90,7 +91,8 @@ describe("Tablero de resoluciones (RF-06.5 a RF-06.7)", () => {
                 listarPlagaNueva: () => Promise.resolve([plagaNueva("s-9", new Date("2026-10-05T02:00:00Z"))]),
                 contarPlagaNuevaDesde,
             } as unknown as ILecturaSolicitudes;
-            servicio = new ResumirResolucionesService(lectura);
+            umbralConfigurado = 5;
+            servicio = new ResumirResolucionesService(lectura, { obtener: () => Promise.resolve(umbralConfigurado) });
         });
 
         afterEach(() => {
@@ -119,6 +121,14 @@ describe("Tablero de resoluciones (RF-06.5 a RF-06.7)", () => {
             expect(resumen.porTipo).toHaveLength(5);
             expect(resumen.porTipo).toContainEqual({ tipo: "Planta sana", casos: 0 });
             expect(resumen.porTipo).toContainEqual({ tipo: "Plaga nueva", casos: 3 });
+        });
+
+        it("usa el umbral configurado para activar la alerta", async () => {
+            umbralConfigurado = 8;
+
+            const { plagasNuevas } = await servicio.ejecutar(ADMIN, {});
+
+            expect(plagasNuevas).toMatchObject({ umbral: 8, casosUltimaSemana: 5, alertaActiva: false });
         });
 
         it("cuenta la última semana desde ahora y activa la alerta en el umbral", async () => {

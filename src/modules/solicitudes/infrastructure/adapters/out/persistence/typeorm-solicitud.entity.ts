@@ -5,6 +5,9 @@ import { TypeOrmAgronomoEntity } from "../../../../../agronomos/infrastructure/a
 // RNF-03.1: la bandeja filtra por estado y ordena por fecha DESC. (estado, fecha DESC) no se puede declarar aquí:
 // el índice lo crea la migración IndexarBandejaSolicitudes y synchronize: false evita que se intente recrear.
 @Index("IDX_solicitudes_estado_fecha", { synchronize: false })
+// El mapa de casos filtra por (estado, fecha) solo entre las solicitudes con ubicación: índice parcial que crea la
+// migración AgregarAltitudUbicacionSolicitudes.
+@Index("IDX_solicitudes_mapa_estado_fecha", { synchronize: false })
 @Entity("solicitudes")
 export class TypeOrmSolicitudEntity {
     @PrimaryColumn("uuid")
@@ -99,6 +102,30 @@ export class TypeOrmSolicitudEntity {
 
     @Column({ name: "precision_metros", type: "real", nullable: true })
     precisionMetros: number | null;
+
+    // Metros sobre el nivel del mar. numeric llega como texto desde pg: el transformer lo devuelve como número.
+    @Column({
+        name: "altitud_msnm",
+        type: "numeric",
+        precision: 7,
+        scale: 2,
+        nullable: true,
+        transformer: {
+            to: (valor: number | null) => valor,
+            from: (valor: string | null) => (valor === null ? null : Number(valor)),
+        },
+    })
+    altitudMsnm: number | null;
+
+    // servicio = la consultó el servidor; gps = la midió el celular
+    @Column({ name: "altitud_origen", type: "varchar", length: 10, nullable: true })
+    altitudOrigen: string | null;
+
+    @Column({ name: "ubicacion_simulada", type: "boolean", default: false })
+    ubicacionSimulada: boolean;
+
+    @Column({ name: "ubicacion_exacta", type: "boolean", default: false })
+    ubicacionExacta: boolean;
 
     // La app sincroniza con ?since=: toda escritura (save o update) lo renueva.
     // Con zona horaria porque lo fija now() en la base y se compara con un instante de la app.

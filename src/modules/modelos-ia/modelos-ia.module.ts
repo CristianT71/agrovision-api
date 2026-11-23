@@ -20,6 +20,7 @@ import { CONSULTA_ADOPCION } from "./domain/ports/out/consulta-adopcion.port";
 
 // Casos de uso
 import { SubirModeloService } from "./application/use-cases/subir-modelo.service";
+import { CompletarArtefactosService } from "./application/use-cases/completar-artefactos.service";
 import { ListarModelosService } from "./application/use-cases/listar-modelos.service";
 import { ObtenerModeloService } from "./application/use-cases/obtener-modelo.service";
 import { RegistrarMetricasService } from "./application/use-cases/registrar-metricas.service";
@@ -40,6 +41,7 @@ import { DescargarArtefactoService } from "./application/use-cases/descargar-art
     controllers: [ModelosController, ManifiestoModelosController],
     providers: [
         SubirModeloService,
+        CompletarArtefactosService,
         ListarModelosService,
         ObtenerModeloService,
         RegistrarMetricasService,

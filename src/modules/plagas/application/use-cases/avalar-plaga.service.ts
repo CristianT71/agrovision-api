@@ -27,7 +27,9 @@ export class AvalarPlagaService implements IAvalarPlagaUseCase {
         }
 
         // La tarjeta se copia del registro del agrónomo: queda como evidencia de la firma
-        plaga.registrarAval(new AvalPlaga(uuidv4(), agronomo.id, agronomo.tarjetaProfesional, new Date()));
+        plaga.registrarAval(
+            new AvalPlaga(uuidv4(), agronomo.id, agronomo.tarjetaProfesional, new Date(), agronomo.nombre),
+        );
 
         return await this.plagaRepository.guardar(plaga);
     }

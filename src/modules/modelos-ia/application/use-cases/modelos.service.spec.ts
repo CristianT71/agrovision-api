@@ -1,5 +1,7 @@
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { Readable } from "node:stream";
+import { BadRequestException, ConflictException, Logger, NotFoundException } from "@nestjs/common";
 import { SubirModeloService } from "./subir-modelo.service";
+import { CompletarArtefactosService } from "./completar-artefactos.service";
 import { RegistrarMetricasService } from "./registrar-metricas.service";
 import { CambiarCanalService } from "./cambiar-canal.service";
 import { ActivarKillSwitchService } from "./activar-kill-switch.service";
@@ -65,6 +67,7 @@ const ARTEFACTOS: ArtefactosModelo = {
     sha256: "ab".repeat(32),
     firma: "firma-base64",
     numeroClases: 2,
+    clases: ["Enfermedad_Roya", "Sana"],
 };
 
 // Modelo listo para publicarse, llevado por el pipeline hasta el canal pedido
@@ -74,7 +77,7 @@ function modeloEn(canal: Canal, id: string, version: string): ModeloIa {
         version,
         formato: "tflite",
         versionMinApp: "2.0.0",
-        artefactos: ARTEFACTOS,
+        artefactos: { ...ARTEFACTOS },
         creadoPor: "u-admin",
     });
     modelo.registrarMetricas([MetricaModelo.crear({ precision: 0.98, recall: 0.97, f1: 0.98 })]);
@@ -105,7 +108,7 @@ describe("Modelos IA - casos de uso", () => {
             Promise.resolve(`${carpeta}/archivo-${++numero}`),
         );
         eliminarPrivado = jest.fn<Promise<void>, [string]>(() => Promise.resolve());
-        firmarConjunto = jest.fn(() => "firma-ed25519");
+        firmarConjunto = jest.fn<string | null, Parameters<IFirmadorModelos["firmarConjunto"]>>(() => "firma-ed25519");
 
         repositorio = {
             findById: jest.fn().mockResolvedValue(null),
@@ -123,6 +126,7 @@ describe("Modelos IA - casos de uso", () => {
             eliminarPublico: jest.fn(),
             guardarPrivado,
             leerPrivado: jest.fn().mockResolvedValue(Buffer.from("contenido")),
+            abrirLecturaPrivada: jest.fn().mockResolvedValue({ flujo: Readable.from(["contenido"]), tamano: 9 }),
             eliminarPrivado,
         };
     });
@@ -166,8 +170,109 @@ describe("Modelos IA - casos de uso", () => {
             expect(guardarPrivado).not.toHaveBeenCalled();
         });
 
-        it("un .tflite sin calibración no se acepta: la app no podría activarlo", async () => {
-            await expect(subir({ calibracion: null })).rejects.toBeInstanceOf(BadRequestException);
+        it("acepta el .tflite solo: queda en borrador, sin firma y sin poder publicarse", async () => {
+            const vista = await subir({ etiquetas: null, calibracion: null });
+
+            expect(vista).toMatchObject({
+                canal: "borrador",
+                formato: "tflite",
+                firmado: false,
+                artefactosCompletos: false,
+                numeroClases: null,
+            });
+            expect(guardarPrivado).toHaveBeenCalledTimes(1);
+            expect(firmarConjunto).not.toHaveBeenCalled();
+        });
+
+        it("con labels.txt guarda las clases en el orden del archivo", async () => {
+            const vista = await new SubirModeloService(repositorio, firmador(), almacenamiento).ejecutar({
+                adminUsuarioId: "u-admin",
+                version: "1.0.0",
+                versionMinApp: "2.0.0",
+                modelo: archivo("model_coffee_int8.tflite", TFLITE),
+                etiquetasTexto: archivo("labels.txt", Buffer.from("Cerscospora\r\nHealthy\n\nLeaf rust\n")),
+            });
+
+            // El .tflite y su labels.txt bastan: se arman labels.json y calibration.json de un modelo
+            // simple, el modelo queda firmado y la app lo puede instalar
+            expect(vista).toMatchObject({
+                numeroClases: 3,
+                clases: ["Cerscospora", "Healthy", "Leaf rust"],
+                firmado: true,
+                artefactosCompletos: true,
+            });
+            expect(guardarPrivado).toHaveBeenCalledTimes(3);
+            const { etiquetas, calibracion } = firmarConjunto.mock.calls[0][0];
+            const labels = JSON.parse(etiquetas.toString()) as {
+                classes: { class_id: string; pest_id: string | null }[];
+            };
+            expect(labels.classes.map((c) => c.pest_id)).toEqual([
+                "Enfermedad_ManchadeHierro",
+                null,
+                "Enfermedad_Roya",
+            ]);
+            expect(JSON.parse(calibracion.toString())).toMatchObject({ class_centroids: [], precision_matrix: [] });
+        });
+
+        it("enlaza las 8 clases del entrenamiento 2.0.0 con las fichas del catálogo de la app", async () => {
+            const clases = [
+                "Cerscospora",
+                "Healthy",
+                "Leaf rust",
+                "Miner",
+                "Phoma",
+                "Deficiencia_Azufre",
+                "Deficiencia_Potasio",
+                "Enfermedad_Antracnosis",
+            ];
+            await new SubirModeloService(repositorio, firmador(), almacenamiento).ejecutar({
+                adminUsuarioId: "u-admin",
+                version: "2.0.0",
+                versionMinApp: "2.0.0",
+                modelo: archivo("model_coffee_int8.tflite", TFLITE),
+                etiquetasTexto: archivo("labels.txt", Buffer.from(clases.join("\n"))),
+            });
+
+            const { etiquetas } = firmarConjunto.mock.calls[0][0];
+            const labels = JSON.parse(etiquetas.toString()) as { classes: { pest_id: string | null }[] };
+            expect(labels.classes.map((c) => c.pest_id)).toEqual([
+                "Enfermedad_ManchadeHierro",
+                null,
+                "Enfermedad_Roya",
+                "Plaga_Minador",
+                "Enfermedad_Phoma",
+                "Deficiencia_Azufre",
+                "Deficiencia_Potasio",
+                "Enfermedad_Antracnosis",
+            ]);
+        });
+
+        it("rechaza un labels.txt con clases repetidas", async () => {
+            await expect(
+                new SubirModeloService(repositorio, firmador(), almacenamiento).ejecutar({
+                    adminUsuarioId: "u-admin",
+                    version: "1.0.0",
+                    versionMinApp: "2.0.0",
+                    modelo: archivo("modelo.tflite", TFLITE),
+                    etiquetasTexto: archivo("labels.txt", Buffer.from("Sana\nSana\n")),
+                }),
+            ).rejects.toBeInstanceOf(BadRequestException);
+        });
+
+        it("rechaza una calibración sin labels.json con que validarla", async () => {
+            await expect(subir({ etiquetas: null })).rejects.toBeInstanceOf(BadRequestException);
+        });
+
+        it("guarda un .keras como referencia, reconocido por su extensión", async () => {
+            const zip = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(32)]);
+            const vista = await new SubirModeloService(repositorio, firmador(), almacenamiento).ejecutar({
+                adminUsuarioId: "u-admin",
+                version: "1.0.0",
+                versionMinApp: "2.0.0",
+                modelo: archivo("modelo.keras", zip),
+            });
+
+            expect(vista).toMatchObject({ formato: "keras", canal: "borrador", firmado: false });
         });
 
         it("rechaza una calibración incoherente con las etiquetas", async () => {
@@ -191,6 +296,123 @@ describe("Modelos IA - casos de uso", () => {
 
             await expect(subir()).rejects.toBeInstanceOf(ReglaNegocioError);
             expect(eliminarPrivado).toHaveBeenCalledTimes(3);
+        });
+    });
+
+    describe("CompletarArtefactosService", () => {
+        const completar = (archivos: { etiquetas?: Buffer; calibracion?: Buffer; texto?: Buffer }) =>
+            new CompletarArtefactosService(repositorio, { firmarConjunto }, almacenamiento).ejecutar({
+                adminUsuarioId: "u-admin",
+                modeloId: "m-1",
+                etiquetas: archivos.etiquetas && archivo("labels.json", archivos.etiquetas),
+                calibracion: archivos.calibracion && archivo("calibration.json", archivos.calibracion),
+                etiquetasTexto: archivos.texto && archivo("labels.txt", archivos.texto),
+            });
+
+        const soloModelo = (): ModeloIa =>
+            ModeloIa.registrar({
+                id: "m-1",
+                version: "1.0.0",
+                formato: "tflite",
+                versionMinApp: "2.0.0",
+                artefactos: { ...ARTEFACTOS, rutaEtiquetas: null, rutaCalibracion: null, firma: null, clases: null },
+                creadoPor: "u-admin",
+            });
+
+        it("con labels.json y calibration.json firma el conjunto y lo deja listo para publicar", async () => {
+            repositorio.findById.mockResolvedValue(soloModelo());
+
+            const vista = await completar({ etiquetas: ETIQUETAS, calibracion: CALIBRACION });
+
+            expect(vista).toMatchObject({ firmado: true, artefactosCompletos: true, numeroClases: 2 });
+            expect(guardarCambios.mock.calls[0][1][0]).toMatchObject({ accion: "artefactos" });
+        });
+
+        it("con solo labels.json guarda las etiquetas y sigue sin firma", async () => {
+            repositorio.findById.mockResolvedValue(soloModelo());
+
+            const vista = await completar({ etiquetas: ETIQUETAS });
+
+            expect(vista).toMatchObject({
+                firmado: false,
+                artefactosCompletos: false,
+                clases: ["Enfermedad_Roya", "Sana"],
+            });
+            expect(firmarConjunto).not.toHaveBeenCalled();
+        });
+
+        it("la calibración llega después: toma las etiquetas ya guardadas", async () => {
+            const modelo = soloModelo();
+            modelo.artefactos.rutaEtiquetas = "modelos/1.0.0/etiquetas";
+            repositorio.findById.mockResolvedValue(modelo);
+            (almacenamiento.leerPrivado as jest.Mock).mockResolvedValue(ETIQUETAS);
+
+            const vista = await completar({ calibracion: CALIBRACION });
+
+            expect(vista).toMatchObject({ firmado: true, artefactosCompletos: true });
+        });
+
+        it("un modelo publicado no admite cambios de archivos", async () => {
+            repositorio.findById.mockResolvedValue(modeloEn("canario", "m-1", "1.0.0"));
+
+            await expect(completar({ etiquetas: ETIQUETAS, calibracion: CALIBRACION })).rejects.toBeInstanceOf(
+                ReglaNegocioError,
+            );
+            expect(guardarPrivado).not.toHaveBeenCalled();
+        });
+
+        it("con labels.txt arma los archivos de un modelo simple y lo firma", async () => {
+            repositorio.findById.mockResolvedValue(soloModelo());
+
+            const vista = await completar({ texto: Buffer.from("Healthy\nLeaf rust\n") });
+
+            expect(vista).toMatchObject({ firmado: true, artefactosCompletos: true, numeroClases: 2 });
+        });
+
+        it("sin archivos usa las clases que el modelo guardó al subirse", async () => {
+            const modelo = soloModelo();
+            modelo.artefactos.clases = ["Healthy", "Miner"];
+            modelo.artefactos.numeroClases = 2;
+            repositorio.findById.mockResolvedValue(modelo);
+
+            const vista = await completar({});
+
+            expect(vista).toMatchObject({ firmado: true, artefactosCompletos: true });
+        });
+
+        it("si falla el borrado de los archivos reemplazados, conserva los nuevos que ya referencia la BD", async () => {
+            const modelo = soloModelo();
+            modelo.artefactos.rutaEtiquetas = "modelos/1.0.0/etiquetas-viejas";
+            repositorio.findById.mockResolvedValue(modelo);
+            const aviso = jest.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
+            eliminarPrivado.mockRejectedValue(new Error("disco no disponible"));
+
+            const vista = await completar({ etiquetas: ETIQUETAS });
+
+            expect(vista).toMatchObject({ clases: ["Enfermedad_Roya", "Sana"] });
+            expect(guardarCambios).toHaveBeenCalledTimes(1);
+            // Solo se intentó borrar el archivo anterior, nunca el recién guardado
+            expect(eliminarPrivado.mock.calls).toEqual([["modelos/1.0.0/etiquetas-viejas"]]);
+            expect(aviso).toHaveBeenCalled();
+            aviso.mockRestore();
+        });
+
+        it("si el guardado en BD no se confirma, borra los archivos nuevos y conserva los anteriores", async () => {
+            const modelo = soloModelo();
+            modelo.artefactos.rutaEtiquetas = "modelos/1.0.0/etiquetas-viejas";
+            repositorio.findById.mockResolvedValue(modelo);
+            guardarCambios.mockResolvedValue(false);
+
+            await expect(completar({ etiquetas: ETIQUETAS })).rejects.toBeInstanceOf(ReglaNegocioError);
+            expect(eliminarPrivado.mock.calls).toEqual([["modelos/1.0.0/archivo-1"]]);
+        });
+
+        it("exige algún archivo cuando el modelo no tiene clases, y que el modelo exista", async () => {
+            repositorio.findById.mockResolvedValue(soloModelo());
+            await expect(completar({})).rejects.toBeInstanceOf(BadRequestException);
+
+            repositorio.findById.mockResolvedValue(null);
+            await expect(completar({ etiquetas: ETIQUETAS })).rejects.toBeInstanceOf(NotFoundException);
         });
     });
 

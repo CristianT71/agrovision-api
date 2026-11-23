@@ -59,5 +59,5 @@ export class ListarSolicitudesService implements IListarSolicitudesUseCase {
 }
 
 function aVista({ solicitud, productorNombre }: SolicitudConProductor): SolicitudVista {
-    return Object.assign(solicitud, { productorNombre });
+    return Object.assign(solicitud.sinUbicacion(), { productorNombre, tieneUbicacion: solicitud.tieneUbicacion() });
 }

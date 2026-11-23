@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { QueryFailedError, Repository, type EntityManager, type FindOptionsWhere } from "typeorm";
+import { IsNull, QueryFailedError, Repository, type EntityManager, type FindOptionsWhere } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
+import { ReglaNegocioError } from "../../../../../../common/errors/regla-negocio.error";
 import type { FiltrosModelo, IModeloIaRepository } from "../../../../domain/ports/out/modelo-ia.repository";
 import type { ModeloIa } from "../../../../domain/entities/modelo-ia.entity";
 import { RegistroAuditoria, type AccionAuditoria } from "../../../../domain/entities/registro-auditoria.entity";
@@ -64,6 +65,12 @@ export class TypeOrmModeloIaRepository implements IModeloIaRepository {
     async guardarMetricas(modelo: ModeloIa, auditoria: RegistroAuditoria): Promise<void> {
         // Se reemplazan completas en una transacción: nunca quedan mezcladas la versión vieja y la nueva
         await this.modeloRepository.manager.transaction(async (manager) => {
+            // La transacción sola no serializa dos reemplazos simultáneos (ambos borran y ambos insertan):
+            // bloquear la fila del modelo hace que el segundo espere a que el primero confirme
+            await manager.findOne(TypeOrmModeloIaEntity, {
+                where: { id: modelo.id },
+                lock: { mode: "pessimistic_write" },
+            });
             await manager.delete(TypeOrmMetricaModeloEntity, { modeloId: modelo.id });
             await manager.insert(
                 TypeOrmMetricaModeloEntity,
@@ -86,7 +93,25 @@ export class TypeOrmModeloIaRepository implements IModeloIaRepository {
                 // En orden: el modelo retirado deja libre su canal antes de que otro lo ocupe
                 for (const modelo of modelos) {
                     const { id, ...columnas } = modeloAPersistencia(modelo);
-                    await manager.update(TypeOrmModeloIaEntity, { id }, columnas);
+                    // Solo si nadie lo cambió desde que se leyó: dos administradores editando a la vez
+                    // no se pisan en silencio
+                    const { cargado } = modelo;
+                    const { affected } = await manager.update(
+                        TypeOrmModeloIaEntity,
+                        {
+                            id,
+                            canal: cargado.canal,
+                            killSwitch: cargado.killSwitch,
+                            rutaEtiquetas: cargado.rutaEtiquetas ?? IsNull(),
+                            rutaCalibracion: cargado.rutaCalibracion ?? IsNull(),
+                        },
+                        columnas,
+                    );
+                    if (affected === 0) {
+                        throw new ReglaNegocioError(
+                            `El modelo ${modelo.version} cambió mientras lo editabas: recarga e inténtalo de nuevo.`,
+                        );
+                    }
                 }
                 await this.insertarAuditoria(manager, auditorias);
             });
