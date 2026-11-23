@@ -41,9 +41,10 @@ El informe salió completo en menos de un minuto y no diagnostica ni recomienda 
 
 - La ficha de **Hormigas (hormigueros)** la redacté yo con conocimiento general: que un agrónomo la revise y la avale.
   Falta completar su nombre científico.
-- El campo `modelo` de la ficha **Hormigas (hormigueros)** viene `null` en la API pública, aunque el modelo 3.0.0 la reconoce:
-  el enlace sale de una tabla fija por UUID (`src/modules/plagas/domain/catalogo-clases.ts`) y esa ficha se creó a mano en la nube.
-  Hay que sembrarla con un UUID fijo (migración) y agregarla a la tabla.
+- La ficha de hormigas se creó desde el panel de la nube (no por migración): su UUID cambia entre bases. El enlace con el modelo
+  se resuelve por clave (`CLASES_CATALOGO_POR_CLAVE`), pero conviene sembrarla con un UUID fijo en una migración.
+- El catálogo de la nube quedó con las 17 fichas que reconoce el modelo 3.0.0 (se borraron `Roya` y `Ojo de Gallo`). El catálogo
+  de la PC todavía tiene las 19: igualarlo cuando se prenda el API local.
 - Las **reglas de zona** son valores de ejemplo: solo la de roya está activa. Hay que calibrarlas con un agrónomo.
 - Las fichas de las 8 deficiencias tienen foto, pero su relación foto-síntoma no está validada por un agrónomo.
 

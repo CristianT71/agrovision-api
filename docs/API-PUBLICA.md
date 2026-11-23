@@ -108,9 +108,8 @@ curl "https://agrovision.sbs/api/public/v1/catalog?q=roya"
 
 ## Las clases del modelo
 
-El modelo de reconocimiento publicado hoy es la versión **2.0.0** (8 clases). La **3.0.0** agrega 8
-deficiencias nutricionales, hasta 16 clases. El campo `modelo.desdeVersion` indica desde qué versión
-el modelo reconoce cada clase; las de `3.0.0` están en preparación.
+El modelo de reconocimiento publicado hoy es la versión **3.0.0**, con 17 clases, y el catálogo tiene una ficha por cada una.
+El campo `modelo.desdeVersion` indica desde qué versión el modelo reconoce cada ficha (2.0.0 o 3.0.0).
 
 | Clave | Clase del modelo | Desde |
 |---|---|---|
@@ -130,9 +129,7 @@ el modelo reconoce cada clase; las de `3.0.0` están en preparación.
 | `Deficiencia_Manganeso` | `Deficiencia_Manganeso` | 3.0.0 |
 | `Deficiencia_Magnesio` | `Deficiencia_Magnesio` | 3.0.0 |
 | `Deficiencia_Zinc` | `Deficiencia_Zinc` | 3.0.0 |
-
-El catálogo también incluye la ficha `Enfermedad_OjodeGallo`, que el modelo todavía no reconoce
-(`modelo: null`).
+| `Hormigas_hormigueros` | `Hormigas_hormigueros` | 3.0.0 |
 
 ## Qué NO expone esta API
 

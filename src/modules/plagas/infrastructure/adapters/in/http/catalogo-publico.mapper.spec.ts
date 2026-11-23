@@ -31,6 +31,30 @@ describe("Catálogo público: mapper", () => {
         expect(ficha.protocoloQuimico).toBeNull();
     });
 
+    it("la ficha de hormigas se enlaza con la clase del modelo aunque su UUID sea otro (se busca por clave)", () => {
+        const hormigas = new Plaga(
+            "11111111-2222-4333-8444-555555555555",
+            "Hormigas (hormigueros)",
+            null,
+            "plaga",
+            "Descripción",
+            "Síntomas",
+            "cafe",
+            ["raíz"],
+            [],
+            "Medidas",
+            null,
+            null,
+            [],
+            [],
+        );
+
+        const ficha = aFichaPublica(hormigas, "https://agrovision.sbs");
+
+        expect(ficha.clave).toBe("Hormigas_hormigueros");
+        expect(ficha.modelo).toEqual({ clase: "Hormigas_hormigueros", desdeVersion: "3.0.0" });
+    });
+
     it("con aval publica las medidas y el protocolo, pero no quién firmó", () => {
         const ficha = aFichaPublica(crearFicha(ID_ROYA, true), "https://agrovision.sbs");
 

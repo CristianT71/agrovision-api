@@ -79,4 +79,15 @@ export const CLASES_CATALOGO: Readonly<Record<string, ClaseCatalogo>> = {
         clase: "Deficiencia_Zinc",
         desdeVersion: "3.0.0",
     },
+    "ab226512-2dcf-45e8-82b4-95edc9dc4a98": {
+        clave: "Hormigas_hormigueros",
+        clase: "Hormigas_hormigueros",
+        desdeVersion: "3.0.0",
+    },
 };
+
+// La ficha de hormigas se creó desde el panel y no la siembra ninguna migración: su UUID cambia entre bases.
+// Por eso también se busca por clave, que se deriva del nombre y no cambia.
+export const CLASES_CATALOGO_POR_CLAVE: Readonly<Record<string, ClaseCatalogo>> = Object.fromEntries(
+    Object.values(CLASES_CATALOGO).map((clase) => [clase.clave, clase]),
+);

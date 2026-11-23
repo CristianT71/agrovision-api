@@ -1,5 +1,5 @@
 import type { Plaga } from "../../../../domain/entities/plaga.entity";
-import { CLASES_CATALOGO } from "../../../../domain/catalogo-clases";
+import { CLASES_CATALOGO, CLASES_CATALOGO_POR_CLAVE } from "../../../../domain/catalogo-clases";
 
 // Lo que la API pública del catálogo entrega de cada ficha. Es una lista blanca: lo que no está aquí
 // no sale (ni los avales con el nombre del agrónomo, ni nada de solicitudes o productores).
@@ -42,7 +42,7 @@ function urlAbsoluta(ruta: string | null, base: string): string | null {
 }
 
 export function aFichaPublica(plaga: Plaga, urlBase: string): FichaPublica {
-    const mapeada = CLASES_CATALOGO[plaga.id];
+    const mapeada = CLASES_CATALOGO[plaga.id] ?? CLASES_CATALOGO_POR_CLAVE[claveDesdeNombre(plaga.nombreComun)];
     const avalada = plaga.tieneAval();
 
     return {
