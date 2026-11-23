@@ -25,8 +25,14 @@
 		file_server
 	}
 
+	# El panel: los archivos de /assets llevan el hash en el nombre y se pueden guardar para siempre; todo lo demás
+	# (index.html y las rutas del panel) no se guarda, para que una versión nueva se vea sin Ctrl+F5.
 	handle {
 		root * /srv/panel
+		@assets path /assets/*
+		@noassets not path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header @noassets Cache-Control "no-cache"
 		try_files {path} /index.html
 		file_server
 	}
