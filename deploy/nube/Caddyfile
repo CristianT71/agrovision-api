@@ -14,6 +14,17 @@
 		reverse_proxy api:3000
 	}
 
+	# Descarga pública de la app: /descargas es una página del panel y /descargas/archivos/ guarda el APK
+	# y su version.json (se copian al servidor sin recompilar el panel)
+	@descargas path /descargas/archivos/*
+	handle @descargas {
+		uri strip_prefix /descargas/archivos
+		root * /srv/descargas
+		header Cache-Control "no-cache"
+		header X-Content-Type-Options "nosniff"
+		file_server
+	}
+
 	handle {
 		root * /srv/panel
 		try_files {path} /index.html

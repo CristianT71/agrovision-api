@@ -101,6 +101,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # El panel ya compilado (npm run build con VITE_API_URL=https://agrovision.sbs/api)
       - ./panel:/srv/panel:ro
+      # CoffeeCheck.apk y version.json de la página pública /descargas
+      - ./descargas:/srv/descargas:ro
       - caddy_data:/data
       - caddy_config:/config
 
