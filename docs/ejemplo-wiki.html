@@ -155,7 +155,7 @@
     $('resultado').replaceChildren()
     try {
       const respuesta = await fetch(url)
-      if (respuesta.status === 429) throw new Error('Demasiadas peticiones (límite: 60 por minuto). Espera un momento.')
+      if (respuesta.status === 429) throw new Error('Demasiadas peticiones (límite: 300 por minuto). Espera un momento.')
       if (!respuesta.ok) throw new Error('La API respondió ' + respuesta.status)
       const { total, fichas } = await respuesta.json()
       mostrarEstado(total === 0 ? 'Sin resultados para esa búsqueda.' : total + (total === 1 ? ' ficha' : ' fichas'))

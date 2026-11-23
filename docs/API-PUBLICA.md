@@ -6,7 +6,7 @@ otros proyectos (por ejemplo una wiki) la consuman.
 - **Solo lectura.** Solo existen peticiones `GET`.
 - **Sin cuenta ni llave.** No hay que registrarse ni enviar ningún encabezado especial.
 - **Se puede llamar desde el navegador** (CORS abierto para estas rutas).
-- **Límite:** 60 peticiones por minuto por dirección IP. Si lo superas responde `429`. Guarda la
+- **Límite:** 300 peticiones por minuto por dirección IP en el catálogo (60 en las reglas de zona). Si lo superas responde `429`. Guarda la
   respuesta en tu proyecto en vez de pedirla en cada visita.
 
 **URL base:** `https://agrovision.sbs/api/public/v1/catalog`
