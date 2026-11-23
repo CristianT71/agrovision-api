@@ -65,7 +65,7 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "openai/gpt-oss-120b",
+          "value": "accounts/fireworks/models/kimi-k3p1-pro",
           "mode": "id"
         },
         "options": {
@@ -84,8 +84,8 @@
       ],
       "credentials": {
         "openAiApi": {
-          "id": "fYjKiZwVBiK1XZmB",
-          "name": "OpenAI account"
+          "id": "Cryg3T7vb1XycwP3",
+          "name": "Fireworks AI"
         }
       }
     },

@@ -81,13 +81,13 @@
             {
               "id": "15d16aaf",
               "name": "config.modelo",
-              "value": "qwen/qwen3.8-27b",
+              "value": "accounts/fireworks/models/qwen3p8-max",
               "type": "string"
             },
             {
               "id": "c2f7744f",
               "name": "config.maxTokens",
-              "value": 950,
+              "value": 2500,
               "type": "number"
             },
             {
@@ -242,12 +242,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "url": "https://api.fireworks.ai/inference/v1/chat/completions",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: $json.cfg.modelo, max_tokens: $json.cfg.maxTokens, temperature: 0.2, response_format: { type: 'json_object' }, messages: $json.mensajes }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: $json.cfg.modelo, reasoning_effort: 'low', max_tokens: $json.cfg.maxTokens, temperature: 0.2, response_format: { type: 'json_object' }, messages: $json.mensajes }) }}",
         "options": {
           "response": {
             "response": {
@@ -268,8 +268,8 @@
       ],
       "credentials": {
         "openAiApi": {
-          "id": "fYjKiZwVBiK1XZmB",
-          "name": "OpenAI account"
+          "id": "Cryg3T7vb1XycwP3",
+          "name": "Fireworks AI"
         }
       }
     },
