@@ -41,6 +41,9 @@ El informe salió completo en menos de un minuto y no diagnostica ni recomienda 
 
 - La ficha de **Hormigas (hormigueros)** la redacté yo con conocimiento general: que un agrónomo la revise y la avale.
   Falta completar su nombre científico.
+- El campo `modelo` de la ficha **Hormigas (hormigueros)** viene `null` en la API pública, aunque el modelo 3.0.0 la reconoce:
+  el enlace sale de una tabla fija por UUID (`src/modules/plagas/domain/catalogo-clases.ts`) y esa ficha se creó a mano en la nube.
+  Hay que sembrarla con un UUID fijo (migración) y agregarla a la tabla.
 - Las **reglas de zona** son valores de ejemplo: solo la de roya está activa. Hay que calibrarlas con un agrónomo.
 - Las fichas de las 8 deficiencias tienen foto, pero su relación foto-síntoma no está validada por un agrónomo.
 
